@@ -1,0 +1,41 @@
+name: Watch
+
+# The 30-minute watcher (worker/run.ts). Notes:
+# - Scheduled workflows only run from the default branch (main).
+# - GitHub can start scheduled runs several minutes late; that's fine here.
+# - GitHub disables schedules in a public repo after 60 days with no repo
+#   activity. M12 adds a staleness alert on `runs`.
+# - Missing secrets make the worker skip with a warning annotation, not fail.
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch: # run by hand from the Actions tab
+
+permissions:
+  contents: read
+
+# Never let two runs overlap; a slow run delays the next instead of racing it.
+concurrency:
+  group: watch
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Run worker
+        run: npm run worker
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

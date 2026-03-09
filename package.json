@@ -7,6 +7,7 @@
   },
   "scripts": {
     "dev": "next dev",
+    "dev:local": "node scripts/with-local-supabase.mjs next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
@@ -16,9 +17,12 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:local": "node scripts/with-local-supabase.mjs playwright test",
     "worker": "node --env-file-if-exists=.env.local --import tsx worker/run.ts",
     "db:push": "supabase db push",
-    "db:reset:local": "supabase db reset"
+    "db:reset:local": "supabase db reset",
+    "db:types": "supabase gen types typescript --local > lib/supabase/database.types.ts && prettier --write lib/supabase/database.types.ts",
+    "db:test:rls": "node scripts/with-local-supabase.mjs node --import tsx supabase/tests/rls.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",

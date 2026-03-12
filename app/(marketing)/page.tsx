@@ -1,6 +1,8 @@
 import { BellRing, ClipboardList, FileText, Radar } from "lucide-react";
+import Link from "next/link";
 
 import { Logo } from "@/components/brand/logo";
+import { Button } from "@/components/ui/button";
 
 const FEATURES = [
   {
@@ -28,8 +30,11 @@ const FEATURES = [
 export default function HomePage() {
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-5 py-6 sm:py-10">
-      <header>
+      <header className="flex items-center justify-between">
         <Logo />
+        <Button asChild variant="outline">
+          <Link href="/sign-in">Sign in</Link>
+        </Button>
       </header>
 
       <main className="flex flex-1 flex-col justify-center py-10">

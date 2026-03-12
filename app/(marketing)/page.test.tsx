@@ -14,4 +14,12 @@ describe("HomePage", () => {
       screen.getByText(/never submits anything for you/i),
     ).toBeInTheDocument();
   });
+
+  it("links to sign-in", () => {
+    render(<HomePage />);
+    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
+      "href",
+      "/sign-in",
+    );
+  });
 });

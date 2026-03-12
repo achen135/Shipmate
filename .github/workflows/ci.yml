@@ -65,3 +65,55 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
+  # Everything that needs a real database: RLS tests with real user JWTs, a
+  # check that the generated types match the migrations, and the auth E2E
+  # (sign-in, invites, onboarding) against a build pointed at the local stack.
+  db:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Start local Supabase (applies migrations)
+        run: >-
+          npx supabase start
+          -x realtime,storage-api,imgproxy,edge-runtime,logflare,vector,supavisor,studio
+
+      - name: Generated types match the migrations
+        run: |
+          npm run db:types
+          git diff --exit-code lib/supabase/database.types.ts
+
+      - name: RLS tests
+        run: npm run db:test:rls
+
+      - name: Build against local Supabase
+        run: node scripts/with-local-supabase.mjs npm run build
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Auth E2E
+        run: npm run test:e2e:local
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-db
+          path: playwright-report/
+          retention-days: 7

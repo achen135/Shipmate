@@ -15,6 +15,9 @@ export default defineConfig({
   use: {
     baseURL: `http://localhost:${PORT}`,
     trace: "on-first-retry",
+    // Fail at the stuck step rather than at the whole-test timeout.
+    actionTimeout: 10_000,
+    navigationTimeout: 15_000,
   },
   projects: [
     // Mobile-first app: the phone viewport is the primary target.

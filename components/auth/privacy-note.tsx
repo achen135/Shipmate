@@ -1,4 +1,5 @@
 import { LockKeyhole } from "lucide-react";
+import Link from "next/link";
 
 import { cn } from "@/lib/utils";
 
@@ -23,6 +24,14 @@ export function PrivacyNote({ className }: { className?: string }) {
       <p className="mt-2">
         One caveat: Alex, who runs Shipmate, can see all data in the database
         dashboard and holds the master key that encrypts saved AI keys.
+      </p>
+      <p className="mt-2">
+        <Link
+          href="/privacy"
+          className="text-foreground underline underline-offset-4"
+        >
+          Read the full privacy page
+        </Link>
       </p>
     </aside>
   );

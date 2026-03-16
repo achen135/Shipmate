@@ -22,4 +22,12 @@ describe("HomePage", () => {
       "/sign-in",
     );
   });
+
+  it("links to the privacy page from the footer", () => {
+    render(<HomePage />);
+    expect(screen.getByRole("link", { name: "Privacy" })).toHaveAttribute(
+      "href",
+      "/privacy",
+    );
+  });
 });

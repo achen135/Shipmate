@@ -58,8 +58,11 @@ export default function HomePage() {
         </ul>
       </main>
 
-      <footer className="border-t pt-4 text-sm text-muted-foreground">
-        Invite-only while in development.
+      <footer className="flex flex-wrap justify-between gap-2 border-t pt-4 text-sm text-muted-foreground">
+        <span>Invite-only while in development.</span>
+        <Link href="/privacy" className="underline underline-offset-4">
+          Privacy
+        </Link>
       </footer>
     </div>
   );

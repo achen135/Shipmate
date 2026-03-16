@@ -9,7 +9,7 @@ describe("HomePage", () => {
     expect(
       screen.getByRole("heading", { level: 1, name: /internship season/i }),
     ).toBeInTheDocument();
-    expect(screen.getByText("ShipMate")).toBeInTheDocument();
+    expect(screen.getByText("Shipmate")).toBeInTheDocument();
     expect(
       screen.getByText(/never submits anything for you/i),
     ).toBeInTheDocument();

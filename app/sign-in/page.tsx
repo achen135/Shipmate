@@ -21,7 +21,7 @@ export default function SignInPage({ searchParams }: PageProps<"/sign-in">) {
   return (
     <div className="mx-auto flex w-full max-w-md flex-1 flex-col px-5 py-6">
       <header>
-        <Link href="/" aria-label="ShipMate home">
+        <Link href="/" aria-label="Shipmate home">
           <Logo />
         </Link>
       </header>
@@ -32,7 +32,7 @@ export default function SignInPage({ searchParams }: PageProps<"/sign-in">) {
             Sign in
           </h1>
           <p className="mt-2 text-muted-foreground">
-            ShipMate is invite-only for now. No passwords: use Google
+            Shipmate is invite-only for now. No passwords: use Google
             {emailSignInEnabled() ? " or an email link" : ""}.
           </p>
         </div>

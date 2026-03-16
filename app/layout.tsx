@@ -22,12 +22,12 @@ const fraunces = Fraunces({
 
 export const metadata: Metadata = {
   title: {
-    default: "ShipMate",
-    template: "%s · ShipMate",
+    default: "Shipmate",
+    template: "%s · Shipmate",
   },
   description:
     "Your crewmate for internship season: watches job sources, matches postings to your searches, and tracks your applications. You always submit yourself.",
-  applicationName: "ShipMate",
+  applicationName: "Shipmate",
 };
 
 export const viewport: Viewport = {

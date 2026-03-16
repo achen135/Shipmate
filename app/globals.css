@@ -17,7 +17,7 @@
   /* Serif for the wordmark and page headings only: the "flavor" in the motif. */
   --font-heading: var(--font-fraunces);
 
-  /* ShipMate brand tokens (beyond the shadcn set). */
+  /* Shipmate brand tokens (beyond the shadcn set). */
   --color-navy: var(--navy);
   --color-navy-foreground: var(--navy-foreground);
   --color-sand: var(--sand);

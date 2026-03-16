@@ -21,7 +21,7 @@ export function PrivacyNote({ className }: { className?: string }) {
         can&apos;t see them; the database itself enforces that.
       </p>
       <p className="mt-2">
-        One caveat: Alex, who runs ShipMate, can see all data in the database
+        One caveat: Alex, who runs Shipmate, can see all data in the database
         dashboard and holds the master key that encrypts saved AI keys.
       </p>
     </aside>

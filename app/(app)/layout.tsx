@@ -12,7 +12,7 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
   return (
     <div className="flex flex-1 flex-col pb-20">
       <header className="mx-auto flex w-full max-w-2xl items-center px-5 pt-4">
-        <Link href="/inbox" aria-label="ShipMate">
+        <Link href="/inbox" aria-label="Shipmate">
           <LogoMark className="size-7" />
         </Link>
       </header>

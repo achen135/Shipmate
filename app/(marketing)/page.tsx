@@ -42,7 +42,7 @@ export default function HomePage() {
           Your crewmate for internship season.
         </h1>
         <p className="mt-4 text-lg text-pretty text-muted-foreground">
-          ShipMate finds new postings, gets your application ready, and keeps
+          Shipmate finds new postings, gets your application ready, and keeps
           track of where everything stands. It never submits anything for you:
           you review, then apply.
         </p>

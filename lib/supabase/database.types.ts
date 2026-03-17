@@ -165,6 +165,7 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      dispatch_watch: { Args: Record<PropertyKey, never>; Returns: number };
       generate_invite_code: {
         Args: Record<PropertyKey, never>;
         Returns: string;

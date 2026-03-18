@@ -50,6 +50,34 @@ export type Database = {
         };
         Relationships: [];
       };
+      companies: {
+        Row: {
+          careers_url: string | null;
+          created_at: string;
+          id: string;
+          name: string;
+          normalized_name: string;
+          website: string | null;
+        };
+        ComputedFields: never;
+        Insert: {
+          careers_url?: string | null;
+          created_at?: string;
+          id?: string;
+          name: string;
+          normalized_name: string;
+          website?: string | null;
+        };
+        Update: {
+          careers_url?: string | null;
+          created_at?: string;
+          id?: string;
+          name?: string;
+          normalized_name?: string;
+          website?: string | null;
+        };
+        Relationships: [];
+      };
       invites: {
         Row: {
           code: string;
@@ -83,6 +111,148 @@ export type Database = {
           used_by?: string | null;
         };
         Relationships: [];
+      };
+      posting_sources: {
+        Row: {
+          active: boolean;
+          content_hash: string;
+          data: NonNullable<Json>;
+          first_seen_at: string;
+          id: string;
+          last_seen_at: string;
+          missed_runs: number;
+          posting_id: string;
+          raw: NonNullable<Json>;
+          source_id: string;
+          source_job_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          active?: boolean;
+          content_hash: string;
+          data: NonNullable<Json>;
+          first_seen_at?: string;
+          id?: string;
+          last_seen_at?: string;
+          missed_runs?: number;
+          posting_id: string;
+          raw: NonNullable<Json>;
+          source_id: string;
+          source_job_id: string;
+        };
+        Update: {
+          active?: boolean;
+          content_hash?: string;
+          data?: NonNullable<Json>;
+          first_seen_at?: string;
+          id?: string;
+          last_seen_at?: string;
+          missed_runs?: number;
+          posting_id?: string;
+          raw?: NonNullable<Json>;
+          source_id?: string;
+          source_job_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "posting_sources_posting_id_fkey";
+            columns: ["posting_id"];
+            isOneToOne: false;
+            referencedRelation: "postings";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "posting_sources_source_id_fkey";
+            columns: ["source_id"];
+            isOneToOne: false;
+            referencedRelation: "sources";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      postings: {
+        Row: {
+          ats: string | null;
+          ats_job_id: string | null;
+          canonical_url: string;
+          category: string | null;
+          closed_at: string | null;
+          company_id: string;
+          content_hash: string;
+          degrees: string[];
+          description: string | null;
+          first_seen_at: string;
+          fuzzy_key: string | null;
+          id: string;
+          last_seen_at: string;
+          locations: string[];
+          posted_at: string | null;
+          source_names: string[];
+          sponsorship: string;
+          status: string;
+          terms: string[];
+          title: string;
+          updated_at: string;
+          url: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          ats?: string | null;
+          ats_job_id?: string | null;
+          canonical_url: string;
+          category?: string | null;
+          closed_at?: string | null;
+          company_id: string;
+          content_hash: string;
+          degrees?: string[];
+          description?: string | null;
+          first_seen_at?: string;
+          fuzzy_key?: string | null;
+          id?: string;
+          last_seen_at?: string;
+          locations?: string[];
+          posted_at?: string | null;
+          source_names?: string[];
+          sponsorship?: string;
+          status?: string;
+          terms?: string[];
+          title: string;
+          updated_at?: string;
+          url: string;
+        };
+        Update: {
+          ats?: string | null;
+          ats_job_id?: string | null;
+          canonical_url?: string;
+          category?: string | null;
+          closed_at?: string | null;
+          company_id?: string;
+          content_hash?: string;
+          degrees?: string[];
+          description?: string | null;
+          first_seen_at?: string;
+          fuzzy_key?: string | null;
+          id?: string;
+          last_seen_at?: string;
+          locations?: string[];
+          posted_at?: string | null;
+          source_names?: string[];
+          sponsorship?: string;
+          status?: string;
+          terms?: string[];
+          title?: string;
+          updated_at?: string;
+          url?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "postings_company_id_fkey";
+            columns: ["company_id"];
+            isOneToOne: false;
+            referencedRelation: "companies";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       profiles: {
         Row: {
@@ -160,6 +330,109 @@ export type Database = {
         };
         Relationships: [];
       };
+      runs: {
+        Row: {
+          errors: NonNullable<Json>;
+          finished_at: string | null;
+          github_run_id: string | null;
+          id: string;
+          is_seed: boolean;
+          ok: boolean | null;
+          started_at: string;
+          stats: NonNullable<Json>;
+          trigger: string | null;
+        };
+        ComputedFields: never;
+        Insert: {
+          errors?: NonNullable<Json>;
+          finished_at?: string | null;
+          github_run_id?: string | null;
+          id?: string;
+          is_seed?: boolean;
+          ok?: boolean | null;
+          started_at?: string;
+          stats?: NonNullable<Json>;
+          trigger?: string | null;
+        };
+        Update: {
+          errors?: NonNullable<Json>;
+          finished_at?: string | null;
+          github_run_id?: string | null;
+          id?: string;
+          is_seed?: boolean;
+          ok?: boolean | null;
+          started_at?: string;
+          stats?: NonNullable<Json>;
+          trigger?: string | null;
+        };
+        Relationships: [];
+      };
+      sources: {
+        Row: {
+          company_id: string | null;
+          config: NonNullable<Json>;
+          created_at: string;
+          enabled: boolean;
+          id: string;
+          key: string;
+          kind: string;
+          last_alert: string | null;
+          last_checked_at: string | null;
+          last_count: number | null;
+          last_error: string | null;
+          last_sha_or_etag: string | null;
+          last_success_at: string | null;
+          name: string;
+          shard: number | null;
+          tier: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          company_id?: string | null;
+          config?: NonNullable<Json>;
+          created_at?: string;
+          enabled?: boolean;
+          id?: string;
+          key: string;
+          kind: string;
+          last_alert?: string | null;
+          last_checked_at?: string | null;
+          last_count?: number | null;
+          last_error?: string | null;
+          last_sha_or_etag?: string | null;
+          last_success_at?: string | null;
+          name: string;
+          shard?: number | null;
+          tier?: string;
+        };
+        Update: {
+          company_id?: string | null;
+          config?: NonNullable<Json>;
+          created_at?: string;
+          enabled?: boolean;
+          id?: string;
+          key?: string;
+          kind?: string;
+          last_alert?: string | null;
+          last_checked_at?: string | null;
+          last_count?: number | null;
+          last_error?: string | null;
+          last_sha_or_etag?: string | null;
+          last_success_at?: string | null;
+          name?: string;
+          shard?: number | null;
+          tier?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "sources_company_id_fkey";
+            columns: ["company_id"];
+            isOneToOne: false;
+            referencedRelation: "companies";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -172,6 +445,8 @@ export type Database = {
       };
       is_admin: { Args: Record<PropertyKey, never>; Returns: boolean };
       redeem_invite: { Args: { p_code: string }; Returns: string };
+      touch_seen: { Args: { p_link_ids: string[] }; Returns: undefined };
+      update_links: { Args: { p_links: Json }; Returns: undefined };
     };
     Enums: {
       [_ in never]: never;

@@ -1,0 +1,54 @@
+[
+  {
+    "date_updated": 1787327021,
+    "url": "https://crowe.wd12.myworkdayjobs.com/en-US/external_careers/job/Chicago-IL-USA/Data-Analytics-Developer-Intern_R-71041",
+    "locations": ["Chicago, IL"],
+    "sponsorship": "Does Not Offer Sponsorship",
+    "active": true,
+    "company_name": "Crowe",
+    "title": "Data Analytics Developer Intern",
+    "source": "vanshb03",
+    "id": "e9677871-f272-4634-ae22-2d8ad3b9846f",
+    "date_posted": 1787327021,
+    "company_url": "",
+    "is_visible": true,
+    "season": "Fall"
+  },
+  {
+    "date_updated": 1787326911,
+    "url": "https://careers.amd.com/careers-home/jobs/91180",
+    "locations": [
+      "Austin, TX",
+      "Boxborough, MA",
+      "Rochester, NY",
+      "Fort Collins, CO",
+      "Longmont, CO",
+      "Fishkill, NY"
+    ],
+    "sponsorship": "Does Not Offer Sponsorship",
+    "active": true,
+    "company_name": "AMD",
+    "title": "Software Engineer Intern",
+    "source": "vanshb03",
+    "id": "f1fb259b-d4f0-4533-bff6-ab51a408a4db",
+    "date_posted": 1787326911,
+    "company_url": "",
+    "is_visible": true,
+    "season": "Spring/Summer"
+  },
+  {
+    "date_updated": 1776726844,
+    "url": "https://jobs.smartrecruiters.com/NBCUniversal3/744000121851427",
+    "locations": ["Universal City, CA"],
+    "sponsorship": "Does Not Offer Sponsorship",
+    "active": true,
+    "company_name": "NBCUniversal",
+    "title": "Software Engineering Intern",
+    "source": "vanshb03",
+    "id": "181010e7-9a06-4910-b76b-4bd2594be51e",
+    "date_posted": 1776726844,
+    "company_url": "",
+    "is_visible": true,
+    "season": "Fall"
+  }
+]

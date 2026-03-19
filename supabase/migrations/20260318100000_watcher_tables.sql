@@ -95,8 +95,9 @@ create index postings_fuzzy_key on public.postings (fuzzy_key);
 create index postings_open_by_posted on public.postings (posted_at desc) where status = 'open';
 create index postings_company on public.postings (company_id);
 
+-- Only real changes: touch_seen() updates last_seen_at on every run.
 create trigger postings_set_updated_at
-  before update on public.postings
+  before update of content_hash, status on public.postings
   for each row execute function public.set_updated_at();
 
 -- ---------------------------------------------------------------- posting_sources

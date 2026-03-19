@@ -204,6 +204,8 @@ export type NewLinkRow = {
   content_hash: string;
   active: boolean;
   missed_runs: number;
+  /** Explicit (not the column default) so link order matches the plan's. */
+  first_seen_at: string;
 };
 
 /** For update_links(): content fields only when the content changed. */
@@ -377,6 +379,7 @@ export function planSource(
         content_hash: newLink.hash,
         active: true,
         missed_runs: 0,
+        first_seen_at: now,
       });
       dirty.add(postingId);
     }

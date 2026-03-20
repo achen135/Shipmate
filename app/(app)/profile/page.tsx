@@ -1,4 +1,4 @@
-import { ShieldCheck } from "lucide-react";
+import { Activity, ShieldCheck } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -49,12 +49,20 @@ export default async function ProfilePage() {
         </p>
         <div className="flex flex-wrap gap-3">
           {viewer.isAdmin && (
-            <Button asChild variant="outline">
-              <Link href="/admin/invites">
-                <ShieldCheck aria-hidden="true" />
-                Manage invites
-              </Link>
-            </Button>
+            <>
+              <Button asChild variant="outline">
+                <Link href="/admin/invites">
+                  <ShieldCheck aria-hidden="true" />
+                  Manage invites
+                </Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href="/admin/sources">
+                  <Activity aria-hidden="true" />
+                  Source health
+                </Link>
+              </Button>
+            </>
           )}
           <SignOutButton />
         </div>

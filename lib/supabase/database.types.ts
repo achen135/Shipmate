@@ -433,6 +433,110 @@ export type Database = {
           },
         ];
       };
+      user_postings: {
+        Row: {
+          created_at: string;
+          id: string;
+          posting_id: string;
+          seen_at: string | null;
+          skip_reason: string | null;
+          status: string;
+          updated_at: string;
+          user_id: string;
+          watch_profile_id: string | null;
+        };
+        ComputedFields: never;
+        Insert: {
+          created_at?: string;
+          id?: string;
+          posting_id: string;
+          seen_at?: string | null;
+          skip_reason?: string | null;
+          status?: string;
+          updated_at?: string;
+          user_id?: string;
+          watch_profile_id?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          posting_id?: string;
+          seen_at?: string | null;
+          skip_reason?: string | null;
+          status?: string;
+          updated_at?: string;
+          user_id?: string;
+          watch_profile_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "user_postings_posting_id_fkey";
+            columns: ["posting_id"];
+            isOneToOne: false;
+            referencedRelation: "postings";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "user_postings_watch_profile_id_fkey";
+            columns: ["watch_profile_id"];
+            isOneToOne: false;
+            referencedRelation: "watch_profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      watch_profiles: {
+        Row: {
+          active: boolean;
+          categories: string[];
+          created_at: string;
+          exclude_keywords: string[];
+          id: string;
+          include_keywords: string[];
+          locations: string[];
+          name: string;
+          needs_sponsorship: boolean;
+          preset: string;
+          remote_ok: boolean;
+          terms: string[];
+          updated_at: string;
+          user_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          active?: boolean;
+          categories?: string[];
+          created_at?: string;
+          exclude_keywords?: string[];
+          id?: string;
+          include_keywords?: string[];
+          locations?: string[];
+          name: string;
+          needs_sponsorship?: boolean;
+          preset: string;
+          remote_ok?: boolean;
+          terms?: string[];
+          updated_at?: string;
+          user_id?: string;
+        };
+        Update: {
+          active?: boolean;
+          categories?: string[];
+          created_at?: string;
+          exclude_keywords?: string[];
+          id?: string;
+          include_keywords?: string[];
+          locations?: string[];
+          name?: string;
+          needs_sponsorship?: boolean;
+          preset?: string;
+          remote_ok?: boolean;
+          terms?: string[];
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;

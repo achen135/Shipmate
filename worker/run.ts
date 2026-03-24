@@ -6,16 +6,20 @@
  *   1. aggregators: each source checks its upstream version and, if it
  *      changed, downloads a fresh snapshot
  *   2. normalize + dedupe + upsert, and close stale postings (per source,
- *      via lib/postings/plan.ts)
- *   3. write source health, with alerts
+ *      via lib/postings/plan.ts), writing source health with alerts
+ *   3. match newly listed postings to watch profiles → Inbox rows
  *   4. write the `runs` row
- * Later milestones add hot boards, matching, tailoring, and notifications.
+ * Later milestones add hot boards, tailoring, and notifications.
  */
 
 import { createClient } from "@supabase/supabase-js";
 
 import { createPoliteFetch } from "@/lib/http";
-import { type Snapshot, planSource } from "@/lib/postings/plan";
+import {
+  type PostingRow,
+  type Snapshot,
+  planSource,
+} from "@/lib/postings/plan";
 import { ADAPTERS } from "@/lib/sources";
 import type { FetchResult, SourceKind } from "@/lib/sources/types";
 import type { Database, Json } from "@/lib/supabase/database.types";
@@ -23,6 +27,7 @@ import type { Database, Json } from "@/lib/supabase/database.types";
 import { formatWarning, loadWorkerConfig } from "./config";
 import { type Db, applyPlan, loadIngestState } from "./db";
 import { type CheckOutcome, formatAlert, nextHealth } from "./health";
+import { matchNewPostings } from "./match";
 
 type SourceRunStats = {
   outcome: CheckOutcome["kind"];
@@ -80,10 +85,14 @@ async function main(): Promise<number> {
   const stats: Record<string, SourceRunStats> = {};
   const errors: string[] = [];
   let isSeed = false;
+  let matching: Awaited<ReturnType<typeof matchNewPostings>> | null = null;
   let crashed: unknown = null;
 
   try {
-    isSeed = await watchSources(db, githubToken, stats, errors);
+    const watched = await watchSources(db, githubToken, stats, errors);
+    isSeed = watched.isSeed;
+    matching = await matchNewPostings(db, watched.newPostings);
+    console.log(`[worker] matching: ${JSON.stringify(matching)}`);
   } catch (error) {
     crashed = error;
     errors.push(`run: ${errorMessage(error)}`);
@@ -95,7 +104,7 @@ async function main(): Promise<number> {
       finished_at: new Date().toISOString(),
       ok: crashed === null,
       is_seed: isSeed,
-      stats: { sources: stats } as unknown as NonNullable<Json>,
+      stats: { sources: stats, matching } as unknown as NonNullable<Json>,
       errors,
     })
     .eq("id", run.id);
@@ -109,13 +118,17 @@ async function main(): Promise<number> {
   return 0;
 }
 
-/** Steps 1-3. Returns whether any source took its first snapshot. */
+/**
+ * Steps 1-2. Returns whether any source took its first snapshot, and the
+ * postings this run listed for the first time that may reach inboxes: still
+ * open at the end of the run, and not from a source's first snapshot.
+ */
 async function watchSources(
   db: Db,
   githubToken: string | undefined,
   stats: Record<string, SourceRunStats>,
   errors: string[],
-): Promise<boolean> {
+): Promise<{ isSeed: boolean; newPostings: PostingRow[] }> {
   const { data: sources, error } = await db
     .from("sources")
     .select(
@@ -128,6 +141,7 @@ async function watchSources(
   const state = await loadIngestState(db, sources);
   const http = createPoliteFetch();
   let isSeed = false;
+  const candidates = new Map<string, PostingRow>();
 
   for (const source of sources) {
     const adapter = ADAPTERS[source.kind as SourceKind];
@@ -162,6 +176,7 @@ async function watchSources(
 
     const seed = fetched?.kind === "fresh" && source.last_success_at === null;
     if (seed) isSeed = true;
+    else for (const row of plan.insertPostings) candidates.set(row.id, row);
 
     const outcome: CheckOutcome = failure
       ? { kind: "failed", error: failure }
@@ -201,7 +216,10 @@ async function watchSources(
     );
   }
 
-  return isSeed;
+  const newPostings = [...candidates.values()].filter(
+    (row) => state.postings.get(row.id)?.status === "open",
+  );
+  return { isSeed, newPostings };
 }
 
 main().then(

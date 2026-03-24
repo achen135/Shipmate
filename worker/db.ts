@@ -9,33 +9,12 @@ import type { IngestPlan, IngestState } from "@/lib/postings/plan";
 import { buildState } from "@/lib/postings/plan";
 import type { NormalizedPosting } from "@/lib/sources/types";
 import type { Database, Json } from "@/lib/supabase/database.types";
+import { selectAll } from "@/lib/supabase/select-all";
 
 export type Db = SupabaseClient<Database>;
 
-/** PostgREST returns at most 1000 rows per request (Supabase default). */
-const PAGE = 1000;
 /** Rows per insert/update request: keeps bodies well under a few MB. */
 const CHUNK = 500;
-
-/** Read every row of a query, a page at a time, ordered by id for stable paging. */
-export async function selectAll<T>(
-  page: (
-    from: number,
-    to: number,
-  ) => PromiseLike<{
-    data: T[] | null;
-    error: { message: string } | null;
-  }>,
-  label: string,
-): Promise<T[]> {
-  const rows: T[] = [];
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await page(from, from + PAGE - 1);
-    if (error) throw new Error(`${label}: ${error.message}`);
-    rows.push(...(data ?? []));
-    if (!data || data.length < PAGE) return rows;
-  }
-}
 
 export function chunks<T>(items: T[], size = CHUNK): T[][] {
   const out: T[][] = [];

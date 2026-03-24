@@ -10,8 +10,13 @@ import {
   normalizeInviteCode,
   redeemErrorMessage,
 } from "@/lib/invites";
-import { ONBOARDING_PATHS, STEP } from "@/lib/onboarding";
+import {
+  ONBOARDING_PATHS,
+  STEP,
+  pendingOnboardingPath,
+} from "@/lib/onboarding";
 import { saveBasics } from "@/lib/profile/save-basics";
+import { createWatchProfile } from "@/lib/watch/profiles";
 import { createClient } from "@/lib/supabase/server";
 
 export type RedeemState = { message: string | null };
@@ -42,5 +47,32 @@ export async function completeBasics(values: unknown): Promise<ActionResult> {
 
   const result = await saveBasics(viewer, values, STEP.basics + 1);
   if (!result.ok) return result;
+  redirect(
+    pendingOnboardingPath({ ...viewer, onboardingStep: STEP.basics + 1 }) ??
+      HOME_PATH,
+  );
+}
+
+/**
+ * Step "What to watch": save the first watch profile, backfill the Inbox
+ * with the past week's matches, and finish onboarding.
+ */
+export async function completeWatch(values: unknown): Promise<ActionResult> {
+  const viewer = await requireSignedIn();
+  const pending = pendingOnboardingPath(viewer);
+  if (pending !== ONBOARDING_PATHS[STEP.watch]) redirect(pending ?? HOME_PATH);
+
+  const result = await createWatchProfile(values);
+  if (!result.ok) return result;
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("profiles")
+    .update({ onboarding_step: STEP.watch + 1 })
+    .eq("user_id", viewer.id);
+  if (error) {
+    console.error("[onboarding] finish failed:", error.message);
+    return { ok: false, message: "Saved, but couldn't continue. Try again." };
+  }
   redirect(HOME_PATH);
 }

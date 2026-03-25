@@ -9,6 +9,7 @@ const GATED_PREFIXES = [
   "/to-apply",
   "/tracker",
   "/profile",
+  "/postings",
   "/onboarding",
   "/admin",
 ] as const;

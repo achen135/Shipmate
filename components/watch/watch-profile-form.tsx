@@ -97,12 +97,14 @@ export function WatchProfileForm({
               <FieldLabel
                 key={p.id}
                 htmlFor={`${id}-preset-${p.id}`}
-                className="rounded-lg border p-3 has-data-checked:border-primary has-data-checked:bg-secondary"
+                className="w-full justify-center rounded-lg border p-3 has-data-checked:border-primary has-data-checked:bg-secondary"
               >
                 <RadioGroupItem
                   value={p.id}
                   id={`${id}-preset-${p.id}`}
-                  className="sr-only"
+                  // `absolute` beats the item's own `relative`, so the
+                  // hidden radio takes no space in the tile.
+                  className="sr-only absolute"
                 />
                 {p.label}
               </FieldLabel>

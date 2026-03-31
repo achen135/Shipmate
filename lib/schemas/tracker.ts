@@ -57,7 +57,10 @@ export const importSchema = z
   .min(1, "Nothing to import.")
   .max(MAX_IMPORT_ROWS, `Import at most ${MAX_IMPORT_ROWS} rows at a time.`);
 
-/** The editable fields of a tracker row (row detail). */
+/**
+ * The editable fields of a tracker row (row detail). Company, role, link,
+ * and location only apply to manual rows; a shared posting's come from it.
+ */
 export const trackerEditSchema = z.object({
   status: z.enum(TRACKER_STATUS_VALUES),
   unsure: z.boolean(),
@@ -67,11 +70,15 @@ export const trackerEditSchema = z.object({
   term: text(40),
   resumeNote: text(200),
   notes: text(10_000),
+  company: text(200).optional(),
+  role: text(200).optional(),
+  url: httpUrl.optional(),
+  location: text(200).optional(),
 });
 
 export type TrackerEditForm = z.input<typeof trackerEditSchema>;
 
-/** Manual add: either a known posting, or company/role/etc. typed in. */
+/** Manual add: company, role, etc. typed in (or prefilled from the ATS). */
 export const manualAddSchema = trackerRecordSchema
   .omit({ unsure: true, referrer: true, resumeNote: true })
   .extend({ location: text(200) });

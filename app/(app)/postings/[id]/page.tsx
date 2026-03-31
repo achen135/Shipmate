@@ -97,14 +97,17 @@ export default async function PostingPage({
         </p>
       </div>
 
-      {item && (
-        <PostingActions
-          id={item.id}
-          status={item.status}
-          skipReason={item.skip_reason}
-          unseen={item.seen_at === null}
-        />
-      )}
+      <PostingActions
+        postingId={posting.id}
+        item={
+          item && {
+            id: item.id,
+            status: item.status,
+            skipReason: item.skip_reason,
+            unseen: item.seen_at === null,
+          }
+        }
+      />
     </article>
   );
 }

@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 
-import { dayKey, dayLabel, formatRelative } from "./time";
+import { dayKey, dayLabel, formatCalendarDate, formatRelative } from "./time";
 
 // 2026-10-10 15:00 UTC = 10:00 in Chicago (CDT).
 const NOW = Date.UTC(2026, 9, 10, 15, 0, 0);
@@ -28,5 +28,12 @@ describe("dayKey / dayLabel", () => {
     expect(dayLabel("2026-10-10", NOW)).toBe("Today");
     expect(dayLabel("2026-10-09", NOW)).toBe("Yesterday");
     expect(dayLabel("2026-10-05", NOW)).toBe("Monday, Oct 5");
+  });
+});
+
+describe("formatCalendarDate", () => {
+  it("keeps the calendar day whatever the time zone", () => {
+    expect(formatCalendarDate("2026-09-19")).toBe("Sep 19");
+    expect(formatCalendarDate("2026-01-01", true)).toBe("Jan 1, 2026");
   });
 });

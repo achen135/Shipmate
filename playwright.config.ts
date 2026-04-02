@@ -1,6 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const PORT = 3000;
+/** e2e/helpers/ats-mock-server.mjs: stands in for the Greenhouse API. */
+const ATS_MOCK_PORT = 3101;
 
 /**
  * E2E happy paths against a production build (`next start`), not `next dev`,
@@ -24,12 +26,28 @@ export default defineConfig({
     { name: "mobile", use: { ...devices["Pixel 7"] } },
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
   ],
-  webServer: {
-    command: process.env.CI
-      ? `npm run start -- --port ${PORT}`
-      : `npm run build && npm run start -- --port ${PORT}`,
-    url: `http://localhost:${PORT}`,
-    reuseExistingServer: !process.env.CI,
-    timeout: 180_000,
-  },
+  webServer: [
+    {
+      command: process.env.CI
+        ? `npm run start -- --port ${PORT}`
+        : `npm run build && npm run start -- --port ${PORT}`,
+      url: `http://localhost:${PORT}`,
+      reuseExistingServer: !process.env.CI,
+      timeout: 180_000,
+      // Only honoured against a local Supabase stack (tracker lookup route).
+      env: {
+        ...(process.env as Record<string, string>),
+        E2E_ATS_ORIGIN: `http://localhost:${ATS_MOCK_PORT}`,
+      },
+    },
+    {
+      command: "node e2e/helpers/ats-mock-server.mjs",
+      url: `http://localhost:${ATS_MOCK_PORT}`,
+      reuseExistingServer: !process.env.CI,
+      env: {
+        ...(process.env as Record<string, string>),
+        ATS_MOCK_PORT: String(ATS_MOCK_PORT),
+      },
+    },
+  ],
 });

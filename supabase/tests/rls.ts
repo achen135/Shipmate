@@ -432,6 +432,19 @@ async function seedPosting(title: string): Promise<string> {
 }
 
 async function deleteSeededPostings(): Promise<void> {
+  // postings.company_id doesn't cascade, so the postings go first; then the
+  // companies, which take their sources and follows with them.
+  const { data: companies } = await admin
+    .from("companies")
+    .select("id")
+    .like("name", "RLS Test Co %");
+  const ids = (companies ?? []).map((c) => c.id);
+  for (let i = 0; i < ids.length; i += 50) {
+    await admin
+      .from("postings")
+      .delete()
+      .in("company_id", ids.slice(i, i + 50));
+  }
   await admin.from("companies").delete().like("name", "RLS Test Co %");
 }
 
@@ -969,6 +982,378 @@ async function testTracker(a: TestUser, b: TestUser): Promise<void> {
   eq("…and its status_events are gone", orphans?.length, 0);
 }
 
+// ---------------------------------------------------------------- follows (M4)
+
+type FollowResult = {
+  status: string;
+  company_id?: string;
+  source_id?: string;
+  created_source?: boolean;
+};
+
+async function followBoard(
+  client: Client,
+  kind: string,
+  config: Record<string, unknown>,
+  name: string,
+): Promise<FollowResult> {
+  const { data, error } = await client.rpc("follow_board", {
+    p_kind: kind,
+    p_config: config as never,
+    p_company_name: name,
+    p_normalized_name: name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim(),
+  });
+  if (error) throw new Error(`follow_board: ${error.message}`);
+  return data as FollowResult;
+}
+
+async function testFollows(
+  alice: TestUser,
+  a: TestUser,
+  b: TestUser,
+): Promise<void> {
+  console.log("\nfollows + follow_board: own rows, shared sources");
+
+  const now = new Date().toISOString();
+  for (const user of [a, b]) {
+    await admin
+      .from("profiles")
+      .update({ invited_at: now })
+      .eq("user_id", user.id);
+  }
+  const outsider = await makeUser("outsider");
+
+  const tag = crypto.randomUUID().slice(0, 8);
+  const company = `RLS Test Co Harbor ${tag}`;
+  const slug = `rls-harbor-${tag}`;
+
+  // Only invited members follow anything.
+  const denied = await followBoard(
+    outsider.client,
+    "greenhouse",
+    { slug },
+    company,
+  );
+  eq(
+    "a user who isn't invited can't follow a board",
+    denied.status,
+    "not_member",
+  );
+  const deniedCompany = await outsider.client.rpc("follow_company", {
+    p_company_id: crypto.randomUUID(),
+  });
+  eq(
+    "…or a company",
+    (deniedCompany.data as FollowResult | null)?.status,
+    "not_member",
+  );
+
+  const anon = createClient<Database>(url, publishableKey, NO_SESSION);
+  const anonCall = await anon.rpc("follow_company", {
+    p_company_id: crypto.randomUUID(),
+  });
+  check("signed-out callers can't run follow_company", anonCall.error !== null);
+
+  // First follow creates the company and the hot-tier source.
+  const first = await followBoard(a.client, "greenhouse", { slug }, company);
+  eq("A follows a new Greenhouse board", first.status, "ok");
+  eq("…which creates its source", first.created_source, true);
+  const { data: source } = await admin
+    .from("sources")
+    .select("key, kind, name, tier, enabled, config, company_id")
+    .eq("id", first.source_id!)
+    .single();
+  eq("…keyed by kind and slug", source?.key, `greenhouse:${slug}`);
+  eq("…hot tier and enabled", `${source?.tier}/${source?.enabled}`, "hot/true");
+  eq("…named for the company", source?.name, `${company} (Greenhouse)`);
+  eq("…attached to the company", source?.company_id, first.company_id);
+
+  // A second user following the same board shares the source and company.
+  const second = await followBoard(
+    b.client,
+    "greenhouse",
+    { slug: slug.toUpperCase() },
+    `  ${company.toUpperCase()}  `,
+  );
+  eq("B follows the same board", second.status, "ok");
+  eq("…without creating another source", second.created_source, false);
+  eq("…the same source", second.source_id, first.source_id);
+  const { data: sameKey } = await admin
+    .from("sources")
+    .select("id")
+    .eq("key", `greenhouse:${slug}`);
+  eq("…one source row for the key", sameKey?.length, 1);
+
+  // Extra keys in the config are not stored.
+  const tidy = await followBoard(
+    a.client,
+    "ashby",
+    { slug: `${slug}-a`, company: "Not This", enabled: false, extra: 1 },
+    `${company} Ashby`,
+  );
+  const { data: tidySource } = await admin
+    .from("sources")
+    .select("config")
+    .eq("id", tidy.source_id!)
+    .single();
+  eq(
+    "only slug and company are stored in a source's config",
+    JSON.stringify(tidySource?.config),
+    JSON.stringify({ slug: `${slug}-a`, company: `${company} Ashby` }),
+  );
+
+  const lever = await followBoard(
+    a.client,
+    "lever",
+    { slug: `${slug}-l`, eu: true },
+    `${company} Lever`,
+  );
+  const { data: leverSource } = await admin
+    .from("sources")
+    .select("key, config")
+    .eq("id", lever.source_id!)
+    .single();
+  eq(
+    "an EU Lever board gets its own key",
+    leverSource?.key,
+    `lever-eu:${slug}-l`,
+  );
+  eq(
+    "…and eu in its config",
+    (leverSource?.config as { eu?: boolean }).eu,
+    true,
+  );
+
+  const workday = await followBoard(
+    a.client,
+    "workday",
+    { tenant: "rlstest", wdNumber: 5, site: "Careers" },
+    `${company} Workday`,
+  );
+  eq("A follows a Workday site", workday.status, "ok");
+  const { data: workdaySource } = await admin
+    .from("sources")
+    .select("key, config")
+    .eq("id", workday.source_id!)
+    .single();
+  eq(
+    "…keyed by tenant, site and number",
+    workdaySource?.key,
+    "workday:rlstest/careers:wd5",
+  );
+  eq(
+    "…with the number stored as a number",
+    typeof (workdaySource?.config as { wdNumber?: unknown }).wdNumber,
+    "number",
+  );
+
+  // Bad input follows nothing and creates nothing.
+  const before = (
+    await admin.from("sources").select("id", { count: "exact", head: true })
+  ).count;
+  const bad: [string, string, Record<string, unknown>][] = [
+    ["an unknown kind", "taleo", { slug }],
+    ["a missing slug", "greenhouse", {}],
+    ["a slug with a path in it", "greenhouse", { slug: "a/b" }],
+    ["a non-string slug", "lever", { slug: 5 }],
+    ["Workday without a site", "workday", { tenant: "x", wdNumber: 1 }],
+    ["Workday wd0", "workday", { tenant: "x", wdNumber: 0, site: "y" }],
+    [
+      "Workday with a string number",
+      "workday",
+      { tenant: "x", wdNumber: "5", site: "y" },
+    ],
+  ];
+  for (const [label, kind, config] of bad) {
+    const result = await followBoard(a.client, kind, config, `${company} Bad`);
+    eq(`${label} is invalid`, result.status, "invalid");
+  }
+  const blankName = await followBoard(
+    a.client,
+    "greenhouse",
+    { slug: `${slug}-n` },
+    "   ",
+  );
+  eq("a blank company name is invalid", blankName.status, "invalid");
+  const badNormalized = await a.client.rpc("follow_board", {
+    p_kind: "greenhouse",
+    p_config: { slug: `${slug}-n` } as never,
+    p_company_name: company,
+    p_normalized_name: "Not Normalized; drop table",
+  });
+  eq(
+    "a normalized name of the wrong shape is invalid",
+    (badNormalized.data as FollowResult | null)?.status,
+    "invalid",
+  );
+  const after = (
+    await admin.from("sources").select("id", { count: "exact", head: true })
+  ).count;
+  eq("…and none of them created a source", after, before);
+
+  // follow_company: an existing company, no board.
+  const existing = await seedPosting("Follow target");
+  const { data: target } = await admin
+    .from("postings")
+    .select("company_id")
+    .eq("id", existing)
+    .single();
+  const plain = await a.client.rpc("follow_company", {
+    p_company_id: target!.company_id,
+  });
+  eq(
+    "A follows an existing company",
+    (plain.data as FollowResult).status,
+    "ok",
+  );
+  const missing = await a.client.rpc("follow_company", {
+    p_company_id: crypto.randomUUID(),
+  });
+  eq(
+    "a company that doesn't exist is not_found",
+    (missing.data as FollowResult).status,
+    "not_found",
+  );
+
+  // RLS on the rows themselves.
+  const mine = await a.client
+    .from("follows")
+    .select("company_id, priority, board_kind, board_ref");
+  eq("A sees only their own follows", mine.data?.length, 5);
+  const bobs = await b.client.from("follows").select("user_id, company_id");
+  eq("B sees only their own follow", bobs.data?.length, 1);
+  eq("…and it's B's", bobs.data?.[0]?.user_id, b.id);
+  const aBoard = mine.data?.find((f) => f.company_id === first.company_id);
+  eq("a follow remembers its board kind", aBoard?.board_kind, "greenhouse");
+  eq("…and ref", aBoard?.board_ref, slug);
+  eq("priority starts off", aBoard?.priority, false);
+
+  const insertDirect = await a.client
+    .from("follows")
+    .insert({ company_id: target!.company_id } as never);
+  check(
+    "A can't insert into follows directly (only through the functions)",
+    insertDirect.error !== null,
+    insertDirect.error?.message,
+  );
+  const forged = await a.client.rpc("follow_company", {
+    p_company_id: target!.company_id,
+  });
+  check(
+    "…and the function can't be pointed at another user",
+    forged.error === null,
+  );
+
+  const flip = await a.client
+    .from("follows")
+    .update({ priority: true })
+    .eq("company_id", first.company_id!)
+    .select("priority");
+  eq(
+    "A turns on priority for their own follow",
+    flip.data?.[0]?.priority,
+    true,
+  );
+  const flipB = await a.client
+    .from("follows")
+    .update({ priority: true })
+    .eq("user_id", b.id)
+    .select("priority");
+  eq("A can't change B's follow", flipB.data?.length, 0);
+  const retag = await a.client
+    .from("follows")
+    .update({ board_kind: "lever" })
+    .eq("company_id", first.company_id!);
+  check(
+    "A can't edit board_kind by hand (column not granted)",
+    retag.error !== null,
+    retag.error?.message,
+  );
+  const steal = await a.client
+    .from("follows")
+    .update({ user_id: b.id } as never)
+    .eq("company_id", first.company_id!);
+  check(
+    "A can't hand a follow to B (user_id not granted)",
+    steal.error !== null,
+  );
+
+  const sourcesVisible = await a.client.from("sources").select("id");
+  eq(
+    "members still can't read the sources table",
+    sourcesVisible.data?.length,
+    0,
+  );
+  const adminSources = await alice.client
+    .from("sources")
+    .select("id")
+    .eq("key", `greenhouse:${slug}`);
+  eq("admins can", adminSources.data?.length, 1);
+
+  const deleteB = await a.client
+    .from("follows")
+    .delete()
+    .eq("user_id", b.id)
+    .select("user_id");
+  eq("A can't unfollow for B", deleteB.data?.length, 0);
+  const unfollow = await a.client
+    .from("follows")
+    .delete()
+    .eq("company_id", first.company_id!)
+    .select("company_id");
+  eq("A can unfollow their own", unfollow.data?.length, 1);
+  const stillThere = await admin
+    .from("sources")
+    .select("id")
+    .eq("key", `greenhouse:${slug}`);
+  eq(
+    "…and the shared source stays (B still follows it)",
+    stillThere.data?.length,
+    1,
+  );
+
+  // The cap, with B topped up to the limit by the service role.
+  const { data: limit } = await b.client.rpc("max_follows");
+  const cap = Number(limit);
+  const capCompanies = Array.from({ length: cap }, (_, i) => ({
+    name: `RLS Test Co cap ${tag} ${i}`,
+    normalized_name: `rls test co cap ${tag} ${i}`,
+  }));
+  const { data: made } = await admin
+    .from("companies")
+    .insert(capCompanies)
+    .select("id");
+  const { count: bHas } = await admin
+    .from("follows")
+    .select("company_id", { count: "exact", head: true })
+    .eq("user_id", b.id);
+  const fill = (made ?? []).slice(0, cap - (bHas ?? 0)).map((c) => ({
+    user_id: b.id,
+    company_id: c.id,
+  }));
+  await admin.from("follows").insert(fill);
+  const over = await b.client.rpc("follow_company", {
+    p_company_id: made![made!.length - 1].id,
+  });
+  eq(
+    `B at ${cap} follows can't add another`,
+    (over.data as FollowResult).status,
+    "limit",
+  );
+  const overBoard = await followBoard(
+    b.client,
+    "greenhouse",
+    { slug: `${slug}-over` },
+    `${company} Over`,
+  );
+  eq("…nor a new board", overBoard.status, "limit");
+  const refollow = await followBoard(b.client, "greenhouse", { slug }, company);
+  eq("…but can re-follow one they already have", refollow.status, "ok");
+}
+
 // ---------------------------------------------------------------- main
 
 async function main(): Promise<void> {
@@ -995,6 +1380,7 @@ async function main(): Promise<void> {
     await testWatcherTables(alice, a);
     await testInbox(a, b);
     await testTracker(a, b);
+    await testFollows(alice, a, b);
   } finally {
     await deleteSeededPostings();
     await deleteTestUsers();

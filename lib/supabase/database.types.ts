@@ -78,6 +78,42 @@ export type Database = {
         };
         Relationships: [];
       };
+      follows: {
+        Row: {
+          board_kind: string | null;
+          board_ref: string | null;
+          company_id: string;
+          created_at: string;
+          priority: boolean;
+          user_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          board_kind?: string | null;
+          board_ref?: string | null;
+          company_id: string;
+          created_at?: string;
+          priority?: boolean;
+          user_id?: string;
+        };
+        Update: {
+          board_kind?: string | null;
+          board_ref?: string | null;
+          company_id?: string;
+          created_at?: string;
+          priority?: boolean;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "follows_company_id_fkey";
+            columns: ["company_id"];
+            isOneToOne: false;
+            referencedRelation: "companies";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       invites: {
         Row: {
           code: string;
@@ -600,11 +636,23 @@ export type Database = {
     };
     Functions: {
       dispatch_watch: { Args: Record<PropertyKey, never>; Returns: number };
+      follow_board: {
+        Args: {
+          p_company_name: string;
+          p_config: Json;
+          p_kind: string;
+          p_normalized_name: string;
+        };
+        Returns: Json;
+      };
+      follow_company: { Args: { p_company_id: string }; Returns: Json };
+      follow_precheck: { Args: { p_company_id: string }; Returns: string };
       generate_invite_code: {
         Args: Record<PropertyKey, never>;
         Returns: string;
       };
       is_admin: { Args: Record<PropertyKey, never>; Returns: boolean };
+      max_follows: { Args: Record<PropertyKey, never>; Returns: number };
       redeem_invite: { Args: { p_code: string }; Returns: string };
       touch_seen: { Args: { p_link_ids: string[] }; Returns: undefined };
       update_links: { Args: { p_links: Json }; Returns: undefined };

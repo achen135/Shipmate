@@ -9,7 +9,9 @@ export const DROP_ALERT_SHARE = 0.5;
 export type CheckOutcome =
   | { kind: "fresh"; count: number }
   | { kind: "unchanged" }
-  | { kind: "failed"; error: string };
+  | { kind: "failed"; error: string }
+  /** A best-effort source (Workday) that didn't work this time. */
+  | { kind: "best_effort_failed"; error: string };
 
 export type SourceHealthBefore = {
   last_count: number | null;
@@ -25,11 +27,25 @@ export type SourceHealthUpdate = {
   last_alert: string | null;
 };
 
+/**
+ * `board`: a company board rather than an aggregator feed. A board with no
+ * internships right now is normal (most are, most of the year) and its count
+ * swings with the hiring cycle, so only a failed check raises an alert.
+ */
 export function nextHealth(
   before: SourceHealthBefore,
   outcome: CheckOutcome,
   now: string,
+  { board = false }: { board?: boolean } = {},
 ): SourceHealthUpdate {
+  if (outcome.kind === "best_effort_failed") {
+    // Noted (the admin page shows it quietly), never an alert.
+    return {
+      last_checked_at: now,
+      last_error: outcome.error,
+      last_alert: null,
+    };
+  }
   if (outcome.kind === "failed") {
     return {
       last_checked_at: now,
@@ -49,9 +65,13 @@ export function nextHealth(
   }
   const previous = before.last_count;
   let alert: string | null = null;
-  if (outcome.count === 0) {
+  if (!board && outcome.count === 0) {
     alert = "No active jobs in the latest snapshot";
-  } else if (previous && outcome.count < previous * DROP_ALERT_SHARE) {
+  } else if (
+    !board &&
+    previous &&
+    outcome.count < previous * DROP_ALERT_SHARE
+  ) {
     alert = `Active jobs dropped from ${previous} to ${outcome.count}`;
   }
   return {

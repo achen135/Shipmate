@@ -148,6 +148,42 @@ export type Database = {
         };
         Relationships: [];
       };
+      notifications: {
+        Row: {
+          channel: string;
+          id: string;
+          payload: NonNullable<Json>;
+          run_id: string;
+          sent_at: string;
+          user_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          channel: string;
+          id?: string;
+          payload: NonNullable<Json>;
+          run_id: string;
+          sent_at?: string;
+          user_id: string;
+        };
+        Update: {
+          channel?: string;
+          id?: string;
+          payload?: NonNullable<Json>;
+          run_id?: string;
+          sent_at?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "notifications_run_id_fkey";
+            columns: ["run_id"];
+            isOneToOne: false;
+            referencedRelation: "runs";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       posting_sources: {
         Row: {
           active: boolean;
@@ -223,6 +259,9 @@ export type Database = {
           last_seen_at: string;
           locations: string[];
           posted_at: string | null;
+          questions: Json | null;
+          questions_fetched_at: string | null;
+          questions_status: string | null;
           source_names: string[];
           sponsorship: string;
           status: string;
@@ -248,6 +287,9 @@ export type Database = {
           last_seen_at?: string;
           locations?: string[];
           posted_at?: string | null;
+          questions?: Json | null;
+          questions_fetched_at?: string | null;
+          questions_status?: string | null;
           source_names?: string[];
           sponsorship?: string;
           status?: string;
@@ -272,6 +314,9 @@ export type Database = {
           last_seen_at?: string;
           locations?: string[];
           posted_at?: string | null;
+          questions?: Json | null;
+          questions_fetched_at?: string | null;
+          questions_status?: string | null;
           source_names?: string[];
           sponsorship?: string;
           status?: string;
@@ -363,6 +408,68 @@ export type Database = {
           updated_at?: string;
           user_id?: string;
           work_authorized?: boolean | null;
+        };
+        Relationships: [];
+      };
+      push_subscriptions: {
+        Row: {
+          created_at: string;
+          endpoint: string;
+          id: string;
+          keys: NonNullable<Json>;
+          user_agent: string | null;
+          user_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          created_at?: string;
+          endpoint: string;
+          id?: string;
+          keys: NonNullable<Json>;
+          user_agent?: string | null;
+          user_id?: string;
+        };
+        Update: {
+          created_at?: string;
+          endpoint?: string;
+          id?: string;
+          keys?: NonNullable<Json>;
+          user_agent?: string | null;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
+      resumes: {
+        Row: {
+          content: Json | null;
+          created_at: string;
+          file_name: string | null;
+          file_path: string | null;
+          kind: string;
+          text_content: string | null;
+          updated_at: string;
+          user_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          content?: Json | null;
+          created_at?: string;
+          file_name?: string | null;
+          file_path?: string | null;
+          kind?: string;
+          text_content?: string | null;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Update: {
+          content?: Json | null;
+          created_at?: string;
+          file_name?: string | null;
+          file_path?: string | null;
+          kind?: string;
+          text_content?: string | null;
+          updated_at?: string;
+          user_id?: string;
         };
         Relationships: [];
       };
@@ -504,6 +611,7 @@ export type Database = {
       };
       user_postings: {
         Row: {
+          answer_sheet: Json | null;
           applied_at: string | null;
           created_at: string;
           id: string;
@@ -524,6 +632,7 @@ export type Database = {
         };
         ComputedFields: never;
         Insert: {
+          answer_sheet?: Json | null;
           applied_at?: string | null;
           created_at?: string;
           id?: string;
@@ -543,6 +652,7 @@ export type Database = {
           watch_profile_id?: string | null;
         };
         Update: {
+          answer_sheet?: Json | null;
           applied_at?: string | null;
           created_at?: string;
           id?: string;
@@ -654,6 +764,14 @@ export type Database = {
       is_admin: { Args: Record<PropertyKey, never>; Returns: boolean };
       max_follows: { Args: Record<PropertyKey, never>; Returns: number };
       redeem_invite: { Args: { p_code: string }; Returns: string };
+      save_posting_questions: {
+        Args: { p_posting_id: string; p_questions: Json; p_status: string };
+        Returns: string;
+      };
+      save_push_subscription: {
+        Args: { p_endpoint: string; p_keys: Json; p_user_agent: string };
+        Returns: string;
+      };
       touch_seen: { Args: { p_link_ids: string[] }; Returns: undefined };
       update_links: { Args: { p_links: Json }; Returns: undefined };
     };

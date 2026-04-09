@@ -85,7 +85,7 @@ jobs:
       - name: Start local Supabase (applies migrations)
         run: >-
           npx supabase start
-          -x realtime,storage-api,imgproxy,edge-runtime,logflare,vector,supavisor,studio
+          -x realtime,imgproxy,edge-runtime,logflare,vector,supavisor,studio
 
       - name: Generated types match the migrations
         run: |

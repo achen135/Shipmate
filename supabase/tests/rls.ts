@@ -1354,6 +1354,476 @@ async function testFollows(
   eq("…but can re-follow one they already have", refollow.status, "ok");
 }
 
+// ---------------------------------------------------------------- review + notifications (M5)
+
+async function testResumesAndStorage(a: TestUser, b: TestUser): Promise<void> {
+  console.log("\nresumes + the uploads bucket: own folder only");
+
+  const pdf = () =>
+    new Blob(["%PDF-1.4 rls test"], { type: "application/pdf" });
+  const aPath = `${a.id}/resume.pdf`;
+
+  const created = await a.client.from("resumes").insert({
+    kind: "uploaded_pdf",
+    file_path: aPath,
+    file_name: "Alex.pdf",
+    text_content: "python java sql",
+  });
+  eq("A saves their resume row", created.error, null);
+
+  const bSees = await b.client.from("resumes").select("user_id");
+  eq("B sees no resume rows", bSees.data?.length, 0);
+
+  const stolen = await b.client
+    .from("resumes")
+    .insert({ kind: "uploaded_pdf", file_path: aPath, user_id: a.id } as never);
+  check(
+    "B can't write a row for A (user_id isn't granted)",
+    stolen.error !== null,
+  );
+
+  const hijack = await b.client
+    .from("resumes")
+    .update({ file_name: "Evil.pdf" })
+    .eq("user_id", a.id)
+    .select("user_id");
+  eq("B can't update A's resume row", hijack.data?.length ?? 0, 0);
+  const erase = await b.client
+    .from("resumes")
+    .delete()
+    .eq("user_id", a.id)
+    .select("user_id");
+  eq("B can't delete A's resume row", erase.data?.length ?? 0, 0);
+  const still = await admin
+    .from("resumes")
+    .select("file_name")
+    .eq("user_id", a.id)
+    .single();
+  eq("…A's row is untouched", still.data?.file_name, "Alex.pdf");
+
+  const noFile = await b.client
+    .from("resumes")
+    .insert({ kind: "uploaded_pdf" });
+  check("an uploaded_pdf row needs a file path", noFile.error !== null);
+
+  // Storage: the bucket policies, not just the table's.
+  const upload = await a.client.storage.from("uploads").upload(aPath, pdf(), {
+    contentType: "application/pdf",
+    upsert: true,
+  });
+  eq("A uploads to their own folder", upload.error, null);
+
+  const bRead = await b.client.storage.from("uploads").download(aPath);
+  check("B can't download A's file", bRead.error !== null);
+  const bSigned = await b.client.storage
+    .from("uploads")
+    .createSignedUrl(aPath, 60);
+  check("B can't get a signed link to A's file", bSigned.error !== null);
+  const bWrite = await b.client.storage
+    .from("uploads")
+    .upload(`${a.id}/planted.pdf`, pdf(), { contentType: "application/pdf" });
+  check("B can't add a file to A's folder", bWrite.error !== null);
+  const bOverwrite = await b.client.storage
+    .from("uploads")
+    .upload(aPath, pdf(), { contentType: "application/pdf", upsert: true });
+  check("B can't overwrite A's resume", bOverwrite.error !== null);
+  await b.client.storage.from("uploads").remove([aPath]);
+  const afterRemove = await admin.storage.from("uploads").download(aPath);
+  eq("…and B's delete didn't remove it", afterRemove.error, null);
+
+  const anon = createClient<Database>(url, publishableKey, NO_SESSION);
+  const anonRead = await anon.storage.from("uploads").download(aPath);
+  check("a signed-out visitor can't download it", anonRead.error !== null);
+
+  const aSigned = await a.client.storage
+    .from("uploads")
+    .createSignedUrl(aPath, 60);
+  eq("A gets a signed link to their own file", aSigned.error, null);
+
+  const notPdf = await a.client.storage
+    .from("uploads")
+    .upload(`${a.id}/note.txt`, new Blob(["hello"], { type: "text/plain" }), {
+      contentType: "text/plain",
+    });
+  check("the bucket only takes PDFs", notPdf.error !== null);
+  const tooBig = await a.client.storage
+    .from("uploads")
+    .upload(
+      `${a.id}/big.pdf`,
+      new Blob([new Uint8Array(4_300_000)], { type: "application/pdf" }),
+      {
+        contentType: "application/pdf",
+      },
+    );
+  check("…and nothing over 4 MB", tooBig.error !== null);
+
+  await admin.storage.from("uploads").remove([aPath]);
+  await admin.from("resumes").delete().eq("user_id", a.id);
+}
+
+async function testStandardAnswers(a: TestUser, b: TestUser): Promise<void> {
+  console.log("\nprofiles: phone, standard answers, notification prefs");
+
+  const saved = await a.client
+    .from("profiles")
+    .update({
+      phone: "555-0100",
+      standard_answers: {
+        linkedin: "https://linkedin.com/in/a",
+        howHeard: "Friend",
+      },
+      notify_prefs: { email: false },
+    })
+    .eq("user_id", a.id)
+    .select("phone");
+  eq(
+    "A edits their phone, answers, and prefs",
+    saved.data?.[0]?.phone,
+    "555-0100",
+  );
+
+  const others = await b.client
+    .from("profiles")
+    .update({ phone: "000" })
+    .eq("user_id", a.id)
+    .select("user_id");
+  eq("B can't edit A's profile", others.data?.length ?? 0, 0);
+
+  const huge = await a.client
+    .from("profiles")
+    .update({ standard_answers: { notes: "x".repeat(9000) } })
+    .eq("user_id", a.id);
+  check("standard answers are capped in size", huge.error !== null);
+  const notObject = await a.client
+    .from("profiles")
+    .update({ standard_answers: [1, 2] as never })
+    .eq("user_id", a.id);
+  check("…and must be an object", notObject.error !== null);
+}
+
+async function testPostingQuestions(a: TestUser, b: TestUser): Promise<void> {
+  console.log("\npostings.questions: one narrow door");
+
+  const outsider = await makeUser("outsider2");
+  const questions = [
+    { label: "Email", required: true, input: "text", options: [] },
+    { label: "Why us?", required: true, input: "textarea", options: [] },
+  ];
+  const save = (client: Client, id: string, status: string, q: unknown) =>
+    client.rpc("save_posting_questions", {
+      p_posting_id: id,
+      p_status: status,
+      p_questions: q as never,
+    });
+
+  const posting = await seedPosting("Questions Intern");
+  eq(
+    "a user who isn't invited can't cache questions",
+    (await save(outsider.client, posting, "ok", questions)).data,
+    "not_member",
+  );
+  eq(
+    "a member caches them",
+    (await save(a.client, posting, "ok", questions)).data,
+    "saved",
+  );
+  eq(
+    "a second fetch doesn't overwrite the cache",
+    (await save(b.client, posting, "ok", [{ label: "Other" }])).data,
+    "skipped",
+  );
+  const read = await b.client
+    .from("postings")
+    .select("questions, questions_status")
+    .eq("id", posting)
+    .single();
+  eq("every member reads the cached status", read.data?.questions_status, "ok");
+  eq(
+    "…and the questions",
+    (read.data?.questions as { label: string }[])[1].label,
+    "Why us?",
+  );
+
+  const direct = await a.client
+    .from("postings")
+    .update({ questions: [] })
+    .eq("id", posting)
+    .select("id");
+  check(
+    "members can't write postings directly",
+    (direct.data?.length ?? 0) === 0,
+  );
+
+  const bad = await seedPosting("Bad Questions Intern");
+  eq(
+    "not-an-array is invalid",
+    (await save(a.client, bad, "ok", { label: "x" })).data,
+    "invalid",
+  );
+  eq(
+    "an item without a label is invalid",
+    (await save(a.client, bad, "ok", [{ required: true }])).data,
+    "invalid",
+  );
+  eq(
+    "an enormous list is invalid",
+    (
+      await save(
+        a.client,
+        bad,
+        "ok",
+        Array.from({ length: 151 }, () => ({ label: "q" })),
+      )
+    ).data,
+    "invalid",
+  );
+  eq(
+    "an unknown status is invalid",
+    (await save(a.client, bad, "weird", [])).data,
+    "invalid",
+  );
+  const badRow = await admin
+    .from("postings")
+    .select("questions_status")
+    .eq("id", bad)
+    .single();
+  eq("…and none of those cached anything", badRow.data?.questions_status, null);
+
+  // A failure is retried after a short wait; a success after a week.
+  const flaky = await seedPosting("Flaky Questions Intern");
+  eq(
+    "a failed fetch is recorded",
+    (await save(a.client, flaky, "failed", null)).data,
+    "saved",
+  );
+  eq(
+    "…and not overwritten straight away",
+    (await save(b.client, flaky, "ok", questions)).data,
+    "skipped",
+  );
+  await admin
+    .from("postings")
+    .update({
+      questions_fetched_at: new Date(Date.now() - 11 * 60_000).toISOString(),
+    })
+    .eq("id", flaky);
+  eq(
+    "…but may be after ten minutes",
+    (await save(b.client, flaky, "ok", questions)).data,
+    "saved",
+  );
+  await admin
+    .from("postings")
+    .update({
+      questions_fetched_at: new Date(Date.now() - 6 * 86_400_000).toISOString(),
+    })
+    .eq("id", flaky);
+  eq(
+    "a success holds for a week",
+    (await save(a.client, flaky, "unknown", null)).data,
+    "skipped",
+  );
+  await admin
+    .from("postings")
+    .update({
+      questions_fetched_at: new Date(Date.now() - 8 * 86_400_000).toISOString(),
+    })
+    .eq("id", flaky);
+  eq(
+    "…then may be refreshed",
+    (await save(a.client, flaky, "unknown", null)).data,
+    "saved",
+  );
+
+  const anon = createClient<Database>(url, publishableKey, NO_SESSION);
+  const anonCall = await anon.rpc("save_posting_questions", {
+    p_posting_id: posting,
+    p_status: "ok",
+    p_questions: [] as never,
+  });
+  check("signed-out callers can't run it", anonCall.error !== null);
+
+  // The user's own pasted questions live on their user_postings row.
+  const { data: row } = await admin
+    .from("user_postings")
+    .insert({ user_id: a.id, posting_id: posting })
+    .select("id")
+    .single();
+  const rowId = row!.id;
+  const paste = await a.client
+    .from("user_postings")
+    .update({ answer_sheet: { pastedQuestions: "1. Why us?" } })
+    .eq("id", rowId)
+    .select("answer_sheet");
+  eq(
+    "A saves pasted questions on their row",
+    (paste.data?.[0]?.answer_sheet as { pastedQuestions: string })
+      ?.pastedQuestions,
+    "1. Why us?",
+  );
+  const peek = await b.client
+    .from("user_postings")
+    .select("answer_sheet")
+    .eq("id", rowId);
+  eq("B can't read them", peek.data?.length, 0);
+  const tamper = await b.client
+    .from("user_postings")
+    .update({ answer_sheet: { pastedQuestions: "x" } })
+    .eq("id", rowId)
+    .select("id");
+  eq("…or change them", tamper.data?.length ?? 0, 0);
+  const arrayish = await a.client
+    .from("user_postings")
+    .update({ answer_sheet: [1] as never })
+    .eq("id", rowId);
+  check("the answer sheet must be an object", arrayish.error !== null);
+  const bigSheet = await a.client
+    .from("user_postings")
+    .update({ answer_sheet: { pastedQuestions: "x".repeat(41000) } })
+    .eq("id", rowId);
+  check("…and under 40 KB", bigSheet.error !== null);
+}
+
+async function testPushAndNotifications(
+  a: TestUser,
+  b: TestUser,
+): Promise<void> {
+  console.log("\npush_subscriptions + notifications");
+
+  const outsider = await makeUser("outsider3");
+  const keys = { p256dh: "BPublicKeyForTests", auth: "authSecret" };
+  const save = (client: Client, endpoint: string, k: unknown = keys) =>
+    client.rpc("save_push_subscription", {
+      p_endpoint: endpoint,
+      p_keys: k as never,
+      p_user_agent: "rls-test",
+    });
+  const endpoint = `https://push.example.com/send/${crypto.randomUUID()}`;
+
+  eq(
+    "a user who isn't invited can't subscribe",
+    (await save(outsider.client, endpoint)).data,
+    "not_member",
+  );
+  eq("A subscribes a device", (await save(a.client, endpoint)).data, "ok");
+  eq(
+    "A sees it",
+    (await a.client.from("push_subscriptions").select("id")).data?.length,
+    1,
+  );
+  eq(
+    "B sees none",
+    (await b.client.from("push_subscriptions").select("id")).data?.length,
+    0,
+  );
+
+  const direct = await a.client.from("push_subscriptions").insert({
+    endpoint: `https://push.example.com/${crypto.randomUUID()}`,
+    keys,
+  });
+  check("there's no direct insert", direct.error !== null);
+
+  eq(
+    "B signs in on the same browser",
+    (await save(b.client, endpoint)).data,
+    "ok",
+  );
+  eq(
+    "…the device moves to B",
+    (await b.client.from("push_subscriptions").select("id")).data?.length,
+    1,
+  );
+  eq(
+    "…and A no longer has it",
+    (await a.client.from("push_subscriptions").select("id")).data?.length,
+    0,
+  );
+
+  const aDelete = await a.client
+    .from("push_subscriptions")
+    .delete()
+    .eq("endpoint", endpoint)
+    .select("id");
+  eq("A can't delete B's device", aDelete.data?.length ?? 0, 0);
+  const bDelete = await b.client
+    .from("push_subscriptions")
+    .delete()
+    .eq("endpoint", endpoint)
+    .select("id");
+  eq("B can delete their own", bDelete.data?.length, 1);
+
+  eq(
+    "an http:// endpoint is invalid",
+    (await save(a.client, "http://push.example.com/x")).data,
+    "invalid",
+  );
+  eq(
+    "keys without p256dh are invalid",
+    (await save(a.client, endpoint, { auth: "x" })).data,
+    "invalid",
+  );
+
+  for (let i = 0; i < 10; i += 1) {
+    await save(
+      a.client,
+      `https://push.example.com/device/${crypto.randomUUID()}`,
+    );
+  }
+  eq(
+    "a user can have ten devices, not eleven",
+    (
+      await save(
+        a.client,
+        `https://push.example.com/device/${crypto.randomUUID()}`,
+      )
+    ).data,
+    "limit",
+  );
+  await admin.from("push_subscriptions").delete().eq("user_id", a.id);
+
+  const anon = createClient<Database>(url, publishableKey, NO_SESSION);
+  check(
+    "signed-out callers can't subscribe",
+    (await save(anon, endpoint)).error !== null,
+  );
+
+  // notifications: the worker's ledger. Users get nothing from it.
+  const { data: run } = await admin
+    .from("runs")
+    .insert({ trigger: "rls-test" })
+    .select("id")
+    .single();
+  const note = {
+    user_id: a.id,
+    run_id: run!.id,
+    channel: "push",
+    payload: { count: 2 },
+  };
+  eq(
+    "the worker records a digest",
+    (await admin.from("notifications").insert(note)).error,
+    null,
+  );
+  check(
+    "…once per user, run, and channel",
+    (await admin.from("notifications").insert(note)).error !== null,
+  );
+  eq(
+    "…email is a separate channel",
+    (await admin.from("notifications").insert({ ...note, channel: "email" }))
+      .error,
+    null,
+  );
+  const read = await a.client.from("notifications").select("id");
+  check(
+    "users can't read notifications",
+    read.error !== null || (read.data?.length ?? 0) === 0,
+  );
+  const write = await a.client.from("notifications").insert(note);
+  check("…or write them", write.error !== null);
+  await admin.from("runs").delete().eq("id", run!.id);
+}
+
 // ---------------------------------------------------------------- main
 
 async function main(): Promise<void> {
@@ -1381,6 +1851,10 @@ async function main(): Promise<void> {
     await testInbox(a, b);
     await testTracker(a, b);
     await testFollows(alice, a, b);
+    await testResumesAndStorage(a, b);
+    await testStandardAnswers(a, b);
+    await testPostingQuestions(a, b);
+    await testPushAndNotifications(a, b);
   } finally {
     await deleteSeededPostings();
     await deleteTestUsers();

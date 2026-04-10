@@ -211,6 +211,41 @@ $$;
 revoke execute on function public.save_posting_questions(uuid, text, jsonb) from public, anon;
 grant execute on function public.save_posting_questions(uuid, text, jsonb) to authenticated;
 
+-- Which public job boards list this posting, so the app can find its
+-- application form. Users can't read `sources` or `posting_sources` (they are
+-- the watcher's internals), and a Stripe job's link is stripe.com/…?gh_jid=…,
+-- which doesn't name the Greenhouse board. Board names are public; only
+-- members get them, and only the three kinds whose forms are readable.
+create function public.posting_boards(p_posting_id uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(
+    jsonb_agg(distinct jsonb_build_object(
+      'kind', s.kind,
+      'slug', s.config ->> 'slug',
+      'eu', coalesce((s.config -> 'eu') = 'true'::jsonb, false)
+    )),
+    '[]'::jsonb
+  )
+  from public.posting_sources ps
+  join public.sources s on s.id = ps.source_id
+  where ps.posting_id = p_posting_id
+    and ps.active
+    and s.kind in ('greenhouse', 'lever', 'ashby')
+    and s.config ->> 'slug' is not null
+    and exists (
+      select 1 from public.profiles
+      where user_id = (select auth.uid()) and invited_at is not null
+    );
+$$;
+
+revoke execute on function public.posting_boards(uuid) from public, anon;
+grant execute on function public.posting_boards(uuid) to authenticated;
+
 -- ---------------------------------------------------------------- user_postings.answer_sheet
 
 alter table public.user_postings

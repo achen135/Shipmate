@@ -1,0 +1,635 @@
+{
+  "id": 8194291,
+  "title": "Data Analyst, Intern",
+  "company_name": "Stripe",
+  "questions": [
+    {
+      "description": null,
+      "label": "First Name",
+      "required": true,
+      "fields": [
+        {
+          "name": "first_name",
+          "type": "input_text",
+          "values": []
+        }
+      ]
+    },
+    {
+      "description": null,
+      "label": "Last Name",
+      "required": true,
+      "fields": [
+        {
+          "name": "last_name",
+          "type": "input_text",
+          "values": []
+        }
+      ]
+    },
+    {
+      "description": null,
+      "label": "Preferred First Name",
+      "required": false,
+      "fields": [
+        {
+          "name": "preferred_name",
+          "type": "input_text",
+          "values": []
+        }
+      ]
+    },
+    {
+      "description": null,
+      "label": "Email",
+      "required": true,
+      "fields": [
+        {
+          "name": "email",
+          "type": "input_text",
+          "values": []
+        }
+      ]
+    },
+    {
+      "description": null,
+      "label": "Phone",
+      "required": true,
+      "fields": [
+        {
+          "name": "phone",
+          "type": "input_text",
+          "values": []
+        }
+      ]
+    },
+    {
+      "description": null,
+      "label": "Resume/CV",
+      "required": true,
+      "fields": [
+        {
+          "name": "resume",
+          "type": "input_file",
+          "values": []
+        },
+        {
+          "name": "resume_text",
+          "type": "textarea",
+          "values": []
+        }
+      ]
+    },
+    {
+      "description": "<p><em>We understand the timing can shift, so please give an approximate estimate (month and year).</em></p>",
+      "label": "When do you expect to complete your degree?",
+      "required": true,
+      "fields": [
+        {
+          "name": "question_69554627",
+          "type": "input_text",
+          "values": []
+        }
+      ]
+    },
+    {
+      "description": null,
+      "label": "Please tell us in 1-2 paragraphs (500 words or less) about a past data-related project you\u2019ve worked on. Please describe the problem you were trying to solve, the types of data you had available, what technical approach/solution you used and any potential impact you had:",
+      "required": true,
+      "fields": [
+        {
+          "name": "question_69554567",
+          "type": "textarea",
+          "values": []
+        }
+      ]
+    },
+    {
+      "description": "<p>This information will only be used to help coordinate your interview process and will not be considered in evaluating your application.</p>",
+      "label": "Do you have an active offer deadline or another recruiting-process deadline we should be aware of? If yes, please share the deadline date and any relevant context.",
+      "required": true,
+      "fields": [
+        {
+          "name": "question_69554568",
+          "type": "textarea",
+          "values": []
+        }
+      ]
+    },
+    {
+      "description": null,
+      "label": "We are always aiming to keep our school list inclusive of all institutions. If you did not see your University listed in the previous question, please let us know your school name here.",
+      "required": false,
+      "fields": [
+        {
+          "name": "question_69554569",
+          "type": "input_text",
+          "values": []
+        }
+      ]
+    },
+    {
+      "description": "<p><em>Your responses will not be considered as part of the hiring process or have any impact on hiring decisions</em></p>",
+      "label": "As Stripe grows, we are always aiming to expand our recruitment presence at conferences and gatherings. Please let us know of any conferences you\u2019re planning to attend this year or have previously attended to help inform our team about future recruitment opportunities. ",
+      "required": false,
+      "fields": [
+        {
+          "name": "question_69554570",
+          "type": "textarea",
+          "values": []
+        }
+      ]
+    },
+    {
+      "description": null,
+      "label": "Preferred Name",
+      "required": false,
+      "fields": [
+        {
+          "name": "question_69554571",
+          "type": "input_text",
+          "values": []
+        }
+      ]
+    },
+    {
+      "description": null,
+      "label": "Pronouns",
+      "required": false,
+      "fields": [
+        {
+          "name": "question_69554572",
+          "type": "input_text",
+          "values": []
+        }
+      ]
+    },
+    {
+      "description": null,
+      "label": "LinkedIn Profile, Github, Personal Website, or Portfolio",
+      "required": false,
+      "fields": [
+        {
+          "name": "question_69554573",
+          "type": "input_text",
+          "values": []
+        }
+      ]
+    },
+    {
+      "description": "<p>Internship opportunities are available throughout the United States. We have built our application to collect your top 3 location preferences here so that you do not have to submit multiple applications. Please spend some time considering your office preferences when applying and we will do our best to match you to your most preferred location, but may have to redirect your application based on business needs. We will be forthcoming throughout our process about which office you are being considered for.&nbsp;</p>",
+      "label": "First location preference:",
+      "required": true,
+      "fields": [
+        {
+          "name": "question_69554574",
+          "type": "multi_value_single_select",
+          "values": [
+            {
+              "label": "San Francisco, CA, United States",
+              "value": 754011790
+            },
+            {
+              "label": "Seattle, WA, United States",
+              "value": 754011791
+            },
+            {
+              "label": "New York, NY, United States",
+              "value": 754011792
+            },
+            {
+              "label": "I am open to working in any office",
+              "value": 754011793
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "description": null,
+      "label": "Second location preference:",
+      "required": true,
+      "fields": [
+        {
+          "name": "question_69554575",
+          "type": "multi_value_single_select",
+          "values": [
+            {
+              "label": "San Francisco, CA, United States",
+              "value": 754011794
+            },
+            {
+              "label": "Seattle, WA, United States",
+              "value": 754011795
+            },
+            {
+              "label": "New York, NY, United States",
+              "value": 754011796
+            },
+            {
+              "label": "I am open to working in any office",
+              "value": 754011797
+            },
+            {
+              "label": "I do not have flexibility to consider another office location",
+              "value": 754011798
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "description": null,
+      "label": "Third location preference:",
+      "required": true,
+      "fields": [
+        {
+          "name": "question_69554576",
+          "type": "multi_value_single_select",
+          "values": [
+            {
+              "label": "San Francisco, CA, United States",
+              "value": 754011799
+            },
+            {
+              "label": "Seattle, WA, United States",
+              "value": 754011800
+            },
+            {
+              "label": "New York, NY, United States",
+              "value": 754011801
+            },
+            {
+              "label": "I am open to working in any office",
+              "value": 754011802
+            },
+            {
+              "label": "I do not have flexibility to consider another office location",
+              "value": 754011803
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "description": "<p>Note that since we are capturing all of your preferences in one application (reminder - we don't need multiple applications across our US or Canadian offices), we ask you please answer all of the questions listed below regardless of your preferred work location.</p>",
+      "label": "Are you currently eligible to work in the United States?",
+      "required": true,
+      "fields": [
+        {
+          "name": "question_69554577",
+          "type": "multi_value_single_select",
+          "values": [
+            {
+              "label": "Yes, I am currently eligible to work in the location where this role is based.",
+              "value": 754011804
+            },
+            {
+              "label": "No, I am not currently eligible to work in the location where this role is based.",
+              "value": 754011805
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "description": null,
+      "label": "Do you require visa sponsorship, now or in the future, to continue working in the United States?",
+      "required": true,
+      "fields": [
+        {
+          "name": "question_69554578",
+          "type": "multi_value_single_select",
+          "values": [
+            {
+              "label": "Yes, I will require visa sponsorship now or in the future to continue working in the country where this role is based.",
+              "value": 754011806
+            },
+            {
+              "label": "No, I do not require visa sponsorship now or in the future to continue working in the country where this role is based.",
+              "value": 754011807
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "description": null,
+      "label": "Who is your current or previous employer?",
+      "required": true,
+      "fields": [
+        {
+          "name": "question_69554579",
+          "type": "input_text",
+          "values": []
+        }
+      ]
+    },
+    {
+      "description": null,
+      "label": "What is your current or previous job title?",
+      "required": true,
+      "fields": [
+        {
+          "name": "question_69554580",
+          "type": "input_text",
+          "values": []
+        }
+      ]
+    },
+    {
+      "description": null,
+      "label": "If located in the US, in what city and state do you reside?",
+      "required": true,
+      "fields": [
+        {
+          "name": "question_69554581",
+          "type": "input_text",
+          "values": []
+        }
+      ]
+    },
+    {
+      "description": "<p><em>If you don't see your country in the list, please select 'Other'.</em></p>",
+      "label": "Please select the country where you currently reside.\n",
+      "required": true,
+      "fields": [
+        {
+          "name": "question_69554582",
+          "type": "multi_value_single_select",
+          "values": [
+            {
+              "label": "Australia",
+              "value": 754011808
+            },
+            {
+              "label": "Belgium",
+              "value": 754011809
+            },
+            {
+              "label": "Brazil",
+              "value": 754011810
+            },
+            {
+              "label": "Canada",
+              "value": 754011811
+            },
+            {
+              "label": "Egypt",
+              "value": 754011812
+            },
+            {
+              "label": "France",
+              "value": 754011813
+            },
+            {
+              "label": "Germany",
+              "value": 754011814
+            },
+            {
+              "label": "India",
+              "value": 754011815
+            },
+            {
+              "label": "Indonesia",
+              "value": 754011816
+            },
+            {
+              "label": "Ireland",
+              "value": 754011817
+            },
+            {
+              "label": "Israel",
+              "value": 754011818
+            },
+            {
+              "label": "Italy",
+              "value": 754011819
+            },
+            {
+              "label": "Japan",
+              "value": 754011820
+            },
+            {
+              "label": "Malaysia",
+              "value": 754011821
+            },
+            {
+              "label": "Mexico",
+              "value": 754011822
+            },
+            {
+              "label": "New Zealand",
+              "value": 754011823
+            },
+            {
+              "label": "Poland",
+              "value": 754011824
+            },
+            {
+              "label": "Portugal",
+              "value": 754011825
+            },
+            {
+              "label": "Romania",
+              "value": 754011826
+            },
+            {
+              "label": "Singapore",
+              "value": 754011827
+            },
+            {
+              "label": "South Korea",
+              "value": 754011828
+            },
+            {
+              "label": "Spain",
+              "value": 754011829
+            },
+            {
+              "label": "Sweden",
+              "value": 754011830
+            },
+            {
+              "label": "Switzerland",
+              "value": 754011831
+            },
+            {
+              "label": "Taiwan",
+              "value": 754011832
+            },
+            {
+              "label": "Thailand",
+              "value": 754011833
+            },
+            {
+              "label": "The Netherlands",
+              "value": 754011834
+            },
+            {
+              "label": "UAE",
+              "value": 754011835
+            },
+            {
+              "label": "UK",
+              "value": 754011836
+            },
+            {
+              "label": "US",
+              "value": 754011837
+            },
+            {
+              "label": "Other",
+              "value": 754011838
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "location_questions": [
+    {
+      "description": null,
+      "label": "Longitude",
+      "required": true,
+      "fields": [
+        {
+          "name": "longitude",
+          "type": "input_hidden",
+          "values": []
+        }
+      ]
+    },
+    {
+      "description": null,
+      "label": "Latitude",
+      "required": true,
+      "fields": [
+        {
+          "name": "latitude",
+          "type": "input_hidden",
+          "values": []
+        }
+      ]
+    },
+    {
+      "description": null,
+      "label": "Location",
+      "required": true,
+      "fields": [
+        {
+          "name": "location",
+          "type": "input_text",
+          "values": []
+        }
+      ]
+    }
+  ],
+  "compliance": [
+    {
+      "type": "eeoc",
+      "questions": [
+        {
+          "required": false,
+          "label": "VeteranStatus",
+          "fields": [
+            {
+              "name": "veteran_status",
+              "type": "multi_value_single_select",
+              "values": [
+                {
+                  "label": "I don't wish to answer",
+                  "value": "3"
+                },
+                {
+                  "label": "I identify as one or more of the classifications of a protected veteran",
+                  "value": "2"
+                },
+                {
+                  "label": "I am not a protected veteran",
+                  "value": "1"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "description": "&lt;p&gt;\n  If you believe you belong to any of the categories of protected vete"
+    },
+    {
+      "type": "eeoc",
+      "questions": [
+        {
+          "required": false,
+          "label": "Race",
+          "fields": [
+            {
+              "name": "race",
+              "type": "multi_value_single_select",
+              "values": [
+                {
+                  "label": "Decline To Self Identify",
+                  "value": "8"
+                },
+                {
+                  "label": "Two or More Races",
+                  "value": "7"
+                },
+                {
+                  "label": "Native Hawaiian or Other Pacific Islander",
+                  "value": "6"
+                },
+                {
+                  "label": "White",
+                  "value": "5"
+                },
+                {
+                  "label": "Hispanic or Latino",
+                  "value": "4"
+                },
+                {
+                  "label": "Black or African American",
+                  "value": "3"
+                },
+                {
+                  "label": "Asian",
+                  "value": "2"
+                },
+                {
+                  "label": "American Indian or Alaskan Native",
+                  "value": "1"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "required": false,
+          "label": "Gender",
+          "fields": [
+            {
+              "name": "gender",
+              "type": "multi_value_single_select",
+              "values": [
+                {
+                  "label": "Decline To Self Identify",
+                  "value": "3"
+                },
+                {
+                  "label": "Female",
+                  "value": "2"
+                },
+                {
+                  "label": "Male",
+                  "value": "1"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "description": "&lt;h3&gt;&lt;strong&gt;Voluntary Self-Identification&lt;/strong&gt;&lt;/h3&gt;&"
+    }
+  ],
+  "demographic_questions": null
+}

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { getMember } from "@/lib/auth/viewer";
+import { withE2eOrigin } from "@/lib/e2e-origin";
 import { fetchAtsJob } from "@/lib/tracker/ats-fetch";
 import { type LookupResult, findExistingPosting } from "@/lib/tracker/lookup";
 import { createClient } from "@/lib/supabase/server";
@@ -71,27 +72,10 @@ export async function POST(request: Request) {
     } satisfies LookupResult);
   }
 
-  const job = await fetchAtsJob(url, atsFetch());
+  const job = await fetchAtsJob(url, withE2eOrigin(fetch, process.env));
   return Response.json(
     (job
       ? { kind: "fetched", job }
       : { kind: "unknown", url }) satisfies LookupResult,
   );
-}
-
-/**
- * E2E only: with E2E_ATS_ORIGIN set AND the app pointed at a local Supabase
- * stack, ATS API calls go to that origin (a mock server) instead. Neither is
- * ever true on Vercel, where this is plain fetch.
- */
-function atsFetch(): typeof fetch {
-  const origin = process.env.E2E_ATS_ORIGIN;
-  const local = /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(
-    process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
-  );
-  if (!origin || !local) return fetch;
-  return (input, init) => {
-    const target = new URL(String(input));
-    return fetch(new URL(target.pathname + target.search, origin), init);
-  };
 }

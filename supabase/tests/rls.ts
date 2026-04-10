@@ -1635,6 +1635,46 @@ async function testPostingQuestions(a: TestUser, b: TestUser): Promise<void> {
     "saved",
   );
 
+  // posting_boards: the public boards behind a posting, members only.
+  const { data: boardPosting } = await admin
+    .from("postings")
+    .select("company_id")
+    .eq("id", posting)
+    .single();
+  const boardKey = `greenhouse:rls-board-${crypto.randomUUID().slice(0, 8)}`;
+  const { data: boardSource, error: sourceError } = await admin
+    .from("sources")
+    .insert({
+      key: boardKey,
+      kind: "greenhouse",
+      name: "RLS Board",
+      config: { slug: "RlsBoard", company: "RLS Test Co" },
+      company_id: boardPosting!.company_id,
+    })
+    .select("id")
+    .single();
+  if (sourceError) throw new Error(`seed source: ${sourceError.message}`);
+  await admin.from("posting_sources").insert({
+    posting_id: posting,
+    source_id: boardSource!.id,
+    source_job_id: "1",
+    data: {},
+    raw: {},
+    content_hash: "rls",
+  });
+  const boards = await a.client.rpc("posting_boards", {
+    p_posting_id: posting,
+  });
+  eq(
+    "a member learns the boards behind a posting",
+    JSON.stringify(boards.data),
+    JSON.stringify([{ eu: false, kind: "greenhouse", slug: "RlsBoard" }]),
+  );
+  const outsiderBoards = await outsider.client.rpc("posting_boards", {
+    p_posting_id: posting,
+  });
+  eq("…an outsider gets none", JSON.stringify(outsiderBoards.data), "[]");
+
   const anon = createClient<Database>(url, publishableKey, NO_SESSION);
   const anonCall = await anon.rpc("save_posting_questions", {
     p_posting_id: posting,

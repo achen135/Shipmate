@@ -1,8 +1,8 @@
 /**
- * E2E only: with E2E_ATS_ORIGIN set AND the worker pointed at a local
- * Supabase stack, board API calls go to that origin (e2e/helpers/
+ * E2E only: with E2E_ATS_ORIGIN set AND the worker (or the app) pointed at a
+ * local Supabase stack, board API calls go to that origin (e2e/helpers/
  * ats-mock-server.mjs) instead of the real ATS. Neither is ever true in the
- * Watch workflow, where this returns `fetchImpl` untouched.
+ * Watch workflow or on Vercel, where this returns `fetchImpl` untouched.
  */
 type Env = Record<string, string | undefined>;
 

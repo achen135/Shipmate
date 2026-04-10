@@ -763,6 +763,7 @@ export type Database = {
       };
       is_admin: { Args: Record<PropertyKey, never>; Returns: boolean };
       max_follows: { Args: Record<PropertyKey, never>; Returns: number };
+      posting_boards: { Args: { p_posting_id: string }; Returns: Json };
       redeem_invite: { Args: { p_code: string }; Returns: string };
       save_posting_questions: {
         Args: { p_posting_id: string; p_questions: Json; p_status: string };

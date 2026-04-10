@@ -36,7 +36,7 @@ import { formatWarning, loadWorkerConfig } from "./config";
 import { type Db, applyPlan, loadIngestState } from "./db";
 import { type CheckOutcome, formatAlert, nextHealth } from "./health";
 import { matchNewPostings } from "./match";
-import { withE2eOrigin } from "./e2e-origin";
+import { withE2eOrigin } from "@/lib/e2e-origin";
 
 type SourceRunStats = {
   outcome: CheckOutcome["kind"];

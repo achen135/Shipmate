@@ -27,6 +27,11 @@ export type SeedPosting = {
   status?: "open" | "closed";
   terms?: string[];
   locations?: string[];
+  /** Defaults to a unique example.com link. */
+  url?: string;
+  description?: string;
+  sponsorship?: "unknown" | "offers" | "no_sponsorship" | "citizens_only";
+  degrees?: string[];
 };
 
 const companyIds: string[] = [];
@@ -47,7 +52,7 @@ export async function seedPostings(
 
   const rows = postings.map((p, i) => {
     const slug = `${company}-${i}`.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-    const link = `https://example.com/jobs/${slug}`;
+    const link = p.url ?? `https://example.com/jobs/${slug}`;
     return {
       company_id: row.id,
       title: p.title,
@@ -60,6 +65,9 @@ export async function seedPostings(
       source_names: ["E2E fixture"],
       content_hash: slug,
       status: p.status ?? "open",
+      description: p.description ?? null,
+      sponsorship: p.sponsorship ?? "unknown",
+      degrees: p.degrees ?? [],
     };
   });
   const { data: inserted, error: postingsError } = await db
@@ -127,6 +135,42 @@ export async function deleteCompaniesNamed(names: string[]): Promise<void> {
     await db.from("postings").delete().eq("company_id", id);
     await db.from("companies").delete().eq("id", id);
   }
+}
+
+/** Fill in the profile fields the review page's warnings read. */
+export async function setProfile(
+  userId: string,
+  fields: {
+    school?: string;
+    degree?: "associate" | "bachelors" | "masters" | "phd" | "other";
+    major?: string;
+    grad_month?: number;
+    grad_year?: number;
+    needs_sponsorship?: boolean;
+    work_authorized?: boolean;
+  },
+): Promise<void> {
+  const { error } = await admin()
+    .from("profiles")
+    .update(fields)
+    .eq("user_id", userId);
+  if (error) throw new Error(`set profile: ${error.message}`);
+}
+
+/** An application already in a user's Tracker (a row for a seeded posting). */
+export async function addApplied(
+  userId: string,
+  postingId: string,
+  appliedAt: string,
+  status: "applied" | "rejected" = "applied",
+): Promise<void> {
+  const { error } = await admin().from("user_postings").insert({
+    user_id: userId,
+    posting_id: postingId,
+    status,
+    applied_at: appliedAt,
+  });
+  if (error) throw new Error(`tracker row: ${error.message}`);
 }
 
 /** Put a posting in a user's Inbox, as the worker's matching would. */

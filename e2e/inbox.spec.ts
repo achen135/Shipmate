@@ -133,7 +133,7 @@ test("pick a preset, triage the backfilled Inbox", async ({ page }, info) => {
     "_blank",
   );
 
-  // Posting detail: fields + apply link.
+  // Posting detail: fields + the Apply link in the sticky actions.
   await saved
     .getByRole("link", { name: title("Software Engineer Intern") })
     .click();
@@ -143,7 +143,7 @@ test("pick a preset, triage the backfilled Inbox", async ({ page }, info) => {
   ).toBeVisible();
   await expect(page.getByText("Saved to To Apply")).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "Apply on the company site" }),
+    page.getByRole("link", { name: "Apply", exact: true }),
   ).toHaveAttribute("href", /^https:\/\/example\.com\/jobs\//);
 
   // The search shows up in Profile.

@@ -59,8 +59,36 @@ import { createServer } from "node:http";
 
 const port = Number(process.env.ATS_MOCK_PORT ?? 3101);
 
+/**
+ * Notifications E2E: stands in for a browser vendor's push service. The worker
+ * (with E2E_PUSH_ORIGIN set) POSTs { endpoint, payload } to /push; a test reads
+ * what a given subscription endpoint received with GET /push?endpoint=…
+ */
+const pushes = [];
+
 createServer((request, response) => {
   const url = new URL(request.url ?? "/", `http://localhost:${port}`);
+  if (url.pathname === "/push" && request.method === "POST") {
+    let body = "";
+    request.on("data", (chunk) => (body += chunk));
+    request.on("end", () => {
+      try {
+        pushes.push(JSON.parse(body));
+        response.writeHead(201).end();
+      } catch {
+        response.writeHead(400).end();
+      }
+    });
+    return;
+  }
+  if (url.pathname === "/push" && request.method === "GET") {
+    const endpoint = url.searchParams.get("endpoint");
+    const received = pushes.filter((p) => p.endpoint === endpoint);
+    response
+      .writeHead(200, { "content-type": "application/json" })
+      .end(JSON.stringify(received));
+    return;
+  }
   const job = url.pathname.match(/^\/v1\/boards\/e2e-harbor\/jobs\/(\d+)$/);
   const board = url.pathname.match(/^\/v1\/boards\/(e2e-harbor[\w-]*)\/jobs$/);
   if (url.pathname === "/") {
@@ -75,7 +103,10 @@ createServer((request, response) => {
       id: base + offset,
       title,
       absolute_url: `https://boards.greenhouse.io/${slug}/jobs/${base + offset}`,
-      location: { name: "Boston, MA" },
+      // The slug is in the location so a test can write a watch profile that
+      // matches only its own board's jobs (tests run in parallel, and
+      // matching is global).
+      location: { name: `Boston, MA - ${slug}` },
       first_published: published,
       content: "&lt;p&gt;About the role &amp;amp; the team.&lt;/p&gt;",
     });

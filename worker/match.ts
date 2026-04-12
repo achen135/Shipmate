@@ -52,11 +52,21 @@ export function planMatches(
   return rows;
 }
 
+export type MatchResult = {
+  postings: number;
+  users: number;
+  inserted: number;
+  /** The Inbox rows this run actually created (not ones already there). */
+  newRows: { userId: string; postingId: string }[];
+};
+
 export async function matchNewPostings(
   db: Db,
   postings: (MatchablePosting & { id: string })[],
-): Promise<{ postings: number; users: number; inserted: number }> {
-  if (postings.length === 0) return { postings: 0, users: 0, inserted: 0 };
+): Promise<MatchResult> {
+  if (postings.length === 0) {
+    return { postings: 0, users: 0, inserted: 0, newRows: [] };
+  }
 
   const [invited, profiles] = await Promise.all([
     selectAll(
@@ -87,7 +97,7 @@ export async function matchNewPostings(
   const eligible = profiles.filter((p) => members.has(p.user_id));
   const rows = planMatches(postings, eligible);
 
-  let inserted = 0;
+  const newRows: MatchResult["newRows"] = [];
   for (const batch of chunks(rows)) {
     const { data, error } = await db
       .from("user_postings")
@@ -95,13 +105,19 @@ export async function matchNewPostings(
         onConflict: "user_id,posting_id",
         ignoreDuplicates: true,
       })
-      .select("id");
+      .select("user_id, posting_id");
     if (error) throw new Error(`insert user_postings: ${error.message}`);
-    inserted += data.length;
+    for (const row of data) {
+      // Manual Tracker rows have no posting, and are never inserted here.
+      if (row.posting_id) {
+        newRows.push({ userId: row.user_id, postingId: row.posting_id });
+      }
+    }
   }
   return {
     postings: postings.length,
     users: new Set(eligible.map((p) => p.user_id)).size,
-    inserted,
+    inserted: newRows.length,
+    newRows,
   };
 }

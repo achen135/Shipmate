@@ -122,6 +122,25 @@ export async function magicLinkFor(to: string): Promise<string> {
   throw new Error(`no sign-in email for ${to}`);
 }
 
+/** Subjects and bodies of the mail Mailpit holds for `to`, newest first. */
+export async function mailTo(
+  to: string,
+): Promise<{ subject: string; text: string }[]> {
+  const mailpit = process.env.MAILPIT_URL;
+  if (!mailpit) throw new Error("MAILPIT_URL not set (run via test:e2e:local)");
+  const search = await fetch(
+    `${mailpit}/api/v1/search?query=${encodeURIComponent(`to:"${to}"`)}`,
+  ).then((r) => r.json() as Promise<{ messages: { ID: string }[] }>);
+  const out: { subject: string; text: string }[] = [];
+  for (const { ID } of search.messages) {
+    const message = await fetch(`${mailpit}/api/v1/message/${ID}`).then(
+      (r) => r.json() as Promise<{ Subject: string; Text: string }>,
+    );
+    out.push({ subject: message.Subject, text: message.Text });
+  }
+  return out;
+}
+
 /** Delete the users this worker created (other workers' users are untouched). */
 export async function deleteCreatedUsers(): Promise<void> {
   const client = admin();

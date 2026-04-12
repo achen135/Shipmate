@@ -31,6 +31,10 @@ export default async function ProfilePage() {
     .select("company_id", { count: "exact", head: true });
   if (followsError) throw new Error(`follows: ${followsError.message}`);
   const hasResume = (await getResume()) !== null;
+  const { count: deviceCount, error: devicesError } = await supabase
+    .from("push_subscriptions")
+    .select("id", { count: "exact", head: true });
+  if (devicesError) throw new Error(`devices: ${devicesError.message}`);
 
   return (
     <div className="flex flex-col gap-8">
@@ -60,6 +64,32 @@ export default async function ProfilePage() {
               {hasResume
                 ? "Your resume PDF, links, and standard answers."
                 : "Upload your resume PDF and set the answers applications ask for."}
+            </p>
+          </div>
+          <ChevronRight
+            aria-hidden="true"
+            className="size-4 text-muted-foreground"
+          />
+        </Link>
+      </section>
+
+      <section
+        aria-labelledby="notifications-heading"
+        className="flex flex-col gap-4"
+      >
+        <h2 id="notifications-heading" className="text-lg font-medium">
+          Notifications
+        </h2>
+        <Link
+          href="/profile/notifications"
+          className="flex items-center gap-3 rounded-xl border bg-card p-4 hover:bg-muted/50"
+        >
+          <div className="min-w-0 flex-1">
+            <p className="font-medium">Push and email</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {deviceCount
+                ? `${deviceCount} ${deviceCount === 1 ? "device" : "devices"} on.`
+                : "Get told when new matches arrive."}
             </p>
           </div>
           <ChevronRight

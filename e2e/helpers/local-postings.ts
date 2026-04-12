@@ -121,6 +121,30 @@ export async function addSoftwareWatchProfile(userId: string): Promise<void> {
 }
 
 /**
+ * A software watch profile that only matches jobs in `place`. The mock
+ * Greenhouse board puts its slug in its jobs' location, so a profile for that
+ * slug matches that board's jobs and nothing another test's worker creates.
+ */
+export async function addWatchProfileForPlace(
+  userId: string,
+  place: string,
+): Promise<void> {
+  const { error } = await admin()
+    .from("watch_profiles")
+    .insert({
+      user_id: userId,
+      name: "SWE here",
+      preset: "swe",
+      categories: ["Software"],
+      include_keywords: ["software"],
+      terms: ["Summer 2027"],
+      locations: [place],
+      remote_ok: false,
+    });
+  if (error) throw new Error(`watch profile: ${error.message}`);
+}
+
+/**
  * Delete the companies a test created by following, by exact name: their
  * postings first, then the company, which takes its sources and follows with
  * it. Exact names, not a prefix: the mobile and desktop projects run the same
@@ -191,4 +215,72 @@ export async function deleteSeededPostings(): Promise<void> {
     await db.from("postings").delete().eq("company_id", id);
     await db.from("companies").delete().eq("id", id);
   }
+}
+
+/**
+ * Follow a company's Greenhouse board as if the user had pasted its careers
+ * link (company + hot-tier source + follow), without the UI. Returns the
+ * source key the worker takes in WATCH_SOURCES.
+ */
+export async function addBoardFollow(
+  userId: string,
+  slug: string,
+  company: string,
+  priority = false,
+): Promise<string> {
+  const db = admin();
+  const { data: row, error } = await db
+    .from("companies")
+    .insert({ name: company, normalized_name: company.toLowerCase() })
+    .select("id")
+    .single();
+  if (error) throw new Error(`board company: ${error.message}`);
+  companyIds.push(row.id);
+  const key = `greenhouse:${slug}`;
+  const { error: sourceError } = await db.from("sources").insert({
+    key,
+    kind: "greenhouse",
+    name: `${company} (Greenhouse)`,
+    config: { slug, company },
+    company_id: row.id,
+    tier: "hot",
+  });
+  if (sourceError) throw new Error(`board source: ${sourceError.message}`);
+  const { error: followError } = await db.from("follows").insert({
+    user_id: userId,
+    company_id: row.id,
+    board_kind: "greenhouse",
+    board_ref: slug,
+    priority,
+  });
+  if (followError) throw new Error(`follow: ${followError.message}`);
+  return key;
+}
+
+/** Say when the user joined (the email fallback waits a day after this). */
+export async function setMemberSince(
+  userId: string,
+  when: Date,
+): Promise<void> {
+  const { error } = await admin()
+    .from("profiles")
+    .update({ invited_at: when.toISOString() })
+    .eq("user_id", userId);
+  if (error) throw new Error(`member since: ${error.message}`);
+}
+
+/** A device's push subscription, as the browser would have registered it. */
+export async function addPushSubscription(
+  userId: string,
+  endpoint: string,
+): Promise<void> {
+  const { error } = await admin()
+    .from("push_subscriptions")
+    .insert({
+      user_id: userId,
+      endpoint,
+      keys: { p256dh: "e2e-p256dh", auth: "e2e-auth" },
+      user_agent: "e2e",
+    });
+  if (error) throw new Error(`push subscription: ${error.message}`);
 }

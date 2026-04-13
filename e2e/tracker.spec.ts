@@ -6,6 +6,7 @@ import {
   localSupabaseAvailable,
   signIn,
 } from "./helpers/local-auth";
+import { andWaitForAction } from "./helpers/actions";
 import {
   addToInbox,
   deleteSeededPostings,
@@ -60,12 +61,16 @@ test("save a posting, mark it applied, follow it in the Tracker", async ({
   await page.reload();
 
   const card = page.getByRole("article", { name: `${title} at ${company}` });
-  await card.getByRole("button", { name: "Save" }).click();
+  await andWaitForAction(page, () =>
+    card.getByRole("button", { name: "Save" }).click(),
+  );
   await expect(card.getByRole("status")).toHaveText(/Saved to To Apply/);
 
   await nav(page, "To Apply").click();
   await expect(page).toHaveURL(/\/to-apply$/);
-  await card.getByRole("button", { name: "Mark applied" }).click();
+  await andWaitForAction(page, () =>
+    card.getByRole("button", { name: "Mark applied" }).click(),
+  );
   await expect(card.getByRole("status")).toHaveText(/in your Tracker/);
 
   await nav(page, "Tracker").click();

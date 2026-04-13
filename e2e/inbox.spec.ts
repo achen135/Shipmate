@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 
+import { andWaitForAction } from "./helpers/actions";
 import {
   createTestUser,
   deleteCreatedUsers,
@@ -104,17 +105,23 @@ test("pick a preset, triage the backfilled Inbox", async ({ page }, info) => {
   }
 
   // Save → To Apply.
-  await card("Software Engineer Intern")
-    .getByRole("button", { name: "Save" })
-    .click();
+  await andWaitForAction(page, () =>
+    card("Software Engineer Intern")
+      .getByRole("button", { name: "Save" })
+      .click(),
+  );
   await expect(card("Software Engineer Intern").getByRole("status")).toHaveText(
     /Saved to To Apply/,
   );
 
   // Skip with a reason → gone from the Inbox.
   const backend = card("Backend Developer Intern");
-  await backend.getByRole("button", { name: "Skip" }).click();
-  await backend.getByRole("button", { name: "Location" }).click();
+  await andWaitForAction(page, () =>
+    backend.getByRole("button", { name: "Skip" }).click(),
+  );
+  await andWaitForAction(page, () =>
+    backend.getByRole("button", { name: "Location" }).click(),
+  );
   await expect(backend.getByRole("status")).toHaveText(/Skipped: Location/);
 
   await page.reload();

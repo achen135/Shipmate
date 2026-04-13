@@ -40,6 +40,7 @@ export type EmailSender = (
   to: string,
   subject: string,
   text: string,
+  html: string,
 ) => Promise<void>;
 
 export type NotifyUser = {
@@ -119,8 +120,8 @@ export function sendersFromEnv(
   if (env.SMTP_URL && env.EMAIL_FROM) {
     const transport = nodemailer.createTransport(env.SMTP_URL);
     const from = env.EMAIL_FROM;
-    email = async (to, subject, text) => {
-      await transport.sendMail({ from, to, subject, text });
+    email = async (to, subject, text, html) => {
+      await transport.sendMail({ from, to, subject, text, html });
     };
   } else {
     warn("email fallback skipped: set SMTP_URL and EMAIL_FROM.");
@@ -296,7 +297,12 @@ export async function sendNotifications(
             digest,
             process.env.APP_URL || "https://shipmate-jobs.vercel.app",
           );
-          await senders.email(user.email!, content.subject, content.text);
+          await senders.email(
+            user.email!,
+            content.subject,
+            content.text,
+            content.html,
+          );
           stats.email += 1;
         }
       } else if (delivered === 0) {

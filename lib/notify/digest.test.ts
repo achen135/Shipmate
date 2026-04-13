@@ -111,6 +111,21 @@ describe("what is sent", () => {
     expect(email.text).toContain("Profile → Notifications");
   });
 
+  it("has an HTML version with the logo, the link, and escaped company names", () => {
+    const [risky] = planDigests(
+      [m("u1", "p5")],
+      new Map([["p5", { companyId: "c9", company: 'A&B <script>"x"' }]]),
+      none,
+    );
+    const { html } = emailContent(risky, "https://shipmate-jobs.vercel.app/");
+    expect(html).toContain(
+      'src="https://shipmate-jobs.vercel.app/icons/icon-192.png"',
+    );
+    expect(html).toContain('href="https://shipmate-jobs.vercel.app/inbox"');
+    expect(html).toContain("A&amp;B &lt;script&gt;&quot;x&quot;");
+    expect(html).not.toContain("<script>");
+  });
+
   it("never carries more than counts and company names", () => {
     const payload = JSON.stringify(pushPayload(digest));
     expect(Object.keys(JSON.parse(payload)).sort()).toEqual([

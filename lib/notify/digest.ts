@@ -98,14 +98,34 @@ export function pushPayload(digest: Digest): PushPayload {
   return { title: "Shipmate", body: digest.body, url: "/inbox" };
 }
 
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+
+/**
+ * The fallback email, as plain text and as a small HTML version with the app
+ * logo (hosted at /icons/icon-192.png on the app itself). Company names come
+ * from job feeds, so they are escaped before going into the HTML.
+ */
 export function emailContent(digest: Digest, appUrl: string) {
+  const base = appUrl.replace(/\/$/, "");
+  const inbox = `${base}/inbox`;
+  const why =
+    "You're getting this by email because notifications aren't turned on " +
+    "for any of your devices. Turn on push, or switch these emails off, " +
+    "in Profile → Notifications.";
   return {
     subject: `Shipmate: ${digest.body}`,
-    text:
-      `${digest.body}.\n\n` +
-      `Open your Inbox: ${appUrl.replace(/\/$/, "")}/inbox\n\n` +
-      "You're getting this by email because notifications aren't turned on " +
-      "for any of your devices. Turn on push, or switch these emails off, " +
-      "in Profile → Notifications.\n",
+    text: `${digest.body}.\n\nOpen your Inbox: ${inbox}\n\n${why}\n`,
+    html:
+      '<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#1f2a4d">' +
+      `<img src="${escapeHtml(base)}/icons/icon-192.png" width="48" height="48" alt="Shipmate" style="border-radius:10px;display:block;margin-bottom:16px">` +
+      `<p style="font-size:18px;margin:0 0 16px">${escapeHtml(digest.body)}</p>` +
+      `<p style="margin:0 0 24px"><a href="${escapeHtml(inbox)}" style="background:#1f2a4d;color:#f8f3e8;padding:10px 18px;border-radius:8px;text-decoration:none;display:inline-block">Open your Inbox</a></p>` +
+      `<p style="font-size:13px;color:#6b7280;margin:0">${escapeHtml(why)}</p>` +
+      "</div>",
   };
 }

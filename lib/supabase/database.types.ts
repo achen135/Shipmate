@@ -34,6 +34,34 @@ export type Database = {
   };
   public: {
     Tables: {
+      api_keys: {
+        Row: {
+          ciphertext: string;
+          created_at: string;
+          iv: string;
+          last4: string;
+          provider: string;
+          user_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          ciphertext: string;
+          created_at?: string;
+          iv: string;
+          last4: string;
+          provider: string;
+          user_id: string;
+        };
+        Update: {
+          ciphertext?: string;
+          created_at?: string;
+          iv?: string;
+          last4?: string;
+          provider?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
       app_admins: {
         Row: {
           created_at: string;
@@ -75,6 +103,37 @@ export type Database = {
           name?: string;
           normalized_name?: string;
           website?: string | null;
+        };
+        Relationships: [];
+      };
+      fact_bank: {
+        Row: {
+          content: NonNullable<Json>;
+          created_at: string;
+          id: string;
+          kind: string;
+          source: string;
+          updated_at: string;
+          user_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          content: NonNullable<Json>;
+          created_at?: string;
+          id?: string;
+          kind: string;
+          source?: string;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Update: {
+          content?: NonNullable<Json>;
+          created_at?: string;
+          id?: string;
+          kind?: string;
+          source?: string;
+          updated_at?: string;
+          user_id?: string;
         };
         Relationships: [];
       };
@@ -742,7 +801,28 @@ export type Database = {
       };
     };
     Views: {
-      [_ in never]: never;
+      api_keys_public: {
+        Row: {
+          created_at: string | null;
+          last4: string | null;
+          provider: string | null;
+          user_id: string | null;
+        };
+        ComputedFields: never;
+        Insert: {
+          created_at?: string | null;
+          last4?: string | null;
+          provider?: string | null;
+          user_id?: string | null;
+        };
+        Update: {
+          created_at?: string | null;
+          last4?: string | null;
+          provider?: string | null;
+          user_id?: string | null;
+        };
+        Relationships: [];
+      };
     };
     Functions: {
       dispatch_watch: { Args: Record<PropertyKey, never>; Returns: number };

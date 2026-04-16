@@ -1864,6 +1864,230 @@ async function testPushAndNotifications(
   await admin.from("runs").delete().eq("id", run!.id);
 }
 
+// ---------------------------------------------------------------- AI foundation (M6)
+
+/** A stand-in encrypted key: the database never sees anything else. */
+function sealedRow(userId: string, provider: "anthropic" | "openai") {
+  return {
+    user_id: userId,
+    provider,
+    ciphertext: Buffer.from(`sealed-${userId}`).toString("base64"),
+    iv: Buffer.alloc(12, 7).toString("base64"),
+    last4: "7f3a",
+  };
+}
+
+async function testApiKeys(a: TestUser, b: TestUser): Promise<void> {
+  console.log(
+    "\napi_keys: the secret columns can't be read by anyone signed in",
+  );
+
+  const direct = await a.client
+    .from("api_keys")
+    .insert(sealedRow(a.id, "anthropic"));
+  check(
+    "A can't insert a key row (only the server writes keys)",
+    direct.error !== null,
+  );
+
+  const seeded = await admin
+    .from("api_keys")
+    .insert(sealedRow(a.id, "anthropic"));
+  eq("the service role stores A's sealed key", seeded.error, null);
+
+  for (const column of ["ciphertext", "iv", "*", "user_id, ciphertext"]) {
+    const res = await a.client.from("api_keys").select(column);
+    check(
+      `A can't select ${column} from their own key`,
+      res.error !== null && (res.data ?? []).length === 0,
+      { error: res.error?.message, rows: res.data?.length },
+    );
+  }
+  const filtered = await a.client
+    .from("api_keys")
+    .select("last4")
+    .like("ciphertext", "c2Vh%");
+  check(
+    "A can't filter on ciphertext either (no guessing it a prefix at a time)",
+    filtered.error !== null,
+    filtered.error?.message,
+  );
+  const ordered = await a.client.from("api_keys").select("last4").order("iv");
+  check("…or sort by iv", ordered.error !== null, ordered.error?.message);
+
+  const own = await a.client.from("api_keys").select("provider, last4");
+  eq("A reads their own provider", own.data?.[0]?.provider, "anthropic");
+  eq("…and last4", own.data?.[0]?.last4, "7f3a");
+
+  const view = await a.client.from("api_keys_public").select("*");
+  eq("api_keys_public shows A one row", view.data?.length, 1);
+  eq(
+    "…with only user_id, provider, last4, created_at",
+    Object.keys(view.data?.[0] ?? {})
+      .sort()
+      .join(","),
+    "created_at,last4,provider,user_id",
+  );
+
+  const bTable = await b.client.from("api_keys").select("last4");
+  eq("B sees no key rows", bTable.data?.length ?? 0, 0);
+  const bView = await b.client.from("api_keys_public").select("last4");
+  eq("B sees nothing in api_keys_public", bView.data?.length ?? 0, 0);
+
+  const anon = createClient<Database>(url, publishableKey, NO_SESSION);
+  const anonTable = await anon.from("api_keys").select("ciphertext");
+  check(
+    "a signed-out visitor can't read ciphertext",
+    anonTable.error !== null && (anonTable.data ?? []).length === 0,
+  );
+  const anonView = await anon.from("api_keys_public").select("last4");
+  check(
+    "…or the public view",
+    anonView.error !== null || (anonView.data ?? []).length === 0,
+  );
+
+  const rewrite = await a.client
+    .from("api_keys")
+    .update({ last4: "0000" })
+    .eq("user_id", a.id)
+    .select("user_id");
+  check("A can't edit their key row", rewrite.error !== null);
+  const bDelete = await b.client
+    .from("api_keys")
+    .delete()
+    .eq("user_id", a.id)
+    .select("user_id");
+  eq("B can't delete A's key", bDelete.data?.length ?? 0, 0);
+
+  const tooShort = await admin
+    .from("api_keys")
+    .insert({ ...sealedRow(b.id, "openai"), iv: "short" });
+  check("the nonce must be 12 bytes", tooShort.error !== null);
+}
+
+async function testAiMode(a: TestUser, b: TestUser): Promise<void> {
+  console.log("\nprofiles: AI mode needs a key, and removing the key ends it");
+
+  const noKey = await b.client
+    .from("profiles")
+    .update({ mode: "ai" })
+    .eq("user_id", b.id);
+  check("B can't turn on AI mode without a key", noKey.error !== null);
+
+  const provider = await a.client
+    .from("profiles")
+    .update({ ai_provider: "openai" })
+    .eq("user_id", a.id);
+  check(
+    "ai_provider isn't user-editable (it follows the key)",
+    provider.error !== null,
+  );
+
+  const on = await a.client
+    .from("profiles")
+    .update({ mode: "ai", daily_cap: 25, auto_tailor: true })
+    .eq("user_id", a.id)
+    .select("mode, daily_cap, auto_tailor");
+  eq("A (who has a key) turns on AI mode", on.data?.[0]?.mode, "ai");
+  eq("…and sets a daily cap", on.data?.[0]?.daily_cap, 25);
+
+  const cap = await a.client
+    .from("profiles")
+    .update({ daily_cap: 1000 })
+    .eq("user_id", a.id);
+  check("the daily cap stays within 0–100", cap.error !== null);
+
+  const removed = await a.client
+    .from("api_keys")
+    .delete()
+    .eq("user_id", a.id)
+    .select("user_id");
+  eq("A removes their key", removed.data?.length, 1);
+  const after = await admin
+    .from("profiles")
+    .select("mode, ai_provider")
+    .eq("user_id", a.id)
+    .single();
+  eq("…which puts them back in Simple mode", after.data?.mode, "simple");
+  eq("…and clears ai_provider", after.data?.ai_provider, null);
+}
+
+async function testStructuredResume(a: TestUser, b: TestUser): Promise<void> {
+  console.log("\nresumes.content: the structured resume");
+
+  const content = {
+    header: { name: "A", email: "", phone: "", links: [] },
+    sections: [{ title: "Research", layout: "text", text: "Lab work." }],
+  };
+  const saved = await a.client
+    .from("resumes")
+    .insert({ kind: "structured", content });
+  eq("A saves a structured resume", saved.error, null);
+  const bRead = await b.client.from("resumes").select("content");
+  eq("B can't read it", bRead.data?.length ?? 0, 0);
+  const empty = await b.client.from("resumes").insert({ kind: "structured" });
+  check("a structured resume needs content", empty.error !== null);
+  const huge = await a.client
+    .from("resumes")
+    .update({ content: { blob: "x".repeat(120_000) } })
+    .eq("user_id", a.id);
+  check("content is capped in size", huge.error !== null);
+  await admin.from("resumes").delete().eq("user_id", a.id);
+}
+
+async function testFactBank(a: TestUser, b: TestUser): Promise<void> {
+  console.log("\nfact_bank: own rows only");
+
+  const added = await a.client
+    .from("fact_bank")
+    .insert({ kind: "skill", content: { text: "Rust" } })
+    .select("id, source")
+    .single();
+  eq("A adds a fact", added.error, null);
+  eq("…marked manual by default", added.data?.source, "manual");
+  const id = added.data?.id ?? "";
+
+  const bSees = await b.client.from("fact_bank").select("id");
+  eq("B sees none of A's facts", bSees.data?.length ?? 0, 0);
+  const bEdit = await b.client
+    .from("fact_bank")
+    .update({ content: { text: "COBOL" } })
+    .eq("id", id)
+    .select("id");
+  eq("B can't edit A's fact", bEdit.data?.length ?? 0, 0);
+  const bDelete = await b.client
+    .from("fact_bank")
+    .delete()
+    .eq("id", id)
+    .select("id");
+  eq("B can't delete A's fact", bDelete.data?.length ?? 0, 0);
+  const planted = await b.client
+    .from("fact_bank")
+    .insert({ kind: "skill", content: { text: "x" }, user_id: a.id } as never);
+  check("B can't add a fact for A", planted.error !== null);
+
+  const badKind = await a.client
+    .from("fact_bank")
+    .insert({ kind: "hobby", content: { text: "x" } });
+  check("kind must be one of the six", badKind.error !== null);
+  const notObject = await a.client
+    .from("fact_bank")
+    .insert({ kind: "skill", content: ["x"] as never });
+  check("content must be an object", notObject.error !== null);
+
+  const filler = Array.from({ length: 199 }, (_, i) => ({
+    user_id: a.id,
+    kind: "other",
+    content: { text: `fact ${i}` },
+  }));
+  await admin.from("fact_bank").insert(filler);
+  const over = await a.client
+    .from("fact_bank")
+    .insert({ kind: "skill", content: { text: "one too many" } });
+  check("at most 200 facts per person", over.error !== null);
+  await admin.from("fact_bank").delete().eq("user_id", a.id);
+}
+
 // ---------------------------------------------------------------- main
 
 async function main(): Promise<void> {
@@ -1895,6 +2119,10 @@ async function main(): Promise<void> {
     await testStandardAnswers(a, b);
     await testPostingQuestions(a, b);
     await testPushAndNotifications(a, b);
+    await testApiKeys(a, b);
+    await testAiMode(a, b);
+    await testStructuredResume(a, b);
+    await testFactBank(a, b);
   } finally {
     await deleteSeededPostings();
     await deleteTestUsers();

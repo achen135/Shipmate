@@ -15,7 +15,7 @@ import { createClient } from "@/lib/supabase/server";
  */
 
 const PROFILE_COLUMNS =
-  "user_id, email, name, school, degree, major, grad_month, grad_year, work_authorized, needs_sponsorship, invited_at, onboarding_step" as const;
+  "user_id, email, name, school, degree, major, grad_month, grad_year, work_authorized, needs_sponsorship, invited_at, onboarding_step, mode" as const;
 
 export type Viewer = NonNullable<Awaited<ReturnType<typeof loadViewer>>>;
 
@@ -53,6 +53,7 @@ async function loadViewer() {
     profile: profile.data,
     invitedAt: profile.data?.invited_at ?? null,
     onboardingStep: profile.data?.onboarding_step ?? 1,
+    mode: profile.data?.mode ?? "simple",
     isAdmin: admin.data !== null,
   };
 }
@@ -72,6 +73,22 @@ export async function requireMember() {
   const pending = pendingOnboardingPath(viewer);
   if (pending) redirect(pending);
   return viewer;
+}
+
+/**
+ * Signed in and invited, onboarding finished or not: for the settings that
+ * onboarding and Profile share (resume, AI key, fact bank).
+ */
+export async function requireInvited() {
+  const viewer = await requireSignedIn();
+  if (!viewer.invitedAt) redirect(pendingOnboardingPath(viewer) ?? "/");
+  return viewer;
+}
+
+/** requireInvited for Route Handlers: the viewer, or null (answer 401). */
+export async function getInvited() {
+  const viewer = await getViewer();
+  return viewer?.invitedAt ? viewer : null;
 }
 
 /** Admin pages 404 for everyone else rather than revealing they exist. */

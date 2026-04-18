@@ -9,6 +9,7 @@ import { AnswerSheetSection } from "@/components/review/answer-sheet";
 import { ReviewActions } from "@/components/review/review-actions";
 import { requireMember } from "@/lib/auth/viewer";
 import { formatRelative, formatShortDate } from "@/lib/format/time";
+import { parseContent, resumeToText } from "@/lib/resume/structured";
 import { keywordMatch } from "@/lib/review/keywords";
 import { getReview } from "@/lib/review/queries";
 import { describePrevious, reviewWarnings } from "@/lib/review/warnings";
@@ -90,7 +91,13 @@ export default async function PostingPage({
     previous,
   });
 
-  const resumeText = resume?.text_content?.trim() ?? "";
+  // AI mode compares against the structured resume (what tailoring starts
+  // from); Simple mode against the uploaded PDF's text.
+  const structured =
+    profile?.mode === "ai" ? parseContent(resume?.content) : null;
+  const resumeText = structured
+    ? resumeToText(structured)
+    : (resume?.text_content?.trim() ?? "");
   const match = resume
     ? keywordMatch(posting, resumeText || null)
     : { score: null, matched: [], missing: [] };
@@ -215,7 +222,28 @@ export default async function PostingPage({
       </Section>
 
       <Section id="resume-heading" title="Resume">
-        {resume?.file_path ? (
+        {structured && (
+          <div className="flex items-start gap-3 rounded-xl border bg-card p-4">
+            <FileText
+              aria-hidden="true"
+              className="mt-0.5 size-5 shrink-0 text-muted-foreground"
+            />
+            <div className="min-w-0 flex-1">
+              <p className="font-medium">Your structured resume</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                AI mode. A version tailored to this posting arrives in the next
+                update.
+              </p>
+              <Link
+                href="/profile/resume"
+                className="mt-2 inline-block text-sm underline underline-offset-2"
+              >
+                Edit resume
+              </Link>
+            </div>
+          </div>
+        )}
+        {structured && !resume?.file_path ? null : resume?.file_path ? (
           <div className="flex items-start gap-3 rounded-xl border bg-card p-4">
             <FileText
               aria-hidden="true"

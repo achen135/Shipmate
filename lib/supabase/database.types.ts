@@ -504,6 +504,7 @@ export type Database = {
           created_at: string;
           file_name: string | null;
           file_path: string | null;
+          import_notes: Json | null;
           kind: string;
           text_content: string | null;
           updated_at: string;
@@ -515,6 +516,7 @@ export type Database = {
           created_at?: string;
           file_name?: string | null;
           file_path?: string | null;
+          import_notes?: Json | null;
           kind?: string;
           text_content?: string | null;
           updated_at?: string;
@@ -525,6 +527,7 @@ export type Database = {
           created_at?: string;
           file_name?: string | null;
           file_path?: string | null;
+          import_notes?: Json | null;
           kind?: string;
           text_content?: string | null;
           updated_at?: string;

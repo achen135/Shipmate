@@ -12,7 +12,9 @@
 --   the saved key and is written by the server. AI mode needs a saved key
 --   (trigger), and removing the key drops the user back to Simple.
 -- - resumes.content: the structured resume (Spec "Structured resume"),
---   written by the import and the editor as the user.
+--   written by the import and the editor as the user. import_notes: what
+--   the import's check found that doesn't trace back to the user's file,
+--   shown above the editor until they dismiss it.
 -- - fact_bank: true things that aren't on the resume, own rows only.
 
 -- ---------------------------------------------------------------- api_keys
@@ -101,11 +103,15 @@ create trigger api_keys_removed
 -- The structured resume. Shape is checked by the app's zod schema
 -- (lib/resume/structured.ts); the database keeps it a bounded object.
 alter table public.resumes
+  add column import_notes jsonb check (
+    import_notes is null
+    or (jsonb_typeof(import_notes) = 'array' and pg_column_size(import_notes) <= 20000)
+  ),
   add constraint content_is_small check (content is null or pg_column_size(content) <= 100000),
   add constraint structured_has_content check (kind <> 'structured' or content is not null);
 
-grant insert (content) on public.resumes to authenticated;
-grant update (content) on public.resumes to authenticated;
+grant insert (content, import_notes) on public.resumes to authenticated;
+grant update (content, import_notes) on public.resumes to authenticated;
 
 -- ---------------------------------------------------------------- fact_bank
 

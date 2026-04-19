@@ -24,7 +24,10 @@ export default async function WatchStepPage() {
 
   return (
     <>
-      <StepHeader step={displayStepNumber(STEP.watch)} title="What to watch">
+      <StepHeader
+        step={displayStepNumber(STEP.watch, viewer.mode)}
+        title="What to watch"
+      >
         Pick a starting point and adjust it. Shipmate checks for new postings
         every 30 minutes, and your Inbox starts with matches from the past week.
         You can add more searches later in Profile.

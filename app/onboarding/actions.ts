@@ -76,3 +76,36 @@ export async function completeWatch(values: unknown): Promise<ActionResult> {
   }
   redirect(HOME_PATH);
 }
+
+/**
+ * Steps 3 (resume + mode) and 4 (fact bank): everything on them saves as
+ * it's done, so Continue (or Skip) only moves the user on. Step 4 is skipped
+ * unless AI mode is on.
+ */
+async function finishStep(step: number): Promise<ActionResult> {
+  const viewer = await requireSignedIn();
+  const pending = pendingOnboardingPath(viewer);
+  if (pending !== (ONBOARDING_PATHS as Record<number, string>)[step]) {
+    redirect(pending ?? HOME_PATH);
+  }
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("profiles")
+    .update({ onboarding_step: step + 1 })
+    .eq("user_id", viewer.id);
+  if (error) {
+    console.error("[onboarding] step failed:", error.message);
+    return { ok: false, message: "Couldn't continue. Try again." };
+  }
+  redirect(
+    pendingOnboardingPath({ ...viewer, onboardingStep: step + 1 }) ?? HOME_PATH,
+  );
+}
+
+export async function completeResume(): Promise<ActionResult> {
+  return finishStep(STEP.resume);
+}
+
+export async function completeFacts(): Promise<ActionResult> {
+  return finishStep(STEP.facts);
+}

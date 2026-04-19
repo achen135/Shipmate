@@ -9,6 +9,8 @@ import { BasicsForm } from "@/components/profile/basics-form";
 import { WatchProfileList } from "@/components/watch/watch-profile-list";
 import { Button } from "@/components/ui/button";
 import { requireMember } from "@/lib/auth/viewer";
+import { getAiSettings } from "@/lib/ai/queries";
+import { PROVIDER_LABELS } from "@/lib/ai/types";
 import { getResume } from "@/lib/resume/queries";
 import { basicsFromProfile, gradYearOptions } from "@/lib/schemas/basics";
 import { createClient } from "@/lib/supabase/server";
@@ -30,7 +32,8 @@ export default async function ProfilePage() {
     .from("follows")
     .select("company_id", { count: "exact", head: true });
   if (followsError) throw new Error(`follows: ${followsError.message}`);
-  const hasResume = (await getResume()) !== null;
+  const [resume, ai] = await Promise.all([getResume(), getAiSettings()]);
+  const hasResume = resume?.file_path != null;
   const { count: deviceCount, error: devicesError } = await supabase
     .from("push_subscriptions")
     .select("id", { count: "exact", head: true });
@@ -71,6 +74,46 @@ export default async function ProfilePage() {
             className="size-4 text-muted-foreground"
           />
         </Link>
+      </section>
+
+      <section aria-labelledby="ai-heading" className="flex flex-col gap-4">
+        <h2 id="ai-heading" className="text-lg font-medium">
+          AI
+        </h2>
+        {[
+          {
+            href: "/profile/ai",
+            title: "AI key and mode",
+            body: ai.savedKey
+              ? `${PROVIDER_LABELS[ai.savedKey.provider]} key ending ${ai.savedKey.last4}. ${ai.mode === "ai" ? "AI mode is on." : "AI mode is off."}`
+              : "Optional: bring your own Anthropic or OpenAI key.",
+          },
+          {
+            href: "/profile/resume",
+            title: "Structured resume",
+            body: "Your resume in Shipmate's layout, with a live preview.",
+          },
+          {
+            href: "/profile/facts",
+            title: "Not on your resume",
+            body: "Skills, projects and more that didn't fit on one page.",
+          },
+        ].map((link) => (
+          <Link
+            key={link.href}
+            href={link.href}
+            className="flex items-center gap-3 rounded-xl border bg-card p-4 hover:bg-muted/50"
+          >
+            <div className="min-w-0 flex-1">
+              <p className="font-medium">{link.title}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{link.body}</p>
+            </div>
+            <ChevronRight
+              aria-hidden="true"
+              className="size-4 text-muted-foreground"
+            />
+          </Link>
+        ))}
       </section>
 
       <section

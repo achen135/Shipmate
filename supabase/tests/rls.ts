@@ -1965,6 +1965,115 @@ async function testApiKeys(a: TestUser, b: TestUser): Promise<void> {
   check("the nonce must be 12 bytes", tooShort.error !== null);
 }
 
+/** supabase/seed.sql puts this (local-only, public) value in Vault. */
+const LOCAL_SERVER_SECRET =
+  "local-only-api-key-server-secret-not-for-production";
+
+async function testKeyFunctions(a: TestUser, b: TestUser): Promise<void> {
+  console.log(
+    "\nsave_api_key / sealed_api_key: own row only, server secret required",
+  );
+
+  const sealed = sealedRow(b.id, "openai");
+  const args = {
+    p_provider: "openai",
+    p_ciphertext: sealed.ciphertext,
+    p_iv: sealed.iv,
+    p_last4: "9c1e",
+  };
+
+  for (const [label, secret] of [
+    ["no", ""],
+    ["a wrong", "x".repeat(40)],
+    ["a near-miss", LOCAL_SERVER_SECRET.slice(0, -1)],
+  ] as const) {
+    const saved = await b.client.rpc("save_api_key", {
+      p_secret: secret,
+      ...args,
+    });
+    check(
+      `B can't save a key with ${label} server secret`,
+      saved.error !== null,
+    );
+    const read = await a.client.rpc("sealed_api_key", { p_secret: secret });
+    check(
+      `A can't read their sealed key with ${label} server secret`,
+      read.error !== null && !read.data,
+      { error: read.error?.message, data: read.data },
+    );
+  }
+
+  const anon = createClient<Database>(url, publishableKey, NO_SESSION);
+  const anonRead = await anon.rpc("sealed_api_key", {
+    p_secret: LOCAL_SERVER_SECRET,
+  });
+  check(
+    "a signed-out visitor can't call sealed_api_key",
+    anonRead.error !== null,
+  );
+  const probe = await a.client.rpc(
+    "api_key_server_ok" as never,
+    {
+      p_secret: LOCAL_SERVER_SECRET,
+    } as never,
+  );
+  check(
+    "nobody signed in can probe the secret check directly",
+    probe.error !== null,
+  );
+
+  const saved = await b.client.rpc("save_api_key", {
+    p_secret: LOCAL_SERVER_SECRET,
+    ...args,
+  });
+  eq("with the server secret, B saves their own key", saved.error, null);
+  const stored = await admin
+    .from("api_keys")
+    .select("user_id, provider, last4")
+    .eq("user_id", b.id)
+    .single();
+  eq("…stored on B's row", stored.data?.last4, "9c1e");
+  const bProfile = await admin
+    .from("profiles")
+    .select("mode, ai_provider")
+    .eq("user_id", b.id)
+    .single();
+  eq("…AI mode on", bProfile.data?.mode, "ai");
+  eq("…provider recorded", bProfile.data?.ai_provider, "openai");
+
+  const aOwn = await a.client.rpc("sealed_api_key", {
+    p_secret: LOCAL_SERVER_SECRET,
+  });
+  eq(
+    "A (server secret) gets exactly their own sealed key",
+    aOwn.data?.length,
+    1,
+  );
+  eq("…A's, not B's", aOwn.data?.[0]?.provider, "anthropic");
+
+  const replaced = await b.client.rpc("save_api_key", {
+    p_secret: LOCAL_SERVER_SECRET,
+    ...args,
+    p_provider: "anthropic",
+    p_last4: "7f3a",
+  });
+  eq("saving again replaces the key (one per user)", replaced.error, null);
+  const count = await admin
+    .from("api_keys")
+    .select("user_id", { count: "exact", head: true })
+    .eq("user_id", b.id);
+  eq("…still one row", count.count, 1);
+
+  const bad = await b.client.rpc("save_api_key", {
+    p_secret: LOCAL_SERVER_SECRET,
+    ...args,
+    p_provider: "gemini",
+  });
+  check("the provider must be anthropic or openai", bad.error !== null);
+
+  await admin.from("api_keys").delete().eq("user_id", b.id);
+}
+
 async function testAiMode(a: TestUser, b: TestUser): Promise<void> {
   console.log("\nprofiles: AI mode needs a key, and removing the key ends it");
 
@@ -2120,6 +2229,7 @@ async function main(): Promise<void> {
     await testPostingQuestions(a, b);
     await testPushAndNotifications(a, b);
     await testApiKeys(a, b);
+    await testKeyFunctions(a, b);
     await testAiMode(a, b);
     await testStructuredResume(a, b);
     await testFactBank(a, b);

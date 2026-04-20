@@ -828,6 +828,7 @@ export type Database = {
       };
     };
     Functions: {
+      api_key_server_ok: { Args: { p_secret: string }; Returns: boolean };
       dispatch_watch: { Args: Record<PropertyKey, never>; Returns: number };
       follow_board: {
         Args: {
@@ -848,6 +849,16 @@ export type Database = {
       max_follows: { Args: Record<PropertyKey, never>; Returns: number };
       posting_boards: { Args: { p_posting_id: string }; Returns: Json };
       redeem_invite: { Args: { p_code: string }; Returns: string };
+      save_api_key: {
+        Args: {
+          p_ciphertext: string;
+          p_iv: string;
+          p_last4: string;
+          p_provider: string;
+          p_secret: string;
+        };
+        Returns: undefined;
+      };
       save_posting_questions: {
         Args: { p_posting_id: string; p_questions: Json; p_status: string };
         Returns: string;
@@ -855,6 +866,14 @@ export type Database = {
       save_push_subscription: {
         Args: { p_endpoint: string; p_keys: Json; p_user_agent: string };
         Returns: string;
+      };
+      sealed_api_key: {
+        Args: { p_secret: string };
+        Returns: {
+          ciphertext: string;
+          iv: string;
+          provider: string;
+        }[];
       };
       touch_seen: { Args: { p_link_ids: string[] }; Returns: undefined };
       update_links: { Args: { p_links: Json }; Returns: undefined };

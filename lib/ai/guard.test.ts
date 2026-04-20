@@ -6,13 +6,20 @@ import { describe, expect, it } from "vitest";
 
 /**
  * Structural guards for the key-handling rules (CLAUDE.md hard rule 5):
- * decryption happens in one module, and the service-role client is used
- * only for keys. A new import of either fails here, so it gets a deliberate
- * look instead of slipping in.
+ * decryption happens in one module, the sealed key is fetched in one, and
+ * the web app never touches the service-role key. A new use of any of them
+ * fails here, so it gets a deliberate look instead of slipping in.
  */
 
 const ROOT = join(__dirname, "..", "..");
-const SKIP = new Set(["node_modules", ".next", ".git", "test-results", "docs"]);
+const SKIP = new Set([
+  "node_modules",
+  ".next",
+  ".git",
+  "test-results",
+  "docs",
+  "supabase",
+]);
 
 function sourceFiles(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
@@ -44,8 +51,17 @@ describe("key handling stays in its boxes", () => {
     ]);
   });
 
-  it("only the key code uses the service-role client in the app", () => {
-    expect(users(/@\/lib\/supabase\/admin|supabase\/admin"/)).toEqual([
+  it("the web app never uses the service-role key", () => {
+    const appSide = files.filter((f) => /^(app|components|lib)\//.test(f.path));
+    const offenders = appSide
+      .filter((f) => !f.path.endsWith(".test.ts"))
+      .filter((f) => /SUPABASE_SERVICE_ROLE_KEY|supabase\/admin/.test(f.text))
+      .map((f) => f.path);
+    expect(offenders).toEqual([]);
+  });
+
+  it("only lib/ai/keys.ts asks the database for a sealed key", () => {
+    expect(users(/rpc\("(sealed_api_key|save_api_key)"/)).toEqual([
       "lib/ai/keys.ts",
     ]);
   });
@@ -65,7 +81,7 @@ describe("key handling stays in its boxes", () => {
 
   it("no NEXT_PUBLIC_ name for a secret", () => {
     const leaks = users(
-      /NEXT_PUBLIC_(API_KEY_ENCRYPTION|SUPABASE_SERVICE_ROLE|ANTHROPIC|OPENAI)/,
+      /NEXT_PUBLIC_(API_KEY_|SUPABASE_SERVICE_ROLE|ANTHROPIC|OPENAI)/,
     );
     expect(leaks).toEqual([]);
   });

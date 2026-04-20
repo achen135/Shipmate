@@ -44,6 +44,10 @@ export default defineConfig({
         API_KEY_ENCRYPTION_KEY:
           process.env.API_KEY_ENCRYPTION_KEY ??
           "ZTJlLW9ubHktbWFzdGVyLWtleS1ub3QtYS1zZWNyZXQ=",
+        // Matches supabase/seed.sql (local Vault).
+        API_KEY_SERVER_SECRET:
+          process.env.API_KEY_SERVER_SECRET ??
+          "local-only-api-key-server-secret-not-for-production",
       },
     },
     {

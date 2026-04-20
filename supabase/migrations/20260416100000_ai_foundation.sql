@@ -4,9 +4,13 @@
 --   server before it gets here. Nobody signed in can read `ciphertext` or
 --   `iv`, not even the key's owner: those two columns have no select grant
 --   for anon or authenticated. Users read provider + last4 through
---   api_keys_public and can delete their row; only the service role (the
---   app's key-saving Server Action and lib/ai, and the worker) writes or
---   reads the secret columns.
+--   api_keys_public and can delete their row.
+--   The web app's server writes and reads the sealed key through
+--   save_api_key() / sealed_api_key(), which act on the caller's own row
+--   only and also require a server secret (Vault `api_key_server_secret`,
+--   which the browser never has). That keeps the service-role key out of the
+--   web app (Design Decisions M5); the worker (M7) reads with the service
+--   role as it reads everything else.
 -- - profiles: mode / ai_provider / auto_tailor / daily_cap exist since M1.
 --   Users may now set mode, auto_tailor and daily_cap; ai_provider follows
 --   the saved key and is written by the server. AI mode needs a saved key
@@ -53,6 +57,99 @@ create view public.api_keys_public
 
 revoke all on public.api_keys_public from anon, authenticated;
 grant select on public.api_keys_public to authenticated;
+
+-- Is p_secret the server secret? Vault `api_key_server_secret` holds it
+-- (production: set by hand, see Sessions M6; local + CI: supabase/seed.sql).
+-- No secret in Vault means nothing matches, so the functions below refuse.
+create function public.api_key_server_ok(p_secret text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(
+    length(p_secret) >= 32
+    and p_secret = (
+      select decrypted_secret from vault.decrypted_secrets
+      where name = 'api_key_server_secret'
+      limit 1
+    ),
+    false
+  );
+$$;
+
+revoke all on function public.api_key_server_ok(text) from public, anon, authenticated;
+
+-- Store the caller's sealed key (replacing any they had: one per user) and
+-- turn on AI mode. Called by the key-saving Server Action after the key's
+-- test call passed and it was encrypted.
+create function public.save_api_key(
+  p_secret text,
+  p_provider text,
+  p_ciphertext text,
+  p_iv text,
+  p_last4 text
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_uid uuid := auth.uid();
+begin
+  if v_uid is null or not public.api_key_server_ok(p_secret) then
+    raise exception 'not allowed' using errcode = '42501';
+  end if;
+  if not exists (
+    select 1 from public.profiles where user_id = v_uid and invited_at is not null
+  ) then
+    raise exception 'not allowed' using errcode = '42501';
+  end if;
+
+  insert into public.api_keys (user_id, provider, ciphertext, iv, last4)
+  values (v_uid, p_provider, p_ciphertext, p_iv, p_last4)
+  on conflict (user_id) do update
+    set provider = excluded.provider,
+        ciphertext = excluded.ciphertext,
+        iv = excluded.iv,
+        last4 = excluded.last4,
+        created_at = now();
+
+  update public.profiles
+     set ai_provider = p_provider, mode = 'ai'
+   where user_id = v_uid;
+end;
+$$;
+
+revoke all on function public.save_api_key(text, text, text, text, text) from public, anon;
+grant execute on function public.save_api_key(text, text, text, text, text) to authenticated;
+
+-- The caller's own sealed key, for lib/ai getProvider to decrypt on the
+-- server. Without the server secret: an error, never the row.
+create function public.sealed_api_key(p_secret text)
+returns table (provider text, ciphertext text, iv text)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_uid uuid := auth.uid();
+begin
+  if v_uid is null or not public.api_key_server_ok(p_secret) then
+    raise exception 'not allowed' using errcode = '42501';
+  end if;
+  return query
+    select k.provider, k.ciphertext, k.iv
+    from public.api_keys k
+    where k.user_id = v_uid;
+end;
+$$;
+
+revoke all on function public.sealed_api_key(text) from public, anon;
+grant execute on function public.sealed_api_key(text) to authenticated;
 
 -- ---------------------------------------------------------------- profiles
 

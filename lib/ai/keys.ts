@@ -2,18 +2,42 @@ import "server-only";
 
 import { z } from "zod";
 
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 
 import { loadMasterKey, MasterKeyError, sealApiKey } from "./crypto";
-import { AiError, createProvider, getProvider, PROVIDERS } from "./index";
+import {
+  AiError,
+  createProvider,
+  getProvider,
+  PROVIDERS,
+  type SealedKeySource,
+} from "./index";
 
 /**
  * App-side key handling: save (test, then seal, then store) and load for a
- * request. The only app code that holds the service-role client.
+ * request. Both go through the signed-in user's own client and two database
+ * functions that also require the server secret (`API_KEY_SERVER_SECRET`,
+ * server env only), so the web app never needs the service-role key and a
+ * browser holding the user's session still can't read the ciphertext.
  *
  * Logging rule: only the provider name and an error code or status, never a
- * key, a ciphertext, or an SDK error object.
+ * key, a ciphertext, the server secret, or an SDK error object.
  */
+
+export const SERVER_SECRET_ENV = "API_KEY_SERVER_SECRET";
+
+class ServerSecretError extends Error {
+  constructor() {
+    super(`${SERVER_SECRET_ENV} isn't set (32+ characters).`);
+    this.name = "ServerSecretError";
+  }
+}
+
+function serverSecret(): string {
+  const secret = process.env[SERVER_SECRET_ENV]?.trim() ?? "";
+  if (secret.length < 32) throw new ServerSecretError();
+  return secret;
+}
 
 export const apiKeyInputSchema = z
   .object({
@@ -54,6 +78,8 @@ export type SaveKeyResult =
   | { ok: true; last4: string }
   | { ok: false; message: string; fieldErrors?: Record<string, string[]> };
 
+const NOT_CONFIGURED = "Shipmate can't store keys right now. Tell Alex.";
+
 /**
  * Test the key with one real (free) call, and only if that works, encrypt
  * and store it, replacing any key the user had (one key per user), and turn
@@ -74,15 +100,14 @@ export async function saveApiKey(
   const { provider, apiKey } = parsed.data;
 
   let masterKey: Buffer;
+  let secret: string;
   try {
     masterKey = loadMasterKey();
+    secret = serverSecret();
   } catch (error) {
-    if (error instanceof MasterKeyError) {
+    if (error instanceof MasterKeyError || error instanceof ServerSecretError) {
       console.error(`[ai] can't store keys: ${error.message}`);
-      return {
-        ok: false,
-        message: "Shipmate can't store keys right now. Tell Alex.",
-      };
+      return { ok: false, message: NOT_CONFIGURED };
     }
     throw error;
   }
@@ -101,35 +126,46 @@ export async function saveApiKey(
   }
 
   const sealed = sealApiKey(apiKey, { userId, provider }, masterKey);
-  const admin = createAdminClient();
-  const stored = await admin.from("api_keys").upsert(
-    {
-      user_id: userId,
-      provider,
-      ...sealed,
-      created_at: new Date().toISOString(),
-    },
-    { onConflict: "user_id" },
-  );
-  if (stored.error) {
-    console.error(`[ai] store key failed: ${stored.error.code}`);
-    return { ok: false, message: "Couldn't save the key. Try again." };
-  }
-  const profile = await admin
-    .from("profiles")
-    .update({ ai_provider: provider, mode: "ai" })
-    .eq("user_id", userId);
-  if (profile.error) {
-    console.error(`[ai] turn on AI mode failed: ${profile.error.code}`);
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("save_api_key", {
+    p_secret: secret,
+    p_provider: provider,
+    p_ciphertext: sealed.ciphertext,
+    p_iv: sealed.iv,
+    p_last4: sealed.last4,
+  });
+  if (error) {
+    // 42501 here means the server secret doesn't match Vault's.
+    console.error(`[ai] store key failed: ${error.code}`);
     return {
       ok: false,
-      message: "Saved the key, but couldn't turn on AI mode. Try again.",
+      message:
+        error.code === "42501"
+          ? NOT_CONFIGURED
+          : "Couldn't save the key. Try again.",
     };
   }
   return { ok: true, last4: sealed.last4 };
 }
 
-/** A ready provider for this user's saved key (decrypted inside getProvider). */
-export function providerFor(userId: string) {
-  return getProvider(createAdminClient(), userId);
+/** The signed-in user's own sealed key, through sealed_api_key(). */
+async function appKeySource(): Promise<SealedKeySource> {
+  const supabase = await createClient();
+  const secret = serverSecret();
+  return async () => {
+    const { data, error } = await supabase.rpc("sealed_api_key", {
+      p_secret: secret,
+    });
+    if (error) throw new Error(`load api key: ${error.code}`);
+    return data?.[0] ?? null;
+  };
+}
+
+/**
+ * A ready provider for the signed-in user's saved key (decrypted inside
+ * getProvider). `userId` must be the signed-in user: the database returns
+ * only the caller's own row, and the key is bound to that id.
+ */
+export async function providerFor(userId: string) {
+  return getProvider(await appKeySource(), userId);
 }

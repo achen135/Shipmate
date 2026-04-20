@@ -6,7 +6,7 @@ import { z } from "zod";
 
 import { createAnthropicProvider } from "./anthropic";
 import { sealApiKey } from "./crypto";
-import { NoKeyError, getProvider } from "./index";
+import { NoKeyError, getProvider, serviceRoleKeySource } from "./index";
 import { createOpenAIProvider } from "./openai";
 import { AiError } from "./types";
 
@@ -385,7 +385,7 @@ describe("getProvider", () => {
       body: { object: "response.input_tokens", input_tokens: 5 },
     }));
     const provider = await getProvider(
-      fakeDb({ provider: "openai", ...sealed }),
+      serviceRoleKeySource(fakeDb({ provider: "openai", ...sealed })),
       userId,
       { env, fetch: impl },
     );
@@ -395,9 +395,9 @@ describe("getProvider", () => {
   });
 
   it("no saved key is a NoKeyError", async () => {
-    await expect(getProvider(fakeDb(null), userId, { env })).rejects.toThrow(
-      NoKeyError,
-    );
+    await expect(
+      getProvider(async () => null, userId, { env }),
+    ).rejects.toThrow(NoKeyError);
   });
 
   it("a key sealed for someone else won't open", async () => {
@@ -407,7 +407,9 @@ describe("getProvider", () => {
       master,
     );
     await expect(
-      getProvider(fakeDb({ provider: "openai", ...sealed }), userId, { env }),
+      getProvider(async () => ({ provider: "openai", ...sealed }), userId, {
+        env,
+      }),
     ).rejects.toThrow("can't be decrypted");
   });
 });

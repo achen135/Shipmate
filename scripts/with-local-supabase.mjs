@@ -93,6 +93,11 @@ const env = {
   // Worker + tests only. Never read by app code.
   SUPABASE_URL: status.API_URL,
   SUPABASE_SERVICE_ROLE_KEY: status.SECRET_KEY,
+  // AI keys, local only: a fixed master key, and the server secret that
+  // supabase/seed.sql puts in the local Vault. Not secrets; never used in
+  // production, where both are random values in Vercel's env.
+  API_KEY_ENCRYPTION_KEY: "ZTJlLW9ubHktbWFzdGVyLWtleS1ub3QtYS1zZWNyZXQ=",
+  API_KEY_SERVER_SECRET: "local-only-api-key-server-secret-not-for-production",
   // E2E reads magic-link emails from Mailpit's API.
   ...(status.MAILPIT_URL ? { MAILPIT_URL: status.MAILPIT_URL } : {}),
 };

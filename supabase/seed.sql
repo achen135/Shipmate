@@ -9,3 +9,12 @@ select vault.create_secret(
   'local-only-api-key-server-secret-not-for-production',
   'api_key_server_secret'
 );
+
+-- The shared free Gemini key (shared_ai_key / worker_shared_ai_key). A fake,
+-- public, local-only value: E2E sends Gemini calls to a mock that accepts
+-- any key containing "e2e-valid". Production's is Alex's real key, added in
+-- the dashboard.
+select vault.create_secret(
+  'AIza-local-only-e2e-valid-not-a-real-key',
+  'shared_google_api_key'
+);

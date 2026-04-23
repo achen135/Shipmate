@@ -29,8 +29,9 @@ import { StepHeader } from "../step-header";
 export const metadata: Metadata = { title: "Your resume" };
 
 /**
- * Step 3: the PDF to apply with (Simple mode), and optionally an AI key
- * (AI mode) with the structured import. All of it can wait for Profile.
+ * Step 3: the PDF to apply with, and in AI mode (the default since M7, on
+ * the shared free key) the structured import. All of it can wait for
+ * Profile.
  */
 export default async function ResumeStepPage() {
   const viewer = await requireSignedIn();
@@ -42,15 +43,14 @@ export default async function ResumeStepPage() {
     getStructuredResume(),
     getAiSettings(),
   ]);
-  const hasAnything =
-    !!resume?.file_path || structured.content !== null || ai.savedKey !== null;
+  const hasAnything = !!resume?.file_path || structured.content !== null;
 
   return (
     <>
       <StepHeader step={displayStepNumber(STEP.resume)} title="Your resume">
-        Upload the PDF you apply with. Shipmate attaches it as it is. If you
-        like, add your own AI key too, and Shipmate will tailor it for each
-        posting. You can do either later in Profile.
+        Upload the PDF you apply with. In AI mode, Shipmate also reads it into
+        an editable layout and tailors a copy for each posting. You can do
+        either later in Profile.
       </StepHeader>
 
       <section aria-labelledby="pdf-heading" className="flex flex-col gap-3">
@@ -72,14 +72,9 @@ export default async function ResumeStepPage() {
 
       <section aria-labelledby="ai-heading" className="flex flex-col gap-3">
         <h2 id="ai-heading" className="font-medium">
-          AI mode{" "}
-          <span className="font-normal text-muted-foreground">(optional)</span>
+          AI mode
         </h2>
-        <AiSettings
-          {...ai}
-          actions={{ saveKey, removeKey, setMode, saveAiSettings }}
-        />
-        {ai.savedKey && (
+        {ai.mode === "ai" && (
           <>
             <ResumeImport hasContent={structured.content !== null} />
             {structured.content && (
@@ -93,6 +88,10 @@ export default async function ResumeStepPage() {
             )}
           </>
         )}
+        <AiSettings
+          {...ai}
+          actions={{ saveKey, removeKey, setMode, saveAiSettings }}
+        />
       </section>
 
       <div className="flex gap-3">

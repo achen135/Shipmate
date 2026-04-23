@@ -24,17 +24,16 @@ export default async function StructuredResumePage() {
       <PageHeader title="Structured resume" />
       <p className="text-sm text-muted-foreground">
         Your master resume in Shipmate&apos;s one-page layout, with your own
-        sections. Tailoring (from the next update) starts from this every time
-        and never changes it.
+        sections. Tailoring starts from this every time and never changes it.
       </p>
 
-      {ai.savedKey ? (
+      {ai.mode === "ai" ? (
         <ResumeImport hasContent={content !== null} />
       ) : (
         <p className="rounded-xl border bg-card p-4 text-sm">
-          Importing needs an AI key.{" "}
+          Importing needs AI mode.{" "}
           <Link href="/profile/ai" className="underline underline-offset-2">
-            Set one up in Profile → AI
+            Turn it on in Profile → AI
           </Link>
           , or keep using your PDF as it is.
         </p>

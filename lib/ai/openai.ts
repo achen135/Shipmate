@@ -32,6 +32,7 @@ export function createOpenAIProvider(options: ClientOptions): AiProvider {
 
   return {
     name: "openai",
+    shared: false,
 
     async testKey() {
       try {

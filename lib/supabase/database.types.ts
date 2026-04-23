@@ -875,8 +875,13 @@ export type Database = {
           provider: string;
         }[];
       };
+      shared_ai_key: { Args: { p_secret: string }; Returns: string };
       touch_seen: { Args: { p_link_ids: string[] }; Returns: undefined };
       update_links: { Args: { p_links: Json }; Returns: undefined };
+      worker_shared_ai_key: {
+        Args: Record<PropertyKey, never>;
+        Returns: string;
+      };
     };
     Enums: {
       [_ in never]: never;

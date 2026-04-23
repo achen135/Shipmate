@@ -21,7 +21,7 @@ export async function saveKey(values: unknown): Promise<SaveKeyResult> {
   return result;
 }
 
-/** Remove the key. The database then switches the user back to Simple. */
+/** Remove the key. The user stays in AI mode, on the shared free key. */
 export async function removeKey(): Promise<ActionResult> {
   const viewer = await requireInvited();
   const supabase = await createClient();
@@ -37,7 +37,7 @@ export async function removeKey(): Promise<ActionResult> {
   return { ok: true };
 }
 
-/** Simple ↔ AI. AI needs a saved key (the database refuses otherwise). */
+/** Simple ↔ AI. AI mode needs no key of their own (the shared key). */
 export async function setMode(mode: unknown): Promise<ActionResult> {
   const viewer = await requireInvited();
   const parsed = z.enum(["simple", "ai"]).safeParse(mode);
@@ -48,13 +48,8 @@ export async function setMode(mode: unknown): Promise<ActionResult> {
     .update({ mode: parsed.data })
     .eq("user_id", viewer.id);
   if (error) {
-    return {
-      ok: false,
-      message:
-        parsed.data === "ai"
-          ? "Add an API key first."
-          : "Couldn't switch. Try again.",
-    };
+    console.error("[ai] set mode failed:", error.code);
+    return { ok: false, message: "Couldn't switch. Try again." };
   }
   revalidatePath("/profile", "layout");
   return { ok: true };

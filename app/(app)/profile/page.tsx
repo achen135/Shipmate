@@ -83,10 +83,8 @@ export default async function ProfilePage() {
         {[
           {
             href: "/profile/ai",
-            title: "AI key and mode",
-            body: ai.savedKey
-              ? `${PROVIDER_LABELS[ai.savedKey.provider]} key ending ${ai.savedKey.last4}. ${ai.mode === "ai" ? "AI mode is on." : "AI mode is off."}`
-              : "Optional: bring your own Anthropic or OpenAI key.",
+            title: "AI mode and key",
+            body: `${ai.mode === "ai" ? "AI mode is on" : "AI mode is off"}, ${ai.savedKey ? `with your ${PROVIDER_LABELS[ai.savedKey.provider]} key ending ${ai.savedKey.last4}` : "on the shared free AI"}.`,
           },
           {
             href: "/profile/resume",

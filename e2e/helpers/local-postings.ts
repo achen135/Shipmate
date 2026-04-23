@@ -108,6 +108,18 @@ export async function finishOnboarding(userId: string): Promise<void> {
   if (error) throw new Error(`finish onboarding: ${error.message}`);
 }
 
+/** Simple or AI mode (new accounts start in AI mode since M7). */
+export async function setMode(
+  userId: string,
+  mode: "simple" | "ai",
+): Promise<void> {
+  const { error } = await admin()
+    .from("profiles")
+    .update({ mode })
+    .eq("user_id", userId);
+  if (error) throw new Error(`set mode: ${error.message}`);
+}
+
 /** A "software" watch profile, as if picked in onboarding. */
 export async function addSoftwareWatchProfile(userId: string): Promise<void> {
   const { error } = await admin()

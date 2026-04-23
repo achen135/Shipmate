@@ -6,8 +6,9 @@ import { describe, expect, it } from "vitest";
 
 /**
  * Structural guards for the key-handling rules (CLAUDE.md hard rule 5):
- * decryption happens in one module, the sealed key is fetched in one, and
- * the web app never touches the service-role key. A new use of any of them
+ * decryption happens in one module, the sealed key and the shared Gemini key
+ * are each fetched in one place per side (web server, worker), and the web
+ * app never touches the service-role key. A new use of any of them
  * fails here, so it gets a deliberate look instead of slipping in.
  */
 
@@ -66,6 +67,15 @@ describe("key handling stays in its boxes", () => {
     ]);
   });
 
+  it("the shared Gemini key is fetched only in lib/ai: keys.ts for the web server, index.ts for the worker", () => {
+    expect(users(/rpc\("shared_ai_key"/)).toEqual(["lib/ai/keys.ts"]);
+    expect(users(/rpc\("worker_shared_ai_key"/)).toEqual(["lib/ai/index.ts"]);
+  });
+
+  it("no code reads the shared key's Vault secret by name", () => {
+    expect(users(/shared_google_api_key/)).toEqual([]);
+  });
+
   it("client components import only the AI layer's plain data (models, types)", () => {
     const allowed = new Set(["@/lib/ai/models", "@/lib/ai/types"]);
     const offenders = files
@@ -81,7 +91,7 @@ describe("key handling stays in its boxes", () => {
 
   it("no NEXT_PUBLIC_ name for a secret", () => {
     const leaks = users(
-      /NEXT_PUBLIC_(API_KEY_|SUPABASE_SERVICE_ROLE|ANTHROPIC|OPENAI)/,
+      /NEXT_PUBLIC_(API_KEY_|SUPABASE_SERVICE_ROLE|ANTHROPIC|OPENAI|GOOGLE|GEMINI|SHARED_)/,
     );
     expect(leaks).toEqual([]);
   });

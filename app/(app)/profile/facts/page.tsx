@@ -20,10 +20,12 @@ export default async function FactsPage() {
       <PageHeader title="Not on your resume" />
       <p className="text-sm text-muted-foreground">
         True things that didn&apos;t fit on one page. When Shipmate tailors your
-        resume (from the next update) it may bring one of these in if a posting
-        asks for it, and nothing that isn&apos;t here or on your resume.
+        resume it may bring one of these in if a posting asks for it, and
+        nothing that isn&apos;t here or on your resume.
       </p>
-      {ai.savedKey && <FactSuggestions addSuggestedFacts={addSuggestedFacts} />}
+      {ai.mode === "ai" && (
+        <FactSuggestions addSuggestedFacts={addSuggestedFacts} />
+      )}
       <FactBank facts={facts} actions={{ addFact, deleteFact }} />
     </div>
   );

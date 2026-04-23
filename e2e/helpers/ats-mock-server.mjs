@@ -15,10 +15,11 @@
  * __fixtures__): standard questions, two written ones, and an anti-bot
  * puzzle.
  *
- * AI E2E (M6): POST /anthropic/v1/… and /openai/v1/… answer like the
- * Anthropic and OpenAI APIs (the app sends AI calls here when
- * E2E_AI_ORIGIN is set; lib/e2e-origin.ts). A key containing "e2e-valid"
- * is accepted; any other gets each API's real 401 body. Structured-output
+ * AI E2E (M6, M7): POST /anthropic/v1/…, /openai/v1/… and /google/v1beta/…
+ * answer like the Anthropic, OpenAI and Gemini APIs (the app and the worker
+ * send AI calls here when E2E_AI_ORIGIN is set; lib/e2e-origin.ts). A key
+ * containing "e2e-valid" is accepted (the local shared Gemini key in
+ * supabase/seed.sql is one); any other gets each API's real error body. Structured-output
  * requests get a faithful conversion built from the resume text itself:
  * Title Case / ALL CAPS lines become sections, as a careful model would.
  */
@@ -98,7 +99,8 @@ createServer((request, response) => {
   }
   if (
     url.pathname.startsWith("/anthropic/") ||
-    url.pathname.startsWith("/openai/")
+    url.pathname.startsWith("/openai/") ||
+    url.pathname.startsWith("/google/")
   ) {
     let body = "";
     request.on("data", (chunk) => (body += chunk));
@@ -234,10 +236,23 @@ function answerAi(url, request, raw, response) {
     return send(response, 400, { error: { message: "bad json" } });
   }
   const anthropic = url.pathname.startsWith("/anthropic/");
+  const google = url.pathname.startsWith("/google/");
   const key = anthropic
     ? (request.headers["x-api-key"] ?? "")
-    : (request.headers.authorization ?? "").replace(/^Bearer /, "");
+    : google
+      ? (request.headers["x-goog-api-key"] ?? "")
+      : (request.headers.authorization ?? "").replace(/^Bearer /, "");
   if (!String(key).includes("e2e-valid")) {
+    if (google) {
+      return send(response, 400, {
+        error: {
+          code: 400,
+          message: "API key not valid. Please pass a valid API key.",
+          status: "INVALID_ARGUMENT",
+          details: [{ reason: "API_KEY_INVALID" }],
+        },
+      });
+    }
     return anthropic
       ? send(response, 401, {
           type: "error",
@@ -255,10 +270,14 @@ function answerAi(url, request, raw, response) {
 
   const input = anthropic
     ? String(body.messages?.[0]?.content ?? "")
-    : String(body.input ?? "");
+    : google
+      ? String(body.contents?.[0]?.parts?.[0]?.text ?? "")
+      : String(body.input ?? "");
   const instructions = anthropic
     ? String(body.system ?? "")
-    : String(body.instructions ?? "");
+    : google
+      ? String(body.systemInstruction?.parts?.[0]?.text ?? "")
+      : String(body.instructions ?? "");
   const answer = () => {
     if (/true facts/.test(instructions)) {
       return { facts: [{ kind: "skill", text: "Figma", detail: "" }] };
@@ -267,6 +286,33 @@ function answerAi(url, request, raw, response) {
     return convert(text);
   };
 
+  const gemini = url.pathname.match(
+    /^\/google\/v1beta\/models\/([\w.-]+):(countTokens|generateContent)$/,
+  );
+  if (gemini?.[2] === "countTokens") {
+    return send(response, 200, { totalTokens: 12 });
+  }
+  if (gemini?.[2] === "generateContent") {
+    return send(response, 200, {
+      candidates: [
+        {
+          content: {
+            role: "model",
+            parts: [{ text: JSON.stringify(answer()) }],
+          },
+          finishReason: "STOP",
+          index: 0,
+        },
+      ],
+      usageMetadata: {
+        promptTokenCount: 800,
+        candidatesTokenCount: 500,
+        thoughtsTokenCount: 100,
+        totalTokenCount: 1400,
+      },
+      modelVersion: gemini[1],
+    });
+  }
   if (url.pathname === "/anthropic/v1/messages/count_tokens") {
     return send(response, 200, { input_tokens: 12 });
   }

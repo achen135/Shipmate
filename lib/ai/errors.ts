@@ -10,12 +10,16 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
+import { ApiError as GoogleApiError } from "@google/genai";
 import OpenAI from "openai";
 
 import { AiError, PROVIDER_LABELS, type ProviderName } from "./types";
 
-/** Key-shaped tokens: sk-…, sk-ant-…, sk-proj-…, and masked forms (sk-****abcd). */
-const KEY_PATTERN = /\bsk-[A-Za-z0-9_*\-]{4,}/g;
+/**
+ * Key-shaped tokens: sk-…, sk-ant-…, sk-proj-…, masked forms (sk-****abcd),
+ * and Google API keys (AIza…).
+ */
+const KEY_PATTERN = /\b(?:sk-[A-Za-z0-9_*\-]{4,}|AIza[A-Za-z0-9_\-]{10,})/g;
 
 export function redact(text: string, secret?: string): string {
   let out = text;
@@ -26,6 +30,18 @@ export function redact(text: string, secret?: string): string {
 
 function providerMessage(error: unknown): string {
   if (!(error instanceof Error)) return "";
+  // Google's SDK puts the response body, JSON, in the message itself.
+  if (error instanceof GoogleApiError) {
+    try {
+      const body = JSON.parse(error.message) as {
+        error?: { message?: unknown };
+      };
+      if (typeof body.error?.message === "string") return body.error.message;
+    } catch {
+      // Not JSON: use it as it is.
+    }
+    return error.message;
+  }
   // Both SDKs prefix the message with the status code ("401 {...}" or
   // "401 invalid x-api-key"); the JSON body is in `error`, if any.
   const body = (error as { error?: unknown }).error;
@@ -47,9 +63,17 @@ export function toAiError(
   const said = redact(providerMessage(error), apiKey);
   const detail = said ? ` ${label} said: "${said}"` : "";
 
+  // Google's SDK uses fetch directly: a network failure is fetch's own
+  // TypeError ("fetch failed"), or a timeout's AbortError.
   const isConnection =
     error instanceof Anthropic.APIConnectionError ||
-    error instanceof OpenAI.APIConnectionError;
+    error instanceof OpenAI.APIConnectionError ||
+    (provider === "google" &&
+      !(error instanceof GoogleApiError) &&
+      error instanceof Error &&
+      (error.name === "AbortError" ||
+        error.name === "TimeoutError" ||
+        (error instanceof TypeError && /fetch/i.test(error.message))));
   if (isConnection) {
     return new AiError(
       "unreachable",
@@ -58,9 +82,20 @@ export function toAiError(
   }
 
   const status =
-    error instanceof Anthropic.APIError || error instanceof OpenAI.APIError
+    error instanceof Anthropic.APIError ||
+    error instanceof OpenAI.APIError ||
+    error instanceof GoogleApiError
       ? error.status
       : undefined;
+
+  // Google answers a bad key with 400 API_KEY_INVALID, not 401.
+  if (status === 400 && /api key not valid|API_KEY_INVALID/i.test(said)) {
+    return new AiError(
+      "invalid_key",
+      `${label} didn't accept this key.${detail}`,
+      status,
+    );
+  }
 
   // OpenAI says "out of credit" as a 429 with this code.
   if (error instanceof OpenAI.APIError && error.code === "insufficient_quota") {

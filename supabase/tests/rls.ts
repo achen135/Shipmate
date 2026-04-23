@@ -2069,19 +2069,40 @@ async function testKeyFunctions(a: TestUser, b: TestUser): Promise<void> {
     ...args,
     p_provider: "gemini",
   });
-  check("the provider must be anthropic or openai", bad.error !== null);
+  check("the provider must be anthropic, openai or google", bad.error !== null);
 
   await admin.from("api_keys").delete().eq("user_id", b.id);
 }
 
 async function testAiMode(a: TestUser, b: TestUser): Promise<void> {
-  console.log("\nprofiles: AI mode needs a key, and removing the key ends it");
+  console.log(
+    "\nprofiles: AI mode works without a key (shared key), and removing a key keeps it",
+  );
 
+  const fresh = await makeUser("mode-default");
+  const created = await admin
+    .from("profiles")
+    .select("mode")
+    .eq("user_id", fresh.id)
+    .single();
+  eq("a new account starts in AI mode", created.data?.mode, "ai");
+
+  const off = await b.client
+    .from("profiles")
+    .update({ mode: "simple" })
+    .eq("user_id", b.id)
+    .select("mode");
+  eq("B can switch to Simple", off.data?.[0]?.mode, "simple");
   const noKey = await b.client
     .from("profiles")
     .update({ mode: "ai" })
-    .eq("user_id", b.id);
-  check("B can't turn on AI mode without a key", noKey.error !== null);
+    .eq("user_id", b.id)
+    .select("mode");
+  eq(
+    "B turns on AI mode with no key of their own (the shared key covers it)",
+    noKey.data?.[0]?.mode,
+    "ai",
+  );
 
   const provider = await a.client
     .from("profiles")
@@ -2097,7 +2118,7 @@ async function testAiMode(a: TestUser, b: TestUser): Promise<void> {
     .update({ mode: "ai", daily_cap: 25, auto_tailor: true })
     .eq("user_id", a.id)
     .select("mode, daily_cap, auto_tailor");
-  eq("A (who has a key) turns on AI mode", on.data?.[0]?.mode, "ai");
+  eq("A turns on AI mode", on.data?.[0]?.mode, "ai");
   eq("…and sets a daily cap", on.data?.[0]?.daily_cap, 25);
 
   const cap = await a.client
@@ -2106,6 +2127,10 @@ async function testAiMode(a: TestUser, b: TestUser): Promise<void> {
     .eq("user_id", a.id);
   check("the daily cap stays within 0–100", cap.error !== null);
 
+  await admin
+    .from("profiles")
+    .update({ ai_provider: "anthropic" })
+    .eq("user_id", a.id);
   const removed = await a.client
     .from("api_keys")
     .delete()
@@ -2117,8 +2142,88 @@ async function testAiMode(a: TestUser, b: TestUser): Promise<void> {
     .select("mode, ai_provider")
     .eq("user_id", a.id)
     .single();
-  eq("…which puts them back in Simple mode", after.data?.mode, "simple");
-  eq("…and clears ai_provider", after.data?.ai_provider, null);
+  eq("…and stays in AI mode, on the shared key", after.data?.mode, "ai");
+  eq("…with ai_provider cleared", after.data?.ai_provider, null);
+
+  const google = await admin
+    .from("api_keys")
+    .insert(sealedRow(b.id, "google" as never));
+  eq("a Google key can be stored", google.error, null);
+  await admin.from("api_keys").delete().eq("user_id", b.id);
+}
+
+/** supabase/seed.sql puts this fake key in the local Vault. */
+const LOCAL_SHARED_KEY = "AIza-local-only-e2e-valid-not-a-real-key";
+
+async function testSharedKey(a: TestUser): Promise<void> {
+  console.log(
+    "\nshared_ai_key / worker_shared_ai_key: the shared Gemini key reaches only the server and the worker",
+  );
+
+  for (const [label, secret] of [
+    ["no", ""],
+    ["a wrong", "x".repeat(40)],
+    ["a near-miss", LOCAL_SERVER_SECRET.slice(0, -1)],
+  ] as const) {
+    const res = await a.client.rpc("shared_ai_key", { p_secret: secret });
+    check(
+      `A can't read the shared key with ${label} server secret`,
+      res.error !== null && !res.data,
+      { error: res.error?.message, data: res.data },
+    );
+  }
+
+  const anon = createClient<Database>(url, publishableKey, NO_SESSION);
+  const anonRead = await anon.rpc("shared_ai_key", {
+    p_secret: LOCAL_SERVER_SECRET,
+  });
+  check(
+    "a signed-out visitor can't read it, even with the server secret",
+    anonRead.error !== null && !anonRead.data,
+  );
+
+  const outsider = await makeUser("shared-outsider");
+  const notInvited = await outsider.client.rpc("shared_ai_key", {
+    p_secret: LOCAL_SERVER_SECRET,
+  });
+  check(
+    "someone signed in but not invited can't read it",
+    notInvited.error !== null && !notInvited.data,
+  );
+
+  for (const [label, client] of [
+    ["A", a.client],
+    ["a signed-out visitor", anon],
+  ] as const) {
+    const worker = await client.rpc("worker_shared_ai_key");
+    check(
+      `${label} can't call the worker's function`,
+      worker.error !== null && !worker.data,
+    );
+  }
+
+  const viaServer = await a.client.rpc("shared_ai_key", {
+    p_secret: LOCAL_SERVER_SECRET,
+  });
+  eq(
+    "the web app's server (A's session + server secret) reads it",
+    viaServer.data,
+    LOCAL_SHARED_KEY,
+  );
+  const viaWorker = await admin.rpc("worker_shared_ai_key");
+  eq("the worker (service role) reads it", viaWorker.data, LOCAL_SHARED_KEY);
+
+  for (const name of ["shared_google_api_key"]) {
+    const table = await a.client
+      .schema("vault" as never)
+      .from("decrypted_secrets" as never)
+      .select("*")
+      .eq("name", name);
+    check(
+      "nobody signed in can read Vault directly",
+      table.error !== null || (table.data ?? []).length === 0,
+    );
+  }
 }
 
 async function testStructuredResume(a: TestUser, b: TestUser): Promise<void> {
@@ -2231,6 +2336,7 @@ async function main(): Promise<void> {
     await testApiKeys(a, b);
     await testKeyFunctions(a, b);
     await testAiMode(a, b);
+    await testSharedKey(a);
     await testStructuredResume(a, b);
     await testFactBank(a, b);
   } finally {

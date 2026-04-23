@@ -10,6 +10,7 @@ import {
 import {
   deleteSeededPostings,
   finishBasics,
+  setMode,
   seedPostings,
 } from "./helpers/local-postings";
 
@@ -69,6 +70,7 @@ test("pick a preset, triage the backfilled Inbox", async ({ page }, info) => {
 
   const user = await createTestUser("inbox");
   await finishBasics(user.id);
+  await setMode(user.id, "simple");
   await signIn(page, user, "/inbox");
 
   // Basics done → the resume step, which can wait for Profile.

@@ -14,6 +14,7 @@ function provider(facts: { kind: string; text: string; detail: string }[]) {
   const seen: StructuredRequest<unknown>[] = [];
   const p: AiProvider = {
     name: "openai",
+    shared: false,
     testKey: async () => {},
     async generateStructured<T>(request: StructuredRequest<T>) {
       seen.push(request as StructuredRequest<unknown>);

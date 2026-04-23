@@ -6,6 +6,11 @@
  *   not sure where to start, use GPT-6 Astra"; GPT-6.1 Sol "balances
  *   intelligence and cost").
  * Update PRICES_CHECKED when these change; the cost explainer reads them.
+ *
+ * `strong` (edits) uses the same models and effort as `fast` for now (Alex,
+ * 2026-10-14): every user pays for tailoring with their own key, so the
+ * default is the cheaper model. The two tiers stay separate so a later
+ * "stronger model for edits" option has somewhere to attach.
  */
 
 import type { ProviderName, Tier } from "./types";
@@ -29,10 +34,10 @@ export const MODELS: Record<ProviderName, Record<Tier, Model>> = {
       outputPerM: 10,
     },
     strong: {
-      id: "claude-opus-5-5",
-      label: "Claude Opus 5.5",
-      inputPerM: 4,
-      outputPerM: 20,
+      id: "claude-sonnet-5-5",
+      label: "Claude Sonnet 5.5",
+      inputPerM: 2,
+      outputPerM: 10,
     },
   },
   openai: {
@@ -43,10 +48,10 @@ export const MODELS: Record<ProviderName, Record<Tier, Model>> = {
       outputPerM: 10,
     },
     strong: {
-      id: "gpt-6-astra",
-      label: "GPT-6 Astra",
-      inputPerM: 10,
-      outputPerM: 50,
+      id: "gpt-6.1-sol",
+      label: "GPT-6.1 Sol",
+      inputPerM: 2,
+      outputPerM: 10,
     },
   },
 };
@@ -58,7 +63,7 @@ export const MODELS: Record<ProviderName, Record<Tier, Model>> = {
  */
 export const EFFORT: Record<Tier, "medium" | "high"> = {
   fast: "medium",
-  strong: "high",
+  strong: "medium",
 };
 
 export function costUsd(

@@ -106,6 +106,33 @@ export type Database = {
         };
         Relationships: [];
       };
+      company_research: {
+        Row: {
+          company_id: string;
+          content: NonNullable<Json>;
+          fetched_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          company_id: string;
+          content: NonNullable<Json>;
+          fetched_at?: string;
+        };
+        Update: {
+          company_id?: string;
+          content?: NonNullable<Json>;
+          fetched_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "company_research_company_id_fkey";
+            columns: ["company_id"];
+            isOneToOne: true;
+            referencedRelation: "companies";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       fact_bank: {
         Row: {
           content: NonNullable<Json>;
@@ -312,6 +339,8 @@ export type Database = {
           content_hash: string;
           degrees: string[];
           description: string | null;
+          description_fetched_at: string | null;
+          fetched_description: string | null;
           first_seen_at: string;
           fuzzy_key: string | null;
           id: string;
@@ -340,6 +369,8 @@ export type Database = {
           content_hash: string;
           degrees?: string[];
           description?: string | null;
+          description_fetched_at?: string | null;
+          fetched_description?: string | null;
           first_seen_at?: string;
           fuzzy_key?: string | null;
           id?: string;
@@ -367,6 +398,8 @@ export type Database = {
           content_hash?: string;
           degrees?: string[];
           description?: string | null;
+          description_fetched_at?: string | null;
+          fetched_description?: string | null;
           first_seen_at?: string;
           fuzzy_key?: string | null;
           id?: string;
@@ -671,6 +704,121 @@ export type Database = {
           },
         ];
       };
+      tailorings: {
+        Row: {
+          attempts: number;
+          auto: boolean;
+          changes: NonNullable<Json>;
+          created_at: string;
+          edited_at: string | null;
+          error: string | null;
+          est_cost: number;
+          finished_at: string | null;
+          id: string;
+          key_source: string | null;
+          matched: string[];
+          missing: string[];
+          model: string | null;
+          notes: NonNullable<Json>;
+          pdf_path: string | null;
+          pdf_requested_at: string | null;
+          posting_id: string | null;
+          provider: string | null;
+          rate_limited_at: string | null;
+          resume_content: Json | null;
+          score_after: number | null;
+          score_before: number | null;
+          started_at: string | null;
+          state: string;
+          tokens_in: number;
+          tokens_out: number;
+          updated_at: string;
+          user_id: string;
+          user_posting_id: string;
+          warnings: NonNullable<Json>;
+        };
+        ComputedFields: never;
+        Insert: {
+          attempts?: number;
+          auto?: boolean;
+          changes?: NonNullable<Json>;
+          created_at?: string;
+          edited_at?: string | null;
+          error?: string | null;
+          est_cost?: number;
+          finished_at?: string | null;
+          id?: string;
+          key_source?: string | null;
+          matched?: string[];
+          missing?: string[];
+          model?: string | null;
+          notes?: NonNullable<Json>;
+          pdf_path?: string | null;
+          pdf_requested_at?: string | null;
+          posting_id?: string | null;
+          provider?: string | null;
+          rate_limited_at?: string | null;
+          resume_content?: Json | null;
+          score_after?: number | null;
+          score_before?: number | null;
+          started_at?: string | null;
+          state?: string;
+          tokens_in?: number;
+          tokens_out?: number;
+          updated_at?: string;
+          user_id?: string;
+          user_posting_id: string;
+          warnings?: NonNullable<Json>;
+        };
+        Update: {
+          attempts?: number;
+          auto?: boolean;
+          changes?: NonNullable<Json>;
+          created_at?: string;
+          edited_at?: string | null;
+          error?: string | null;
+          est_cost?: number;
+          finished_at?: string | null;
+          id?: string;
+          key_source?: string | null;
+          matched?: string[];
+          missing?: string[];
+          model?: string | null;
+          notes?: NonNullable<Json>;
+          pdf_path?: string | null;
+          pdf_requested_at?: string | null;
+          posting_id?: string | null;
+          provider?: string | null;
+          rate_limited_at?: string | null;
+          resume_content?: Json | null;
+          score_after?: number | null;
+          score_before?: number | null;
+          started_at?: string | null;
+          state?: string;
+          tokens_in?: number;
+          tokens_out?: number;
+          updated_at?: string;
+          user_id?: string;
+          user_posting_id?: string;
+          warnings?: NonNullable<Json>;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "tailorings_posting_id_fkey";
+            columns: ["posting_id"];
+            isOneToOne: false;
+            referencedRelation: "postings";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tailorings_user_posting_id_fkey";
+            columns: ["user_posting_id"];
+            isOneToOne: false;
+            referencedRelation: "user_postings";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       user_postings: {
         Row: {
           answer_sheet: Json | null;
@@ -829,6 +977,48 @@ export type Database = {
     };
     Functions: {
       api_key_server_ok: { Args: { p_secret: string }; Returns: boolean };
+      claim_tailoring: {
+        Args: { p_skip?: string[] };
+        Returns: {
+          attempts: number;
+          auto: boolean;
+          changes: NonNullable<Json>;
+          created_at: string;
+          edited_at: string | null;
+          error: string | null;
+          est_cost: number;
+          finished_at: string | null;
+          id: string;
+          key_source: string | null;
+          matched: string[];
+          missing: string[];
+          model: string | null;
+          notes: NonNullable<Json>;
+          pdf_path: string | null;
+          pdf_requested_at: string | null;
+          posting_id: string | null;
+          provider: string | null;
+          rate_limited_at: string | null;
+          resume_content: Json | null;
+          score_after: number | null;
+          score_before: number | null;
+          started_at: string | null;
+          state: string;
+          tokens_in: number;
+          tokens_out: number;
+          updated_at: string;
+          user_id: string;
+          user_posting_id: string;
+          warnings: NonNullable<Json>;
+        }[];
+        SetofOptions: {
+          from: "*";
+          to: "tailorings";
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
+      dispatch_tailor: { Args: Record<PropertyKey, never>; Returns: number };
       dispatch_watch: { Args: Record<PropertyKey, never>; Returns: number };
       follow_board: {
         Args: {
@@ -846,6 +1036,7 @@ export type Database = {
         Returns: string;
       };
       is_admin: { Args: Record<PropertyKey, never>; Returns: boolean };
+      is_invited: { Args: Record<PropertyKey, never>; Returns: boolean };
       max_follows: { Args: Record<PropertyKey, never>; Returns: number };
       posting_boards: { Args: { p_posting_id: string }; Returns: Json };
       redeem_invite: { Args: { p_code: string }; Returns: string };
@@ -867,6 +1058,10 @@ export type Database = {
         Args: { p_endpoint: string; p_keys: Json; p_user_agent: string };
         Returns: string;
       };
+      save_tailored_copy: {
+        Args: { p_content: Json; p_id: string };
+        Returns: undefined;
+      };
       sealed_api_key: {
         Args: { p_secret: string };
         Returns: {
@@ -876,6 +1071,10 @@ export type Database = {
         }[];
       };
       shared_ai_key: { Args: { p_secret: string }; Returns: string };
+      tailoring_day_start: {
+        Args: Record<PropertyKey, never>;
+        Returns: string;
+      };
       touch_seen: { Args: { p_link_ids: string[] }; Returns: undefined };
       update_links: { Args: { p_links: Json }; Returns: undefined };
       worker_shared_ai_key: {

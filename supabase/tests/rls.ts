@@ -2302,6 +2302,265 @@ async function testFactBank(a: TestUser, b: TestUser): Promise<void> {
   await admin.from("fact_bank").delete().eq("user_id", a.id);
 }
 
+// ---------------------------------------------------------------- tailoring (M7)
+
+async function inboxRow(userId: string, postingId: string): Promise<string> {
+  const { data, error } = await admin
+    .from("user_postings")
+    .insert({ user_id: userId, posting_id: postingId })
+    .select("id")
+    .single();
+  if (error) throw new Error(`seed user_posting: ${error.message}`);
+  return data.id;
+}
+
+async function testCompanyResearch(a: TestUser): Promise<void> {
+  console.log(
+    "\ncompany_research: invited members read, only the worker writes",
+  );
+
+  const postingId = await seedPosting("Research Intern");
+  const { data: posting } = await admin
+    .from("postings")
+    .select("company_id")
+    .eq("id", postingId)
+    .single();
+  const companyId = posting!.company_id;
+  const content = { status: "ok", summary: "Makes boats.", tech: ["Go"] };
+
+  const write = await a.client
+    .from("company_research")
+    .insert({ company_id: companyId, content } as never);
+  check("A can't write research", write.error !== null);
+
+  const seeded = await admin
+    .from("company_research")
+    .insert({ company_id: companyId, content });
+  eq("the worker (service role) writes it", seeded.error, null);
+
+  const read = await a.client
+    .from("company_research")
+    .select("content")
+    .eq("company_id", companyId);
+  eq("an invited member reads it", read.data?.length, 1);
+
+  const update = await a.client
+    .from("company_research")
+    .update({ content: { status: "ok", summary: "x" } } as never)
+    .eq("company_id", companyId)
+    .select("company_id");
+  check(
+    "…but can't change it",
+    update.error !== null || (update.data ?? []).length === 0,
+  );
+
+  const outsider = await makeUser("research-outsider");
+  const notInvited = await outsider.client
+    .from("company_research")
+    .select("content")
+    .eq("company_id", companyId);
+  eq(
+    "someone signed in but not invited sees nothing",
+    notInvited.data?.length ?? 0,
+    0,
+  );
+  const anon = createClient<Database>(url, publishableKey, NO_SESSION);
+  const anonRead = await anon.from("company_research").select("content");
+  check(
+    "a signed-out visitor can't read it",
+    anonRead.error !== null || (anonRead.data ?? []).length === 0,
+  );
+}
+
+async function testTailorings(a: TestUser, b: TestUser): Promise<void> {
+  console.log(
+    "\ntailorings: owners queue and read; the daily cap holds; the rest is the worker's",
+  );
+
+  await admin
+    .from("profiles")
+    .update({ mode: "ai", daily_cap: 2 })
+    .in("user_id", [a.id, b.id]);
+  const postings = await Promise.all(
+    ["T1", "T2", "T3", "T4"].map((t) => seedPosting(`Tailor ${t}`)),
+  );
+  const [r1, r2, r3, r4] = await Promise.all(
+    postings.map((p) => inboxRow(a.id, p)),
+  );
+  const bRow = await inboxRow(b.id, postings[0]);
+
+  const queued = await a.client
+    .from("tailorings")
+    .insert({ user_posting_id: r1 })
+    .select("id, state, user_id, posting_id")
+    .single();
+  eq("A queues a tailoring for their own Inbox row", queued.error, null);
+  eq("…queued", queued.data?.state, "queued");
+  eq("…as A", queued.data?.user_id, a.id);
+  eq("…for that row's posting", queued.data?.posting_id, postings[0]);
+  const t1 = queued.data!.id;
+
+  const again = await a.client
+    .from("tailorings")
+    .insert({ user_posting_id: r1 });
+  check("only one queued tailoring per posting", again.error !== null);
+
+  const forged = await a.client
+    .from("tailorings")
+    .insert({ user_posting_id: r2, state: "done", score_after: 99 } as never);
+  check("A can't set state or scores", forged.error !== null);
+
+  const theirs = await a.client
+    .from("tailorings")
+    .insert({ user_posting_id: bRow });
+  check("A can't queue one for B's Inbox row", theirs.error !== null);
+
+  const second = await a.client
+    .from("tailorings")
+    .insert({ user_posting_id: r2 })
+    .select("id")
+    .single();
+  eq("A queues a second (cap 2)", second.error, null);
+  const third = await a.client
+    .from("tailorings")
+    .insert({ user_posting_id: r3 });
+  check(
+    "a third today is refused: daily cap reached",
+    third.error !== null && /Daily cap reached/.test(third.error.message),
+    third.error?.message,
+  );
+  const viaWorker = await admin
+    .from("tailorings")
+    .insert({ user_id: a.id, user_posting_id: r3, auto: true });
+  check(
+    "the cap holds for the worker's auto-tailor rows too",
+    viaWorker.error !== null &&
+      /Daily cap reached/.test(viaWorker.error.message),
+  );
+
+  await admin
+    .from("tailorings")
+    .update({ state: "failed", error: "test" })
+    .eq("id", second.data!.id);
+  const afterFail = await a.client
+    .from("tailorings")
+    .insert({ user_posting_id: r3 });
+  eq("a failed attempt doesn't count against the cap", afterFail.error, null);
+
+  await admin.from("profiles").update({ mode: "simple" }).eq("user_id", a.id);
+  await admin.from("profiles").update({ daily_cap: 10 }).eq("user_id", a.id);
+  const simple = await a.client
+    .from("tailorings")
+    .insert({ user_posting_id: r4 });
+  check(
+    "Simple mode can't queue one",
+    simple.error !== null && /AI mode/.test(simple.error.message),
+  );
+  await admin.from("profiles").update({ mode: "ai" }).eq("user_id", a.id);
+
+  const bSees = await b.client.from("tailorings").select("id");
+  eq("B sees none of A's tailorings", bSees.data?.length ?? 0, 0);
+  const aSees = await a.client.from("tailorings").select("id");
+  eq("A sees their own", aSees.data?.length, 3);
+
+  const edit = await a.client
+    .from("tailorings")
+    .update({ state: "done", score_after: 99 } as never)
+    .eq("id", t1)
+    .select("id");
+  check(
+    "A can't update a tailoring directly",
+    edit.error !== null || (edit.data ?? []).length === 0,
+  );
+  const remove = await a.client
+    .from("tailorings")
+    .delete()
+    .eq("id", t1)
+    .select("id");
+  check(
+    "…or delete one",
+    remove.error !== null || (remove.data ?? []).length === 0,
+  );
+
+  const claimA = await a.client.rpc("claim_tailoring" as never, {} as never);
+  check("A can't claim work like the worker", claimA.error !== null);
+  const claimed = await admin.rpc("claim_tailoring", { p_skip: [] });
+  eq("the worker claims the oldest queued row", claimed.data?.[0]?.id, t1);
+  eq("…marked running", claimed.data?.[0]?.state, "running");
+  eq("…attempt 1", claimed.data?.[0]?.attempts, 1);
+  const skipped = await admin.rpc("claim_tailoring", { p_skip: [] });
+  check(
+    "…and the next claim takes a different row",
+    skipped.data?.[0]?.id !== undefined && skipped.data[0].id !== t1,
+  );
+
+  const content = {
+    header: { name: "A", email: "", phone: "", links: [] },
+    sections: [{ title: "Research", layout: "text", text: "Lab work." }],
+  };
+  const early = await a.client.rpc("save_tailored_copy", {
+    p_id: t1,
+    p_content: content,
+  });
+  check("A can't edit a copy that isn't done", early.error !== null);
+  await admin
+    .from("tailorings")
+    .update({ state: "done", resume_content: content })
+    .eq("id", t1);
+  const bEdit = await b.client.rpc("save_tailored_copy", {
+    p_id: t1,
+    p_content: content,
+  });
+  check("B can't edit A's tailored copy", bEdit.error !== null);
+  const notResume = await a.client.rpc("save_tailored_copy", {
+    p_id: t1,
+    p_content: ["x"] as never,
+  });
+  check("the copy must be an object", notResume.error !== null);
+  const saved = await a.client.rpc("save_tailored_copy", {
+    p_id: t1,
+    p_content: { ...content, header: { ...content.header, name: "A2" } },
+  });
+  eq("A saves an edit of their done copy", saved.error, null);
+  const row = await admin
+    .from("tailorings")
+    .select("resume_content, edited_at, pdf_requested_at")
+    .eq("id", t1)
+    .single();
+  eq(
+    "…which replaces the tailored copy",
+    (row.data?.resume_content as { header: { name: string } }).header.name,
+    "A2",
+  );
+  check(
+    "…and asks for the PDF again",
+    row.data?.edited_at !== null && row.data?.pdf_requested_at !== null,
+  );
+
+  console.log("\npdfs bucket: owner reads, only the worker writes");
+  const pdf = () =>
+    new Blob(["%PDF-1.4 rls tailored"], { type: "application/pdf" });
+  const path = `${a.id}/${postings[0]}.pdf`;
+  const upload = await a.client.storage.from("pdfs").upload(path, pdf());
+  check("A can't upload into pdfs", upload.error !== null);
+  const workerUpload = await admin.storage
+    .from("pdfs")
+    .upload(path, pdf(), { upsert: true });
+  eq("the worker uploads A's PDF", workerUpload.error, null);
+  const aRead = await a.client.storage.from("pdfs").download(path);
+  eq("A reads it", aRead.error, null);
+  const bRead = await b.client.storage.from("pdfs").download(path);
+  check("B can't", bRead.error !== null);
+  const aDelete = await a.client.storage.from("pdfs").remove([path]);
+  const stillThere = await admin.storage.from("pdfs").download(path);
+  check(
+    "A can't delete it either",
+    (aDelete.data ?? []).length === 0 && stillThere.error === null,
+  );
+  await admin.storage.from("pdfs").remove([path]);
+  await admin.from("tailorings").delete().in("user_id", [a.id, b.id]);
+}
+
 // ---------------------------------------------------------------- main
 
 async function main(): Promise<void> {
@@ -2339,6 +2598,8 @@ async function main(): Promise<void> {
     await testSharedKey(a);
     await testStructuredResume(a, b);
     await testFactBank(a, b);
+    await testCompanyResearch(a);
+    await testTailorings(a, b);
   } finally {
     await deleteSeededPostings();
     await deleteTestUsers();

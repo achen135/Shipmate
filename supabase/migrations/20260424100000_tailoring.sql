@@ -134,7 +134,9 @@ create table public.tailorings (
     check (state in ('queued', 'running', 'done', 'failed')),
   auto boolean not null default false,
   attempts smallint not null default 0,
+  -- Last 429 and how many so far: the row stays queued and is retried.
   rate_limited_at timestamptz,
+  rate_limit_hits smallint not null default 0,
   started_at timestamptz,
   finished_at timestamptz,
   score_before smallint check (score_before between 0 and 100),
@@ -326,6 +328,39 @@ $$;
 
 revoke all on function public.claim_tailoring(uuid[]) from public, anon, authenticated;
 grant execute on function public.claim_tailoring(uuid[]) to service_role;
+
+-- Admin page: is the shared free key hitting its limits? Counts only, so
+-- admins see the key's health without reading anyone's tailorings.
+create function public.shared_ai_health()
+returns table (
+  hits_24h bigint,
+  waiting bigint,
+  oldest_waiting timestamptz,
+  done_24h bigint
+)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not public.is_admin() then
+    raise exception 'not allowed' using errcode = '42501';
+  end if;
+  return query
+    select
+      coalesce(sum(t.rate_limit_hits) filter (
+        where t.rate_limited_at > now() - interval '24 hours'), 0)::bigint,
+      count(*) filter (where t.state = 'queued' and t.rate_limited_at is not null),
+      min(t.created_at) filter (where t.state = 'queued' and t.rate_limited_at is not null),
+      count(*) filter (where t.state = 'done' and t.finished_at > now() - interval '24 hours')
+    from public.tailorings t
+    where t.key_source = 'shared';
+end;
+$$;
+
+revoke all on function public.shared_ai_health() from public, anon;
+grant execute on function public.shared_ai_health() to authenticated;
 
 -- ---------------------------------------------------------------- Storage
 

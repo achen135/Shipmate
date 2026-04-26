@@ -724,6 +724,7 @@ export type Database = {
           pdf_requested_at: string | null;
           posting_id: string | null;
           provider: string | null;
+          rate_limit_hits: number;
           rate_limited_at: string | null;
           resume_content: Json | null;
           score_after: number | null;
@@ -757,6 +758,7 @@ export type Database = {
           pdf_requested_at?: string | null;
           posting_id?: string | null;
           provider?: string | null;
+          rate_limit_hits?: number;
           rate_limited_at?: string | null;
           resume_content?: Json | null;
           score_after?: number | null;
@@ -789,6 +791,7 @@ export type Database = {
           pdf_requested_at?: string | null;
           posting_id?: string | null;
           provider?: string | null;
+          rate_limit_hits?: number;
           rate_limited_at?: string | null;
           resume_content?: Json | null;
           score_after?: number | null;
@@ -998,6 +1001,7 @@ export type Database = {
           pdf_requested_at: string | null;
           posting_id: string | null;
           provider: string | null;
+          rate_limit_hits: number;
           rate_limited_at: string | null;
           resume_content: Json | null;
           score_after: number | null;
@@ -1068,6 +1072,15 @@ export type Database = {
           ciphertext: string;
           iv: string;
           provider: string;
+        }[];
+      };
+      shared_ai_health: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          done_24h: number;
+          hits_24h: number;
+          oldest_waiting: string;
+          waiting: number;
         }[];
       };
       shared_ai_key: { Args: { p_secret: string }; Returns: string };

@@ -9,6 +9,9 @@ name: Watch
 # - GitHub disables schedules in a public repo after 60 days with no repo
 #   activity. M8 adds a staleness alert on `runs`.
 # - Missing secrets make the worker skip with a warning annotation, not fail.
+# - After matching it also drains the tailoring queue (worker/tailor.ts), so
+#   it needs Chromium for the PDFs and the key that decrypts users' own AI
+#   keys; tailor.yml does the same on demand.
 
 on:
   schedule:
@@ -38,6 +41,17 @@ jobs:
 
       - run: npm ci
 
+      - name: Cache Playwright browsers
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Chromium and the resume font
+        run: |
+          npx playwright install --with-deps chromium
+          sudo apt-get install -y --no-install-recommends fonts-cmu
+
       - name: Run worker
         run: npm run worker
         env:
@@ -56,3 +70,6 @@ jobs:
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           # Where the email's "Open your Inbox" link goes.
           APP_URL: https://shipmate-jobs.vercel.app
+          # Tailoring: decrypts users' own AI keys (the same value as
+          # Vercel's). Missing: their tailorings wait, with a warning.
+          API_KEY_ENCRYPTION_KEY: ${{ secrets.API_KEY_ENCRYPTION_KEY }}

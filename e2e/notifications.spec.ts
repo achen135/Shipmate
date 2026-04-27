@@ -50,6 +50,8 @@ function runWorker(sourceKeys: string[]): string {
       ...process.env,
       WATCH_SOURCES: sourceKeys.join(","),
       E2E_ATS_ORIGIN: MOCK_ORIGIN,
+      // The run also drains the tailoring queue: AI calls go to the mock.
+      E2E_AI_ORIGIN: MOCK_ORIGIN,
       E2E_PUSH_ORIGIN: MOCK_ORIGIN,
       VAPID_PUBLIC_KEY: vapid.publicKey,
       VAPID_PRIVATE_KEY: vapid.privateKey,

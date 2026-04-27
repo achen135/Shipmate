@@ -82,12 +82,14 @@ export function AiSettings({
   mode,
   dailyCap,
   autoTailor,
+  usedToday,
   actions,
 }: {
   savedKey: SavedKey | null;
   mode: "simple" | "ai";
   dailyCap: number;
   autoTailor: boolean;
+  usedToday: { count: number; cost: number };
   actions: AiActions;
 }) {
   const [provider, setProvider] = useState<ProviderName>(
@@ -103,6 +105,13 @@ export function AiSettings({
         provider={savedKey?.provider ?? null}
         save={actions.saveAiSettings}
       />
+      {mode === "ai" && (
+        <p className="text-sm text-muted-foreground" data-testid="used-today">
+          Today: {usedToday.count} of {dailyCap} tailored
+          {usedToday.cost > 0 ? `, about ${formatUsd(usedToday.cost)}` : ""}.
+          The count resets at midnight Eastern.
+        </p>
+      )}
       <section
         aria-labelledby="own-key-heading"
         className="flex flex-col gap-4"

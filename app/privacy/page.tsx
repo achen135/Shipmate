@@ -75,13 +75,24 @@ export default function PrivacyPage() {
           </p>
         </Section>
 
-        <Section title="AI keys">
+        <Section title="AI">
           <p>
-            If you add an Anthropic or OpenAI key to tailor your resume, it is
-            encrypted before it is saved (AES-256-GCM). The app never shows it
-            again; you only see its last four characters. Alex holds the master
-            key that encrypts it. When tailoring runs, your resume and the
-            posting are sent to the provider you picked, under your key and that
+            In AI mode, Shipmate sends your resume, your extra facts and the
+            posting&apos;s text to an AI provider to read and tailor your
+            resume. Nothing else: not your answers, your tracker or your notes.
+          </p>
+          <p>
+            Unless you add your own key, that provider is Google Gemini, on a
+            shared key Alex provides on Google&apos;s free tier. Google says it
+            may use what&apos;s sent on its free tier to improve its products.
+            If you&apos;d rather it didn&apos;t, add your own paid key or use
+            Simple mode, which sends nothing to any AI.
+          </p>
+          <p>
+            If you add your own Anthropic, OpenAI or Google key, it is encrypted
+            before it is saved (AES-256-GCM). The app never shows it again; you
+            only see its last four characters. Alex holds the master key that
+            encrypts it. Tailoring then runs under your key and that
             provider&apos;s terms.
           </p>
         </Section>

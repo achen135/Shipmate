@@ -72,6 +72,7 @@ export const EDIT_OPS = [
   "add_list_value",
   "drop_list_value",
   "order_list_values",
+  "rename_list_value",
   "reword_text",
 ] as const;
 export type EditOpName = (typeof EDIT_OPS)[number];
@@ -726,6 +727,50 @@ export function applyEdits(input: ApplyInput): ApplyResult {
           what: `Left out ${quote(value)} from ${list.label || section.title || "a list"}`,
           why:
             input.dropReason ?? "to make room for what this posting asks for",
+        });
+        break;
+      }
+
+      case "rename_list_value": {
+        // The same skill under the posting's spelling ("Postgres" →
+        // "PostgreSQL", "ML" → "machine learning"): an ATS matches
+        // spellings, not meaning. Only between two spellings of one
+        // verified posting keyword, and the old one must be on the resume.
+        if (found?.kind !== "list") {
+          drop(edit, "no such list line");
+          break;
+        }
+        const { list, section } = found;
+        const oldValue = (edit.order[0] ?? "").trim();
+        const newValue = edit.text.trim();
+        const index = list.values.findIndex(
+          (v) => v.trim().toLowerCase() === oldValue.toLowerCase(),
+        );
+        if (index === -1 || !newValue || newValue.length > 120) {
+          drop(edit, "no such value");
+          break;
+        }
+        const group = keywords.find((k) => {
+          const spellings = [k.term, ...k.variants];
+          const is = (x: string) =>
+            spellings.some((y) => containsPhrase(x, y) && containsPhrase(y, x));
+          return is(oldValue) && is(newValue);
+        });
+        if (!group || containsPhrase(oldValue, newValue)) {
+          drop(
+            edit,
+            `${quote(newValue)} isn't another spelling of ${quote(oldValue)} for this posting`,
+          );
+          break;
+        }
+        if (list.values.some((v) => containsPhrase(v, newValue))) {
+          drop(edit, "already there");
+          break;
+        }
+        list.values[index] = newValue;
+        changes.push({
+          what: `Wrote ${quote(oldValue)} as ${quote(newValue)} in ${list.label || section.title || "a list"}`,
+          why: `the posting writes it as ${quote(newValue)}, and it's the same skill you already list`,
         });
         break;
       }

@@ -33,6 +33,8 @@ export function untraceable(
   master: ResumeContent,
   facts: Fact[],
   tailored: ResumeContent,
+  /** Other spellings of one posting keyword (edits.ts rename_list_value). */
+  aliases: { term: string; variants: string[] }[] = [],
 ): string[] {
   const problems: string[] = [];
   const lines = corpusLines(master, facts);
@@ -101,7 +103,16 @@ export function untraceable(
       }
       for (const item of section.items) {
         for (const value of item.values) {
-          if (!lines.some((line) => containsPhrase(line, value))) {
+          const spellings = aliases
+            .map((k) => [k.term, ...k.variants])
+            .find((group) =>
+              group.some(
+                (g) => containsPhrase(value, g) && containsPhrase(g, value),
+              ),
+            );
+          const written = (v: string) =>
+            lines.some((line) => containsPhrase(line, v));
+          if (!written(value) && !(spellings && spellings.some(written))) {
             problems.push(`value “${value}” isn't on the master or a fact`);
           }
         }

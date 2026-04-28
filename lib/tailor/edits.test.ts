@@ -239,26 +239,19 @@ describe("applyEdits: what's dropped (and why)", () => {
     ).toEqual(["“python” isn't in this entry or a fact about it"]);
   });
 
-  it("a fact cited for an entry it isn't about", () => {
+  it("a fact's words may be used in any entry, but only when cited", () => {
+    const text =
+      "Built a marketplace web app for students to trade textbooks on Kubernetes";
+    // Uncited: Kubernetes isn't in the MarkIt entry.
     expect(
-      dropped([
-        edit({
-          op: "reword_bullet",
-          target: "s3.e1.b1",
-          text: "Built a marketplace web app for students to trade textbooks on Kubernetes",
-          fact: "f1",
-        }),
-        edit({
-          op: "add_bullet",
-          target: "s3.e1",
-          text: "Python bot used by 200 residents to book laundry machines",
-          fact: "f3",
-        }),
-      ]),
-    ).toEqual([
-      "the cited fact isn't about this entry",
-      "the cited fact isn't about this entry",
+      dropped([edit({ op: "reword_bullet", target: "s3.e1.b1", text })]),
+    ).toEqual(["“kubernetes” isn't in this entry or a fact about it"]);
+    // Cited: it's the user's own fact, and the report says so.
+    const result = apply([
+      edit({ op: "reword_bullet", target: "s3.e1.b1", text, fact: "f1" }),
     ]);
+    expect(result.dropped).toEqual([]);
+    expect(result.changes[0].why).toContain("from your profile facts");
   });
 
   it("a new bullet with no fact behind it", () => {

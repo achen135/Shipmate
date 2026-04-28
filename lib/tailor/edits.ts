@@ -15,7 +15,8 @@
  *   already be the user's. Words that make a claim (a number, a name or tech
  *   spelling, or a word from the posting's keywords) must come from the same
  *   entry (its heading, subheading, dates, location, bullets) or from a fact
- *   the edit cites and that is about that entry. Other words must be
+ *   the edit cites (the user's profile facts may go into any entry: they
+ *   said so, 2026-10-14). Other words must be
  *   somewhere on the resume or in the fact bank. So the skills list can't
  *   vouch for "used Kubernetes" in an unrelated job, and nothing comes from
  *   the posting at all. Adding a bullet always needs a cited fact.
@@ -41,7 +42,6 @@ import type { ResumeContent } from "@/lib/resume/structured";
 import type { Fact } from "@/lib/schemas/fact-bank";
 
 import {
-  type Token,
   addedTokens,
   containsPhrase,
   hasWord,
@@ -277,13 +277,6 @@ const SCOPE_WORDS = new Set(
     .map((w) => tokenize(w)[0]?.key ?? w),
 );
 
-/** Heading words too common to tie a fact to one entry. */
-const GENERIC = new Set(
-  "inc llc ltd corp corporation company co university college school institute lab laboratory intern internship engineer engineering software developer project projects team research group club society center centre department program the and of".split(
-    " ",
-  ),
-);
-
 const quote = (text: string) =>
   `“${text.length > 70 ? `${text.slice(0, 67)}…` : text}”`;
 
@@ -322,22 +315,6 @@ function lineProblem(
     }
   }
   return null;
-}
-
-function distinctive(text: string): Set<string> {
-  return new Set(
-    tokenize(text)
-      .map((t: Token) => t.key)
-      .filter((k) => k.length >= 3 && !isFunctionWord(k) && !GENERIC.has(k)),
-  );
-}
-
-/** Is this fact about this entry (names its organisation or project)? */
-function factAboutEntry(fact: Fact, entry: WEntry): boolean {
-  const names = distinctive(entry.heading);
-  if (names.size === 0) return false;
-  const words = keySet(fact.text, fact.detail);
-  return [...names].some((n) => words.has(n));
 }
 
 // ---------------------------------------------------------------- apply
@@ -504,10 +481,6 @@ export function applyEdits(input: ApplyInput): ApplyResult {
           drop(edit, "no change");
           break;
         }
-        if (fact && !factAboutEntry(fact, entry)) {
-          drop(edit, "the cited fact isn't about this entry");
-          break;
-        }
         const local = keySet(
           entry.heading,
           entry.subheading,
@@ -543,10 +516,6 @@ export function applyEdits(input: ApplyInput): ApplyResult {
         const text = edit.text.trim();
         if (!fact) {
           drop(edit, "a new bullet needs a fact to come from");
-          break;
-        }
-        if (!factAboutEntry(fact, entry)) {
-          drop(edit, "the cited fact isn't about this entry");
           break;
         }
         if (!text || text.length > 600 || entry.bullets.length >= 20) {

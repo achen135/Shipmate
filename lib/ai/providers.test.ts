@@ -491,6 +491,29 @@ describe("Google Gemini provider", () => {
     expect(logged.join("\n")).not.toContain(GOOGLE_KEY);
   });
 
+  it("redacts the newer AQ. key format from error text", async () => {
+    const newKey = "AQ.Ab8RN6FAKEfakeFAKEfakeFAKEfakeFAKEfake";
+    const { impl } = fakeFetch(() => ({
+      status: 403,
+      body: {
+        error: {
+          code: 403,
+          message: `denied for ${newKey}`,
+          status: "PERMISSION_DENIED",
+        },
+      },
+    }));
+    const error = await createGoogleProvider({
+      apiKey: "other-key-0000000000",
+      fetch: impl,
+      maxRetries: 0,
+    })
+      .testKey()
+      .catch((e: unknown) => e);
+    expect((error as AiError).message).not.toContain(newKey);
+    expect((error as AiError).message).toContain("[key]");
+  });
+
   it("Google's 400 for a bad key reads as a rejected key", async () => {
     const { impl } = fakeFetch(() => ({
       status: 400,

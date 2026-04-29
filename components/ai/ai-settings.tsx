@@ -68,7 +68,7 @@ const KEY_PAGES: Record<ProviderName, { href: string; where: string }> = {
 const PLACEHOLDERS: Record<ProviderName, string> = {
   anthropic: "sk-ant-…",
   openai: "sk-…",
-  google: "AIza…",
+  google: "AIza… or AQ.…",
 };
 
 /**

@@ -252,7 +252,7 @@ export async function tailor(
   if (fit.pages > 1) notes.push(STILL_LONG_NOTE);
 
   // 7. The whole-copy check.
-  const blocked = untraceable(master, facts, content, keywords);
+  const blocked = untraceable(master, facts, content);
   if (blocked.length > 0) {
     content = master;
     changes = [];

@@ -163,11 +163,16 @@ test("tailor a posting on the shared key: score, changes, PDF, edit the copy, da
   await expect(
     page.getByText(/The posting asks for Kafka.*Shipmate didn't add it/),
   ).toBeVisible();
+  // A second look: noticed, shown apart from what changed, never applied.
+  const look = page.getByTestId("second-look");
+  await expect(look).toContainText("A second look");
+  await expect(look).toContainText("start with “Built”");
+  await expect(changes).not.toContainText("Designed");
 
   const row = await admin
     .from("tailorings")
     .select(
-      "state, score_before, score_after, missing, key_source, provider, est_cost, pdf_path, resume_content",
+      "state, score_before, score_after, missing, key_source, provider, est_cost, pdf_path, resume_content, suggestions",
     )
     .eq("id", queued.data!.id)
     .single();
@@ -181,6 +186,8 @@ test("tailor a posting on the shared key: score, changes, PDF, edit the copy, da
   });
   expect(row.data!.score_after).toBeGreaterThan(row.data!.score_before);
   expect(JSON.stringify(row.data!.resume_content)).not.toContain("Kafka");
+  expect(row.data!.suggestions).toHaveLength(1);
+  expect(JSON.stringify(row.data!.resume_content)).not.toContain("Designed");
 
   // The PDF, named First_Last_Resume_Company.pdf.
   const pdfHref = await page

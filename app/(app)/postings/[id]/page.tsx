@@ -7,6 +7,7 @@ import { z } from "zod";
 
 import { AnswerSheetSection } from "@/components/review/answer-sheet";
 import { ReviewActions } from "@/components/review/review-actions";
+import { SecondLook } from "@/components/review/second-look";
 import {
   PdfRefresh,
   TailorButton,
@@ -18,6 +19,7 @@ import { parseContent, resumeToText } from "@/lib/resume/structured";
 import { keywordMatch } from "@/lib/review/keywords";
 import { getReview } from "@/lib/review/queries";
 import { describePrevious, reviewWarnings } from "@/lib/review/warnings";
+import { LOW_SCORE } from "@/lib/tailor/pipeline";
 import { type TailoringView, getLatestTailoring } from "@/lib/tailor/queries";
 
 export const metadata: Metadata = { title: "Posting" };
@@ -191,6 +193,22 @@ function TailoredResume({
           {note}
         </p>
       ))}
+      {tailoring.keySource === "shared" &&
+        tailoring.scoreAfter !== null &&
+        (tailoring.scoreAfter < LOW_SCORE ||
+          tailoring.changes.length === 0) && (
+          <p
+            className="text-sm text-muted-foreground"
+            data-testid="own-key-hint"
+          >
+            This ran on Shipmate&apos;s shared free model. A stronger one, on{" "}
+            <Link href="/profile/ai" className="underline underline-offset-2">
+              your own Anthropic or OpenAI key
+            </Link>
+            , may word what you already have better. No model will add skills
+            you don&apos;t have.
+          </p>
+        )}
       {tailoring.changes.length > 0 && (
         <div className="flex flex-col gap-2">
           <h3 className="font-medium">What changed</h3>
@@ -204,6 +222,7 @@ function TailoredResume({
           </ul>
         </div>
       )}
+      <SecondLook suggestions={tailoring.suggestions} />
     </div>
   );
 }

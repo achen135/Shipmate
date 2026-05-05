@@ -731,6 +731,7 @@ export type Database = {
           score_before: number | null;
           started_at: string | null;
           state: string;
+          suggestions: NonNullable<Json>;
           tokens_in: number;
           tokens_out: number;
           updated_at: string;
@@ -765,6 +766,7 @@ export type Database = {
           score_before?: number | null;
           started_at?: string | null;
           state?: string;
+          suggestions?: NonNullable<Json>;
           tokens_in?: number;
           tokens_out?: number;
           updated_at?: string;
@@ -798,6 +800,7 @@ export type Database = {
           score_before?: number | null;
           started_at?: string | null;
           state?: string;
+          suggestions?: NonNullable<Json>;
           tokens_in?: number;
           tokens_out?: number;
           updated_at?: string;
@@ -1008,6 +1011,7 @@ export type Database = {
           score_before: number | null;
           started_at: string | null;
           state: string;
+          suggestions: NonNullable<Json>;
           tokens_in: number;
           tokens_out: number;
           updated_at: string;

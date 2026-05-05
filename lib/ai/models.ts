@@ -108,12 +108,14 @@ export const STEP_ESTIMATES = {
   /** One-time: resume file → structured resume. */
   import: [{ tier: "fast", input: 3_000, output: 4_000 }],
   /**
-   * One tailored posting (M7): score + gap check on the fast model, then the
-   * edit on the strong one.
+   * One tailored posting: score + gap check on the fast model, the edit on
+   * the strong one (M7), then the second look on the fast one (M8): the
+   * posting plus the finished resume in, a few short notes out.
    */
   tailor: [
     { tier: "fast", input: 8_000, output: 2_000 },
     { tier: "strong", input: 10_000, output: 4_000 },
+    { tier: "fast", input: 5_000, output: 1_500 },
   ],
 } as const satisfies Record<
   string,

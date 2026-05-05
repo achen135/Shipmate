@@ -378,6 +378,7 @@ async function tailorOne(
           matched: result.matched,
           missing: result.missing,
           changes: result.changes as unknown as NonNullable<Json>,
+          suggestions: result.suggestions as unknown as NonNullable<Json>,
           warnings: warnings as unknown as NonNullable<Json>,
           notes: result.notes as unknown as NonNullable<Json>,
           resume_content: result.content as unknown as NonNullable<Json>,
@@ -396,7 +397,7 @@ async function tailorOne(
     ).error,
   );
   console.log(
-    `[tailor] ${row.id}: done, ${result.scoreBefore ?? "-"} → ${result.scoreAfter ?? "-"}, ${result.changes.length} changes, ${result.dropped.length} edits dropped, ${inTokens}/${outTokens} tokens (${provider.shared ? "shared" : "own"} ${provider.name})`,
+    `[tailor] ${row.id}: done, ${result.scoreBefore ?? "-"} → ${result.scoreAfter ?? "-"}, ${result.changes.length} changes, ${result.dropped.length} edits dropped, second look ${result.secondLook} (${result.suggestions.length}), ${inTokens}/${outTokens} tokens (${provider.shared ? "shared" : "own"} ${provider.name})`,
   );
 }
 

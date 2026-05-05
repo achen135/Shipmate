@@ -358,6 +358,15 @@ function answerAi(url, request, raw, response) {
       return { edits: tailoringEdits(input) };
     }
     if (/runs past one page/.test(instructions)) return { edits: [] };
+    if (/second reviewer/.test(instructions)) {
+      return {
+        suggestions: [
+          {
+            what: "Two bullets in a row start with “Built”; one could start with “Designed”.",
+          },
+        ],
+      };
+    }
     if (/summarise what a company says/.test(instructions)) {
       return { summary: "", values: [], tech: [] };
     }

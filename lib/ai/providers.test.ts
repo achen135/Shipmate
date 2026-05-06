@@ -427,6 +427,40 @@ describe("Google Gemini provider", () => {
     expect(body.generationConfig.thinkingConfig.thinkingLevel).toBe("MEDIUM");
   });
 
+  it("the shared key's backup runs every tier on Flash-Lite; a user's own key never does", async () => {
+    const { impl, calls } = fakeFetch(() => ({
+      body: {
+        ...geminiResponse(JSON.stringify({ title: "Hi", count: 2 })),
+        modelVersion: undefined,
+      },
+    }));
+    const backup = createGoogleProvider({
+      apiKey: GOOGLE_KEY,
+      fetch: impl,
+      shared: true,
+      backup: true,
+    });
+    expect(backup.backup).toBe(true);
+    const { usage } = await backup.generateStructured(request);
+    await backup.generateStructured({ ...request, tier: "strong" });
+    expect(calls[0].url).toContain(
+      "/models/gemini-3.5-flash-lite:generateContent",
+    );
+    expect(calls[1].url).toContain(
+      "/models/gemini-3.5-flash-lite:generateContent",
+    );
+    expect(usage.model).toBe("gemini-3.5-flash-lite");
+
+    const own = createGoogleProvider({
+      apiKey: GOOGLE_KEY,
+      fetch: impl,
+      backup: true,
+    });
+    expect(own.backup).toBe(false);
+    await own.generateStructured(request);
+    expect(calls[2].url).toContain("/models/gemini-3.8-flash:generateContent");
+  });
+
   it("strips JSON Schema keywords Gemini doesn't accept, but not field names", () => {
     const schema = geminiSchema(
       z.object({
@@ -602,6 +636,29 @@ describe("getProvider", () => {
     expect(rpc).toHaveBeenCalledWith("worker_shared_ai_key");
     await provider.testKey();
     expect(calls[0].headers.get("x-goog-api-key")).toBe(GOOGLE_KEY);
+  });
+
+  it("sharedBackup puts only the shared key on its backup model", async () => {
+    const { db } = fakeDb(null);
+    const shared = await getProvider(serviceRoleKeySources(db), userId, {
+      env,
+      sharedBackup: true,
+    });
+    expect(shared.shared).toBe(true);
+    expect(shared.backup).toBe(true);
+
+    const sealed = sealApiKey(
+      OPENAI_KEY,
+      { userId, provider: "openai" },
+      master,
+    );
+    const { db: ownDb } = fakeDb({ provider: "openai", ...sealed });
+    const own = await getProvider(serviceRoleKeySources(ownDb), userId, {
+      env,
+      sharedBackup: true,
+    });
+    expect(own.shared).toBe(false);
+    expect(own.backup).toBeFalsy();
   });
 
   it("the worker reads the shared key once per process", async () => {

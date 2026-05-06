@@ -46,6 +46,8 @@ export type TailoringView = {
   pdfPending: boolean;
   edited: boolean;
   keySource: "own" | "shared" | null;
+  /** The model that answered last (the shared key's backup, sometimes). */
+  model: string | null;
   estCost: number;
   error: string | null;
 };
@@ -58,7 +60,7 @@ export async function getLatestTailoring(
   const { data, error } = await supabase
     .from("tailorings")
     .select(
-      "id, state, created_at, rate_limited_at, score_before, score_after, matched, missing, changes, suggestions, notes, warnings, pdf_path, pdf_requested_at, edited_at, key_source, est_cost, error",
+      "id, state, created_at, rate_limited_at, score_before, score_after, matched, missing, changes, suggestions, notes, warnings, pdf_path, pdf_requested_at, edited_at, key_source, model, est_cost, error",
     )
     .eq("user_posting_id", userPostingId)
     .order("created_at", { ascending: false })
@@ -83,6 +85,7 @@ export async function getLatestTailoring(
     pdfPending: data.pdf_requested_at !== null,
     edited: data.edited_at !== null,
     keySource: (data.key_source as TailoringView["keySource"]) ?? null,
+    model: data.model,
     estCost: Number(data.est_cost),
     error: data.error,
   };

@@ -14,9 +14,14 @@
  * Outcomes per row:
  * - done: the pipeline ran (lib/tailor/pipeline.ts); the PDF is at
  *   pdfs/{user_id}/{posting_id}.pdf.
- * - rate limited (429, shared key or the user's own): back to queued with
- *   rate_limited_at set, never shown as a failure. Once the shared key says
- *   429, no other shared-key row is tried this run.
+ * - rate limited on the shared key's main model (Flash): this row is tried
+ *   again at once on the shared key's backup model (Flash-Lite, its own
+ *   free quota), and so is every later shared-key row this run. The SDK
+ *   has already retried that 429 once, so it's a repeated one. Each run
+ *   starts on Flash again.
+ * - rate limited otherwise (the backup too, or the user's own key): back to
+ *   queued with rate_limited_at set, never shown as a failure. Once the
+ *   backup says 429, no other shared-key row is tried this run.
  * - a problem the user must fix (no structured resume, a rejected key, no
  *   credit): failed, with a message they can act on.
  * - anything transient (a crash, a timeout, the provider's 5xx): back to
@@ -61,6 +66,8 @@ const STALE_RUNNING_MS = 20 * 60 * 1000;
 
 export type TailorStats = {
   done: number;
+  /** Of those, how many ran on the shared key's backup model. */
+  onBackup: number;
   failed: number;
   requeued: number;
   rateLimited: number;
@@ -397,7 +404,7 @@ async function tailorOne(
     ).error,
   );
   console.log(
-    `[tailor] ${row.id}: done, ${result.scoreBefore ?? "-"} → ${result.scoreAfter ?? "-"}, ${result.changes.length} changes, ${result.dropped.length} edits dropped, second look ${result.secondLook} (${result.suggestions.length}), ${inTokens}/${outTokens} tokens (${provider.shared ? "shared" : "own"} ${provider.name})`,
+    `[tailor] ${row.id}: done, ${result.scoreBefore ?? "-"} → ${result.scoreAfter ?? "-"}, ${result.changes.length} changes, ${result.dropped.length} edits dropped, second look ${result.secondLook} (${result.suggestions.length}), ${inTokens}/${outTokens} tokens (${provider.shared ? (provider.backup ? "shared backup" : "shared") : "own"} ${provider.name})`,
   );
 }
 
@@ -442,12 +449,29 @@ async function renderRequested(db: Db, options: DrainOptions): Promise<number> {
   return rendered;
 }
 
+/**
+ * Which shared-key model this run can still use. Flash until it says 429,
+ * then Flash-Lite until that says 429 too, then neither: rows wait for the
+ * next run.
+ */
+export type SharedQuota = { mainBusy: boolean; backupBusy: boolean };
+
+export function sharedModel(quota: SharedQuota): "main" | "backup" | "wait" {
+  if (!quota.mainBusy) return "main";
+  if (!quota.backupBusy) return "backup";
+  return "wait";
+}
+
+const isRateLimited = (error: unknown) =>
+  error instanceof AiError && error.code === "rate_limited";
+
 export async function drainTailorings(
   db: Db,
   options: DrainOptions,
 ): Promise<TailorStats> {
   const stats: TailorStats = {
     done: 0,
+    onBackup: 0,
     failed: 0,
     requeued: 0,
     rateLimited: 0,
@@ -457,7 +481,7 @@ export async function drainTailorings(
   await tidyQueue(db, Date.now());
 
   const skip: string[] = [];
-  let sharedBusy = false;
+  const quota: SharedQuota = { mainBusy: false, backupBusy: false };
   while (Date.now() < options.deadline) {
     const row = await claim(db, skip);
     if (!row) break;
@@ -493,21 +517,44 @@ export async function drainTailorings(
 
     let provider: AiProvider | null = null;
     try {
-      provider = await getProvider(options.keys, row.user_id);
-      if (provider.shared && sharedBusy) {
+      provider = await getProvider(options.keys, row.user_id, {
+        sharedBackup: sharedModel(quota) === "backup",
+      });
+      if (provider.shared && sharedModel(quota) === "wait") {
         // Not this run: put it back without spending an attempt.
         stats.deferred += 1;
         await requeue({ attempts: Math.max(0, row.attempts - 1) });
         continue;
       }
-      await tailorOne(db, row, provider, options);
-      stats.done += 1;
-    } catch (error) {
-      if (error instanceof AiError && error.code === "rate_limited") {
-        stats.rateLimited += 1;
-        if (provider?.shared) sharedBusy = true;
+      try {
+        await tailorOne(db, row, provider, options);
+      } catch (error) {
+        if (!(isRateLimited(error) && provider.shared && !provider.backup)) {
+          throw error;
+        }
+        // Flash said 429 (twice, counting the SDK's retry): the backup
+        // model has its own quota, so try this row again there, now.
+        quota.mainBusy = true;
         options.warn(
-          `tailoring ${row.id}: ${provider?.shared ? "shared" : "own"} ${provider?.name ?? ""} key rate-limited; left queued for the next run`,
+          `tailoring ${row.id}: shared key's main model rate-limited; trying the backup model for the rest of this run`,
+        );
+        provider = await getProvider(options.keys, row.user_id, {
+          sharedBackup: true,
+        });
+        await tailorOne(db, row, provider, options);
+      }
+      stats.done += 1;
+      if (provider.backup) stats.onBackup += 1;
+    } catch (error) {
+      if (isRateLimited(error)) {
+        stats.rateLimited += 1;
+        if (provider?.shared) {
+          // Main and backup both: no more shared-key rows this run.
+          quota.mainBusy = true;
+          quota.backupBusy = true;
+        }
+        options.warn(
+          `tailoring ${row.id}: ${provider?.shared ? "shared (main and backup)" : "own"} ${provider?.name ?? ""} key rate-limited; left queued for the next run`,
         );
         await requeue({
           attempts: Math.max(0, row.attempts - 1),

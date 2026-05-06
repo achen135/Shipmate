@@ -49,6 +49,11 @@ export interface AiProvider {
    * free, rate-limited, and never the user's to manage.
    */
   readonly shared: boolean;
+  /**
+   * True when the shared key runs on its backup model (Flash-Lite) because
+   * the main one kept answering 429 (worker/tailor.ts sharedModelFor).
+   */
+  readonly backup?: boolean;
   /** The cheapest call that proves the key works (token counting: free). */
   testKey(): Promise<void>;
   /** Native structured output on every provider, parsed and validated. */

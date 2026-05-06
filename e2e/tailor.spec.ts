@@ -62,6 +62,25 @@ function runTailorWorker(): string {
   );
 }
 
+/**
+ * Run the worker until this row is finished. The queue is shared, so a
+ * worker another test (or the other viewport) started may take this row:
+ * the row's state is what's checked, not one run's log.
+ */
+async function tailorUntilFinished(id: string): Promise<string> {
+  let log = "";
+  for (let i = 0; i < 4; i += 1) {
+    log += runTailorWorker();
+    const { data } = await db()
+      .from("tailorings")
+      .select("state")
+      .eq("id", id)
+      .single();
+    if (data?.state === "done" || data?.state === "failed") return log;
+  }
+  throw new Error(`tailoring ${id} didn't finish:\n${log}`);
+}
+
 const MASTER = {
   header: {
     name: "Jordan Lee",
@@ -148,8 +167,7 @@ test("tailor a posting on the shared key: score, changes, PDF, edit the copy, da
   expect(queued.data?.state).toBe("queued");
 
   // The worker (the database would have started tailor.yml in production).
-  const log = runTailorWorker();
-  expect(log).toContain(`[tailor] ${queued.data!.id}: done`);
+  await tailorUntilFinished(queued.data!.id);
 
   // The page refreshes itself while it waits.
   await expect(page.getByTestId("fit-score")).toHaveText(/^\d+% → \d+%$/, {
@@ -246,4 +264,70 @@ test("tailor a posting on the shared key: score, changes, PDF, edit the copy, da
     .select("id", { count: "exact", head: true })
     .eq("user_id", user.id);
   expect(count.count).toBe(1);
+});
+
+test("the shared key's main model is out of quota: the backup model tailors it, and the page says so", async ({
+  page,
+}, info) => {
+  test.setTimeout(180_000);
+  const tag = `b${info.project.name.length}${Date.now().toString(36)}`;
+  const user = await createTestUser(`tailor-${tag}`);
+  await finishOnboarding(user.id);
+  const admin = db();
+  await admin
+    .from("profiles")
+    .update({ mode: "ai", daily_cap: 2, name: "Jordan Lee" })
+    .eq("user_id", user.id);
+  await admin
+    .from("resumes")
+    .insert({ user_id: user.id, kind: "structured", content: MASTER });
+  await admin.from("fact_bank").insert({
+    user_id: user.id,
+    kind: "skill",
+    content: { text: "Kubernetes" },
+  });
+  const [postingId] = await seedPostings(`Seaway ${tag}`, [
+    {
+      title: "Backend Intern",
+      category: "Software",
+      daysAgo: 1,
+      // The mock answers 429 for gemini-3.8-flash on this posting.
+      description: `${DESCRIPTION}\nE2E-FLASH-BUSY`,
+    },
+  ]);
+  await addToInbox(user.id, postingId);
+
+  await signIn(page, user, `/postings/${postingId}`);
+  await page.getByRole("button", { name: "Tailor this" }).click();
+  await expect(page.getByText(/Charting course/)).toBeVisible();
+
+  let rowId = "";
+  await expect
+    .poll(async () => {
+      const { data } = await admin
+        .from("tailorings")
+        .select("id")
+        .eq("user_id", user.id);
+      rowId = data?.[0]?.id ?? "";
+      return data?.length;
+    })
+    .toBe(1);
+  await tailorUntilFinished(rowId);
+
+  const row = await admin
+    .from("tailorings")
+    .select("state, model, key_source, est_cost, rate_limited_at")
+    .eq("user_id", user.id)
+    .single();
+  expect(row.data).toMatchObject({
+    state: "done",
+    model: "gemini-3.5-flash-lite",
+    key_source: "shared",
+    est_cost: 0,
+    rate_limited_at: null,
+  });
+  await expect(page.getByTestId("fit-score")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("own-key-hint")).toContainText(
+    "ran on its backup model (Gemini 3.5 Flash-Lite)",
+  );
 });

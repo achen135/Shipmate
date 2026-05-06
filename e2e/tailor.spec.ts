@@ -247,6 +247,15 @@ test("tailor a posting on the shared key: score, changes, PDF, edit the copy, da
     .single();
   expect(master.data?.content).toEqual(MASTER);
 
+  // The Inbox card shows the fit score after tailoring.
+  await page.goto("/inbox");
+  const card = page
+    .getByTestId("posting-card")
+    .filter({ hasText: `Tidewater ${tag}` });
+  await expect(card.getByTestId("card-fit-score")).toHaveText(
+    `Fit ${row.data!.score_after}%`,
+  );
+
   // Usage today, on the AI screen.
   await page.goto("/profile/ai");
   await expect(page.getByTestId("used-today")).toHaveText(

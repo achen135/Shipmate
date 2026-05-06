@@ -1,8 +1,16 @@
 "use client";
 
-import { Bookmark, Check, ExternalLink, Undo2, X } from "lucide-react";
+import {
+  Bookmark,
+  Check,
+  ExternalLink,
+  LoaderCircle,
+  Undo2,
+  X,
+} from "lucide-react";
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { changeStatus } from "@/app/(app)/postings/actions";
@@ -26,6 +34,8 @@ export type PostingCardData = {
   };
   /** Formatted on the server ("3h ago") so it can't differ after hydration. */
   postedLabel: string;
+  /** AI mode: tailoring in progress, or the fit score after it. */
+  tailoring: { kind: "working" } | { kind: "score"; score: number } | null;
 };
 
 type Outcome =
@@ -113,7 +123,13 @@ export function PostingCard({
       <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         via {posting.sourceNames.join(", ") || "unknown source"}
         {posting.closed && <Badge variant="outline">Closed</Badge>}
+        {data.tailoring?.kind === "score" && (
+          <Badge variant="secondary" data-testid="card-fit-score">
+            Fit {data.tailoring.score}%
+          </Badge>
+        )}
       </p>
+      {data.tailoring?.kind === "working" && <Tailoring />}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {outcome.kind === "idle" && mode === "inbox" && (
@@ -255,6 +271,28 @@ function Result({
         <Undo2 aria-hidden="true" />
         Undo
       </Button>
+    </p>
+  );
+}
+
+/**
+ * The worker is tailoring this one: say so, and refresh the list now and
+ * then so the fit score shows up when it's done.
+ */
+function Tailoring() {
+  const router = useRouter();
+  useEffect(() => {
+    const timer = setInterval(() => router.refresh(), 15_000);
+    return () => clearInterval(timer);
+  }, [router]);
+  return (
+    <p
+      role="status"
+      data-testid="card-tailoring"
+      className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground"
+    >
+      <LoaderCircle aria-hidden="true" className="size-3.5 animate-spin" />
+      Tailoring…
     </p>
   );
 }

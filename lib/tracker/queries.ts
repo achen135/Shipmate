@@ -1,5 +1,6 @@
 import "server-only";
 
+import { parseResumeUsed } from "@/lib/apply/resume-used";
 import { createClient } from "@/lib/supabase/server";
 
 import { type TrackerRow, toTrackerItem } from "./item";
@@ -37,7 +38,9 @@ export async function getTrackerDetail(id: string) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("user_postings")
-    .select(`${ROW_FIELDS}, status_events(id, from_status, to_status, at)`)
+    .select(
+      `${ROW_FIELDS}, resume_used, status_events(id, from_status, to_status, at)`,
+    )
     .eq("id", id)
     .order("at", { referencedTable: "status_events", ascending: true })
     .maybeSingle();
@@ -51,5 +54,6 @@ export async function getTrackerDetail(id: string) {
     }),
     manual: data.posting === null,
     events,
+    resumeUsed: parseResumeUsed(data.resume_used),
   };
 }

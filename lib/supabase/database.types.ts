@@ -837,6 +837,7 @@ export type Database = {
           referral: boolean;
           referrer: string | null;
           resume_note: string | null;
+          resume_used: Json | null;
           seen_at: string | null;
           skip_reason: string | null;
           status: string;
@@ -858,6 +859,7 @@ export type Database = {
           referral?: boolean;
           referrer?: string | null;
           resume_note?: string | null;
+          resume_used?: Json | null;
           seen_at?: string | null;
           skip_reason?: string | null;
           status?: string;
@@ -878,6 +880,7 @@ export type Database = {
           referral?: boolean;
           referrer?: string | null;
           resume_note?: string | null;
+          resume_used?: Json | null;
           seen_at?: string | null;
           skip_reason?: string | null;
           status?: string;
@@ -1047,7 +1050,15 @@ export type Database = {
       is_invited: { Args: Record<PropertyKey, never>; Returns: boolean };
       max_follows: { Args: Record<PropertyKey, never>; Returns: number };
       posting_boards: { Args: { p_posting_id: string }; Returns: Json };
+      record_resume_used: {
+        Args: { p_path?: string; p_user_posting_id: string };
+        Returns: Json;
+      };
       redeem_invite: { Args: { p_code: string }; Returns: string };
+      resume_used_for: {
+        Args: { p_path?: string; p_user: string; p_user_posting_id: string };
+        Returns: Json;
+      };
       save_api_key: {
         Args: {
           p_ciphertext: string;

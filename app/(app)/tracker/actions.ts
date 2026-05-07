@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 
+import { recordResumeUsed } from "@/app/(app)/postings/actions";
 import { requireMember } from "@/lib/auth/viewer";
 import {
   type ImportOutcome,
@@ -25,6 +26,7 @@ export async function addPostingToTracker(
 ): Promise<WriteResult> {
   await requireMember();
   const result = await markPostingApplied(postingId);
+  if (result.ok) await recordResumeUsed(result.id);
   if (result.ok && options.open) redirect(`/tracker/${result.id}`);
   return result;
 }

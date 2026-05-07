@@ -2561,6 +2561,159 @@ async function testTailorings(a: TestUser, b: TestUser): Promise<void> {
   await admin.from("tailorings").delete().in("user_id", [a.id, b.id]);
 }
 
+async function testResumeUsed(a: TestUser, b: TestUser): Promise<void> {
+  console.log(
+    "\nresume_used: recorded only through record_resume_used, for the user's own file",
+  );
+
+  await admin
+    .from("profiles")
+    .update({ mode: "ai", daily_cap: 10 })
+    .in("user_id", [a.id, b.id]);
+  const [p1, p2] = await Promise.all([
+    seedPosting("Used T1"),
+    seedPosting("Used T2"),
+  ]);
+  const [r1, r2] = await Promise.all([inboxRow(a.id, p1), inboxRow(a.id, p2)]);
+  const pdf = () =>
+    new Blob(["%PDF-1.4 rls resume used"], { type: "application/pdf" });
+
+  const direct = await a.client
+    .from("user_postings")
+    .update({ resume_used: { kind: "tailored", path: "x" } } as never)
+    .eq("id", r1)
+    .select("id");
+  check(
+    "A can't write resume_used directly",
+    direct.error !== null || (direct.data ?? []).length === 0,
+  );
+
+  const nothing = await a.client.rpc("record_resume_used", {
+    p_user_posting_id: r1,
+  });
+  eq("with no PDF at all, nothing is recorded", nothing.data, null);
+
+  // Two prints of r1's tailoring, a third for r2: each at its own path.
+  const t1 = await admin
+    .from("tailorings")
+    .insert({ user_id: a.id, user_posting_id: r1 })
+    .select("id")
+    .single();
+  const old = `${a.id}/${p1}/old.pdf`;
+  const latest = `${a.id}/${p1}/new.pdf`;
+  const other = `${a.id}/${p2}/x.pdf`;
+  for (const path of [old, latest, other]) {
+    await admin.storage.from("pdfs").upload(path, pdf(), { upsert: true });
+  }
+  await admin
+    .from("tailorings")
+    .update({ state: "done", pdf_path: latest })
+    .eq("id", t1.data!.id);
+
+  const bTry = await b.client.rpc("record_resume_used", {
+    p_user_posting_id: r1,
+  });
+  check("B can't record one on A's application", bTry.error !== null);
+  const wrongPath = await a.client.rpc("record_resume_used", {
+    p_user_posting_id: r1,
+    p_path: other,
+  });
+  check(
+    "A can't name another posting's PDF for this one",
+    wrongPath.error !== null,
+  );
+  const stale = await a.client.rpc("record_resume_used", {
+    p_user_posting_id: r1,
+    p_path: old,
+  });
+  check("…or a path no tailoring of this posting has", stale.error !== null);
+
+  const recorded = await a.client.rpc("record_resume_used", {
+    p_user_posting_id: r1,
+  });
+  eq("A records the latest tailored PDF", recorded.error, null);
+  const used = recorded.data as { kind?: string; path?: string } | null;
+  eq("…as tailored", used?.kind, "tailored");
+  eq("…at its exact path", used?.path, latest);
+
+  await admin
+    .from("tailorings")
+    .update({ pdf_path: old })
+    .eq("id", t1.data!.id);
+  const again = await a.client.rpc("record_resume_used", {
+    p_user_posting_id: r1,
+  });
+  eq(
+    "the first record wins",
+    (again.data as { path?: string } | null)?.path,
+    latest,
+  );
+  const bSees = await b.client
+    .from("user_postings")
+    .select("resume_used")
+    .eq("id", r1);
+  eq("B can't read it", bSees.data?.length ?? 0, 0);
+
+  // No tailoring for r2: the uploaded resume, if the file is there.
+  const upload = `${a.id}/resume-rls.pdf`;
+  await a.client.storage
+    .from("uploads")
+    .upload(upload, pdf(), { upsert: true });
+  await admin.from("resumes").upsert(
+    {
+      user_id: a.id,
+      kind: "uploaded_pdf",
+      file_path: upload,
+      file_name: "A.pdf",
+      text_content: "",
+    },
+    { onConflict: "user_id" },
+  );
+  const uploaded = await a.client.rpc("record_resume_used", {
+    p_user_posting_id: r2,
+  });
+  eq(
+    "without a tailored PDF, the uploaded resume is recorded",
+    (uploaded.data as { kind?: string; path?: string } | null)?.path,
+    upload,
+  );
+
+  const internal = await a.client.rpc(
+    "resume_used_for" as never,
+    {
+      p_user: a.id,
+      p_user_posting_id: r1,
+    } as never,
+  );
+  check("the inner function isn't callable", internal.error !== null);
+  const anon = createClient<Database>(url, publishableKey, NO_SESSION);
+  const anonCall = await anon.rpc("record_resume_used", {
+    p_user_posting_id: r1,
+  });
+  check("signed-out callers can't record one", anonCall.error !== null);
+
+  console.log("\ntailorings.suggestions: the worker's only");
+  const suggest = await a.client
+    .from("tailorings")
+    .update({ suggestions: [{ what: "x" }] } as never)
+    .eq("id", t1.data!.id)
+    .select("id");
+  check(
+    "A can't write second-look notes",
+    suggest.error !== null || (suggest.data ?? []).length === 0,
+  );
+  const notArray = await admin
+    .from("tailorings")
+    .update({ suggestions: { what: "x" } as never })
+    .eq("id", t1.data!.id);
+  check("notes must be an array", notArray.error !== null);
+
+  await admin.storage.from("pdfs").remove([old, latest, other]);
+  await admin.storage.from("uploads").remove([upload]);
+  await admin.from("resumes").delete().eq("user_id", a.id);
+  await admin.from("tailorings").delete().in("user_id", [a.id, b.id]);
+}
+
 // ---------------------------------------------------------------- main
 
 async function main(): Promise<void> {
@@ -2600,6 +2753,7 @@ async function main(): Promise<void> {
     await testFactBank(a, b);
     await testCompanyResearch(a);
     await testTailorings(a, b);
+    await testResumeUsed(a, b);
   } finally {
     await deleteSeededPostings();
     await deleteTestUsers();

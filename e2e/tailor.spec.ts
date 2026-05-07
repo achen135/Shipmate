@@ -3,7 +3,11 @@ import { execFileSync } from "node:child_process";
 import { expect, test } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 
-import { andWaitForAction } from "./helpers/actions";
+import {
+  andWaitForAction,
+  applyAndReturn,
+  blockExternal,
+} from "./helpers/actions";
 import {
   createTestUser,
   deleteCreatedUsers,
@@ -200,7 +204,9 @@ test("tailor a posting on the shared key: score, changes, PDF, edit the copy, da
     key_source: "shared",
     provider: "google",
     est_cost: 0,
-    pdf_path: `${user.id}/${postingId}.pdf`,
+    pdf_path: expect.stringMatching(
+      new RegExp(`^${user.id}/${postingId}/[a-z0-9]+\\.pdf$`),
+    ),
   });
   expect(row.data!.score_after).toBeGreaterThan(row.data!.score_before);
   expect(JSON.stringify(row.data!.resume_content)).not.toContain("Kafka");
@@ -255,6 +261,58 @@ test("tailor a posting on the shared key: score, changes, PDF, edit the copy, da
   await expect(card.getByTestId("card-fit-score")).toHaveText(
     `Fit ${row.data!.score_after}%`,
   );
+
+  // Apply → "Did you submit?" → Yes: the tailored PDF is recorded as the
+  // one sent, at its own path. (The edited copy above hasn't been printed
+  // yet, so what was downloadable, and recorded, is the first print.)
+  await blockExternal(page);
+  await page.goto(`/postings/${postingId}`);
+  await applyAndReturn(page);
+  await page.getByRole("button", { name: "Yes, I applied" }).click();
+  await expect(page.getByText("In your Tracker: Applied")).toBeVisible();
+  const applied = await admin
+    .from("user_postings")
+    .select("id, resume_used")
+    .eq("user_id", user.id)
+    .eq("posting_id", postingId)
+    .single();
+  expect(applied.data?.resume_used).toMatchObject({
+    kind: "tailored",
+    bucket: "pdfs",
+    path: row.data!.pdf_path,
+    tailoring_id: queued.data!.id,
+  });
+  await page.goto(`/tracker/${applied.data!.id}`);
+  await expect(page.getByTestId("resume-used")).toContainText(
+    "Resume sent: Your tailored resume for this posting",
+  );
+
+  // Printing the edited copy writes a new file; the recorded one stays.
+  runTailorWorker();
+  await expect
+    .poll(
+      async () =>
+        (
+          await admin
+            .from("tailorings")
+            .select("pdf_path, pdf_requested_at")
+            .eq("id", queued.data!.id)
+            .single()
+        ).data,
+    )
+    .toMatchObject({ pdf_requested_at: null });
+  const reprinted = await admin
+    .from("tailorings")
+    .select("pdf_path")
+    .eq("id", queued.data!.id)
+    .single();
+  expect(reprinted.data?.pdf_path).not.toBe(row.data!.pdf_path);
+  const sent = await page.request.get(
+    `/api/applications/${applied.data!.id}/resume`,
+  );
+  expect(sent.headers()["content-type"]).toBe("application/pdf");
+  const kept = await admin.storage.from("pdfs").download(row.data!.pdf_path);
+  expect(kept.error).toBeNull();
 
   // Usage today, on the AI screen.
   await page.goto("/profile/ai");

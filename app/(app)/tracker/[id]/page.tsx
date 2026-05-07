@@ -7,6 +7,7 @@ import { z } from "zod";
 import { DeleteRowButton } from "@/components/tracker/delete-row-button";
 import { StaleBadge, StatusBadge } from "@/components/tracker/status-badge";
 import { TrackerRowForm } from "@/components/tracker/tracker-row-form";
+import { describeResumeUsed } from "@/lib/apply/resume-used";
 import { requireMember } from "@/lib/auth/viewer";
 import { formatCalendarDate, formatLongDate } from "@/lib/format/time";
 import { isStale } from "@/lib/tracker/badge";
@@ -38,7 +39,7 @@ export default async function TrackerRowPage({
   const { detail, others, now } = await loadApplication(id);
   if (!detail) notFound();
 
-  const { item, manual, events } = detail;
+  const { item, manual, events, resumeUsed } = detail;
   // Moved back out of the Tracker (e.g. Undo): show it where it lives now.
   if (!isTrackerStatus(item.status)) {
     redirect(item.postingId ? `/postings/${item.postingId}` : "/tracker");
@@ -99,6 +100,21 @@ export default async function TrackerRowPage({
             </span>
           )}
         </p>
+        {resumeUsed && (
+          <p className="text-sm" data-testid="resume-used">
+            <span className="text-muted-foreground">Resume sent: </span>
+            {describeResumeUsed(resumeUsed)}.{" "}
+            <a
+              href={`/api/applications/${item.id}/resume`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 underline underline-offset-4"
+            >
+              Open PDF
+              <ExternalLink aria-hidden="true" className="size-3.5" />
+            </a>
+          </p>
+        )}
       </header>
 
       <section

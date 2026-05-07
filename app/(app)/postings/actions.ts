@@ -34,7 +34,26 @@ export async function changeStatus(input: StatusChange): Promise<ActionResult> {
     console.error("[inbox] status change failed:", error?.message ?? "no row");
     return { ok: false, message: "Couldn't update. Try again." };
   }
+  if (parsed.data.status === "applied") {
+    await recordResumeUsed(parsed.data.id);
+  }
   return { ok: true };
+}
+
+/**
+ * Note which PDF went with this application: the posting's latest tailored
+ * PDF, else the uploaded resume (the database function picks and checks
+ * it; the first record wins). Best effort: a failure here never undoes
+ * "applied".
+ */
+export async function recordResumeUsed(userPostingId: string): Promise<void> {
+  await requireMember();
+  if (!z.uuid().safeParse(userPostingId).success) return;
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("record_resume_used", {
+    p_user_posting_id: userPostingId,
+  });
+  if (error) console.error("[apply] resume_used failed:", error.code);
 }
 
 export async function markSeen(id: string): Promise<void> {

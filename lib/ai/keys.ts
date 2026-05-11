@@ -2,6 +2,7 @@ import "server-only";
 
 import { z } from "zod";
 
+import { ServerSecretError, serverSecret } from "@/lib/server-secret";
 import { createClient } from "@/lib/supabase/server";
 
 import { loadMasterKey, MasterKeyError, sealApiKey } from "./crypto";
@@ -26,20 +27,7 @@ import {
  * object.
  */
 
-export const SERVER_SECRET_ENV = "API_KEY_SERVER_SECRET";
-
-class ServerSecretError extends Error {
-  constructor() {
-    super(`${SERVER_SECRET_ENV} isn't set (32+ characters).`);
-    this.name = "ServerSecretError";
-  }
-}
-
-function serverSecret(): string {
-  const secret = process.env[SERVER_SECRET_ENV]?.trim() ?? "";
-  if (secret.length < 32) throw new ServerSecretError();
-  return secret;
-}
+export { SERVER_SECRET_ENV } from "@/lib/server-secret";
 
 export const apiKeyInputSchema = z
   .object({

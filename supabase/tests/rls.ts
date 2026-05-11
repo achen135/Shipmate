@@ -2714,6 +2714,222 @@ async function testResumeUsed(a: TestUser, b: TestUser): Promise<void> {
   await admin.from("tailorings").delete().in("user_id", [a.id, b.id]);
 }
 
+async function testExtension(a: TestUser, b: TestUser): Promise<void> {
+  console.log(
+    "\nextension: a hashed token, server secret required, the token's user's rows only",
+  );
+  const { createHash, randomBytes } = await import("node:crypto");
+  const mint = () => {
+    const token = `shm_ext_${randomBytes(32).toString("base64url")}`;
+    return { token, hash: createHash("sha256").update(token).digest("hex") };
+  };
+  const anon = createClient<Database>(url, publishableKey, NO_SESSION);
+
+  const aToken = mint();
+  const connected = await a.client.rpc("connect_extension", {
+    p_token_hash: aToken.hash,
+  });
+  eq("A connects the extension", connected.error, null);
+  const notHex = await a.client.rpc("connect_extension", {
+    p_token_hash: "not-a-hash",
+  });
+  check("only a SHA-256 hash is stored", notHex.error !== null);
+  const anonConnect = await anon.rpc("connect_extension", {
+    p_token_hash: mint().hash,
+  });
+  check("signed-out callers can't connect one", anonConnect.error !== null);
+
+  const rows = await a.client
+    .from("extension_tokens")
+    .select("id, created_at, revoked_at");
+  eq("A sees their connection", rows.data?.length, 1);
+  const hashRead = await a.client.from("extension_tokens").select("token_hash");
+  check("…but never the hash", hashRead.error !== null);
+  const bRows = await b.client.from("extension_tokens").select("id");
+  eq("B sees none of A's", bRows.data?.length ?? 0, 0);
+  const forged = await a.client
+    .from("extension_tokens")
+    .insert({ user_id: a.id, token_hash: mint().hash } as never);
+  check("A can't insert one directly", forged.error !== null);
+
+  const postingId = await seedPosting("Extension Intern");
+  await admin
+    .from("postings")
+    .update({ ats: "greenhouse", ats_job_id: "424242" })
+    .eq("id", postingId);
+  const aRow = await inboxRow(a.id, postingId);
+  const bRow = await inboxRow(b.id, postingId);
+  const context = (hash: string, secret = LOCAL_SERVER_SECRET, extra = {}) =>
+    anon.rpc("extension_context", {
+      p_secret: secret,
+      p_token_hash: hash,
+      p_ats: "greenhouse",
+      p_ats_job_id: "424242",
+      p_url: "https://boards.greenhouse.io/x/jobs/424242",
+      ...extra,
+    });
+
+  const noSecret = await context(aToken.hash, "wrong".repeat(10));
+  check("without the server secret, nothing", noSecret.error !== null);
+  const badToken = await context(mint().hash);
+  check(
+    "an unknown token is refused as not connected",
+    badToken.error?.code === "28000",
+    badToken.error,
+  );
+  const found = await context(aToken.hash);
+  eq("A's token finds A's Inbox row for the page", found.error, null);
+  const data = found.data as {
+    found: boolean;
+    auto: boolean;
+    user_posting_id: string;
+  };
+  eq("…the right row", data.user_posting_id, aRow);
+  eq("…not automatic without a marker", data.auto, false);
+
+  const nonce = randomBytes(16).toString("base64url");
+  const withMarker = await context(aToken.hash, LOCAL_SERVER_SECRET, {
+    p_marker_user_posting_id: aRow,
+    p_marker_nonce: nonce,
+  });
+  eq(
+    "a marker for A's own row fills automatically",
+    (withMarker.data as { auto: boolean }).auto,
+    true,
+  );
+  const reused = await context(aToken.hash, LOCAL_SERVER_SECRET, {
+    p_marker_user_posting_id: aRow,
+    p_marker_nonce: nonce,
+  });
+  eq(
+    "…once: the same marker again doesn't",
+    (reused.data as { auto: boolean }).auto,
+    false,
+  );
+  const bMarker = await context(aToken.hash, LOCAL_SERVER_SECRET, {
+    p_marker_user_posting_id: bRow,
+    p_marker_nonce: randomBytes(16).toString("base64url"),
+  });
+  eq(
+    "a marker naming B's row doesn't fill automatically for A's token",
+    (bMarker.data as { auto: boolean }).auto,
+    false,
+  );
+  eq(
+    "…and A's token still only gets A's own row",
+    (bMarker.data as { user_posting_id: string }).user_posting_id,
+    aRow,
+  );
+  const otherPage = await context(aToken.hash, LOCAL_SERVER_SECRET, {
+    p_ats_job_id: "999",
+    p_url: "https://boards.greenhouse.io/x/jobs/999",
+    p_marker_user_posting_id: aRow,
+    p_marker_nonce: randomBytes(16).toString("base64url"),
+  });
+  eq(
+    "a marker on a page that isn't its posting finds nothing",
+    (otherPage.data as { found: boolean }).found,
+    false,
+  );
+
+  // The PDF: a grant for exactly A's file, for a minute.
+  const path = `${a.id}/${postingId}/ext.pdf`;
+  const other = `${b.id}/${postingId}/ext.pdf`;
+  for (const p of [path, other]) {
+    await admin.storage
+      .from("pdfs")
+      .upload(p, new Blob(["%PDF-1.4 ext"], { type: "application/pdf" }), {
+        upsert: true,
+      });
+  }
+  await admin
+    .from("tailorings")
+    .insert({ user_id: a.id, user_posting_id: aRow })
+    .select("id")
+    .single()
+    .then(({ data: t }) =>
+      admin
+        .from("tailorings")
+        .update({ state: "done", pdf_path: path })
+        .eq("id", t!.id),
+    );
+  await admin
+    .from("tailorings")
+    .insert({ user_id: b.id, user_posting_id: bRow })
+    .select("id")
+    .single()
+    .then(({ data: t }) =>
+      admin
+        .from("tailorings")
+        .update({ state: "done", pdf_path: other })
+        .eq("id", t!.id),
+    );
+  const before = await anon.storage.from("pdfs").download(path);
+  check("signed out, A's PDF can't be read", before.error !== null);
+  const bPdf = await anon.rpc("extension_pdf", {
+    p_secret: LOCAL_SERVER_SECRET,
+    p_token_hash: aToken.hash,
+    p_user_posting_id: bRow,
+  });
+  check("A's token can't open B's PDF", bPdf.error !== null);
+  const pdf = await anon.rpc("extension_pdf", {
+    p_secret: LOCAL_SERVER_SECRET,
+    p_token_hash: aToken.hash,
+    p_user_posting_id: aRow,
+  });
+  eq(
+    "A's token opens A's tailored PDF",
+    (pdf.data as { path: string }).path,
+    path,
+  );
+  const during = await anon.storage.from("pdfs").download(path);
+  eq("…readable for the grant's minute", during.error, null);
+  const stillNot = await anon.storage.from("pdfs").download(other);
+  check("…and only that file", stillNot.error !== null);
+
+  // I submitted it: applied, and the attached PDF recorded.
+  const bSubmit = await anon.rpc("extension_submitted", {
+    p_secret: LOCAL_SERVER_SECRET,
+    p_token_hash: aToken.hash,
+    p_user_posting_id: bRow,
+  });
+  check("A's token can't mark B's application", bSubmit.error !== null);
+  const submitted = await anon.rpc("extension_submitted", {
+    p_secret: LOCAL_SERVER_SECRET,
+    p_token_hash: aToken.hash,
+    p_user_posting_id: aRow,
+    p_path: path,
+  });
+  eq("A's token marks A's application submitted", submitted.error, null);
+  const applied = await admin
+    .from("user_postings")
+    .select("status, resume_used")
+    .eq("id", aRow)
+    .single();
+  eq("…applied", applied.data?.status, "applied");
+  eq(
+    "…with the attached PDF recorded",
+    (applied.data?.resume_used as { path?: string } | null)?.path,
+    path,
+  );
+
+  const off = await a.client.rpc("disconnect_extension");
+  eq("A disconnects", off.error, null);
+  const after = await context(aToken.hash);
+  check("the token stops working at once", after.error?.code === "28000");
+  const anonFns = await anon.rpc(
+    "extension_user" as never,
+    {
+      p_secret: LOCAL_SERVER_SECRET,
+      p_token_hash: aToken.hash,
+    } as never,
+  );
+  check("the inner token check isn't callable", anonFns.error !== null);
+
+  await admin.storage.from("pdfs").remove([path, other]);
+  await admin.from("tailorings").delete().in("user_id", [a.id, b.id]);
+}
+
 // ---------------------------------------------------------------- main
 
 async function main(): Promise<void> {
@@ -2754,6 +2970,7 @@ async function main(): Promise<void> {
     await testCompanyResearch(a);
     await testTailorings(a, b);
     await testResumeUsed(a, b);
+    await testExtension(a, b);
   } finally {
     await deleteSeededPostings();
     await deleteTestUsers();

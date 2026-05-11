@@ -78,6 +78,22 @@ export type Database = {
         };
         Relationships: [];
       };
+      apply_marker_uses: {
+        Row: {
+          nonce: string;
+          used_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          nonce: string;
+          used_at?: string;
+        };
+        Update: {
+          nonce?: string;
+          used_at?: string;
+        };
+        Relationships: [];
+      };
       companies: {
         Row: {
           careers_url: string | null;
@@ -132,6 +148,56 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      extension_file_grants: {
+        Row: {
+          bucket: string;
+          expires_at: string;
+          id: string;
+          path: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          bucket: string;
+          expires_at: string;
+          id?: string;
+          path: string;
+        };
+        Update: {
+          bucket?: string;
+          expires_at?: string;
+          id?: string;
+          path?: string;
+        };
+        Relationships: [];
+      };
+      extension_tokens: {
+        Row: {
+          created_at: string;
+          id: string;
+          last_used_at: string | null;
+          revoked_at: string | null;
+          token_hash: string;
+          user_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          created_at?: string;
+          id?: string;
+          last_used_at?: string | null;
+          revoked_at?: string | null;
+          token_hash: string;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          last_used_at?: string | null;
+          revoked_at?: string | null;
+          token_hash?: string;
+          user_id?: string;
+        };
+        Relationships: [];
       };
       fact_bank: {
         Row: {
@@ -1029,8 +1095,58 @@ export type Database = {
           isSetofReturn: true;
         };
       };
+      connect_extension: { Args: { p_token_hash: string }; Returns: string };
+      disconnect_extension: {
+        Args: Record<PropertyKey, never>;
+        Returns: undefined;
+      };
       dispatch_tailor: { Args: Record<PropertyKey, never>; Returns: number };
       dispatch_watch: { Args: Record<PropertyKey, never>; Returns: number };
+      extension_context: {
+        Args: {
+          p_ats: string;
+          p_ats_job_id: string;
+          p_marker_nonce?: string;
+          p_marker_user_posting_id?: string;
+          p_secret: string;
+          p_token_hash: string;
+          p_url: string;
+        };
+        Returns: Json;
+      };
+      extension_file_granted: {
+        Args: { p_bucket: string; p_path: string };
+        Returns: boolean;
+      };
+      extension_pdf: {
+        Args: {
+          p_secret: string;
+          p_token_hash: string;
+          p_user_posting_id: string;
+        };
+        Returns: Json;
+      };
+      extension_pdf_choice: {
+        Args: { p_user: string; p_user_posting_id: string };
+        Returns: Json;
+      };
+      extension_status: {
+        Args: { p_secret: string; p_token_hash: string };
+        Returns: boolean;
+      };
+      extension_submitted: {
+        Args: {
+          p_path?: string;
+          p_secret: string;
+          p_token_hash: string;
+          p_user_posting_id: string;
+        };
+        Returns: Json;
+      };
+      extension_user: {
+        Args: { p_secret: string; p_token_hash: string };
+        Returns: string;
+      };
       follow_board: {
         Args: {
           p_company_name: string;

@@ -14,6 +14,7 @@ import {
   TailoringProgress,
 } from "@/components/review/tailoring";
 import { requireMember } from "@/lib/auth/viewer";
+import { applyLink } from "@/lib/extension/marker";
 import { formatRelative, formatShortDate } from "@/lib/format/time";
 import { parseContent, resumeToText } from "@/lib/resume/structured";
 import { keywordMatch } from "@/lib/review/keywords";
@@ -490,7 +491,8 @@ export default async function PostingPage({
 
       <ReviewActions
         postingId={posting.id}
-        applyUrl={posting.url}
+        // With the extension's #shipmate= marker when it can fill the page.
+        applyUrl={applyLink(posting.url, item?.id ?? null)}
         item={
           item && {
             id: item.id,

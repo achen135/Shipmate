@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Shipmate Autofill settings</title>
+    <style>
+      body {
+        margin: 0;
+        font:
+          14px/1.5 system-ui,
+          sans-serif;
+        background: #fbf7ef;
+        color: #1b2a41;
+      }
+      main {
+        max-width: 520px;
+        padding: 24px 16px;
+      }
+      label {
+        display: block;
+        margin: 12px 0 4px;
+        font-weight: 600;
+      }
+      input,
+      select {
+        width: 100%;
+        box-sizing: border-box;
+        font: inherit;
+        padding: 6px 8px;
+        border: 1px solid #c9b88f;
+        border-radius: 8px;
+        background: #fff;
+      }
+      button {
+        margin-top: 14px;
+        font: inherit;
+        border: 1px solid #1b2a41;
+        background: #1b2a41;
+        color: #fff;
+        border-radius: 8px;
+        padding: 6px 14px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Shipmate Autofill</h1>
+      <p>
+        In Shipmate, open Profile → Browser extension and connect. Paste the key
+        it shows here. It's kept in this browser and sent only to Shipmate.
+      </p>
+      <form id="form">
+        <label for="origin">Shipmate address</label>
+        <select id="origin" name="origin"></select>
+        <label for="token">Extension key</label>
+        <input
+          id="token"
+          name="token"
+          type="password"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <button type="submit">Save</button>
+      </form>
+      <p id="status" role="status"></p>
+    </main>
+    <script src="options.js"></script>
+  </body>
+</html>

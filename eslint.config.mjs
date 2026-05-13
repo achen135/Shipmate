@@ -18,6 +18,7 @@ const eslintConfig = defineConfig([
     "coverage/**",
     "test-results/**",
     "playwright-report/**",
+    "extension/dist/**",
     "worker/.out/**",
   ]),
 ]);

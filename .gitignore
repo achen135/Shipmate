@@ -46,3 +46,6 @@ yarn-error.log*
 # kept out of the public repo (same policy as food-for-everyone).
 CLAUDE.md
 /docs/
+
+# the browser extension build (npm run build:extension)
+/extension/dist/

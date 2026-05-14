@@ -48,7 +48,6 @@ import {
   verifyKeywords,
 } from "./score";
 import { type Suggestion, secondLook } from "./second-look";
-import { containsPhrase } from "./text";
 import { untraceable } from "./trace";
 import { describeFacts, describeResume, factId } from "./view";
 
@@ -191,10 +190,8 @@ export async function tailor(
       : factFor(k) !== -1
         ? `IN FACTS ${factId(factFor(k))}`
         : "MISSING";
-    const variants = k.variants.length
-      ? ` (also: ${k.variants.join(", ")})`
-      : "";
-    return `- ${k.term}${variants} — ${k.importance}, ${k.kind.replace("_", " ")}: ${status}`;
+    // No "(also: …)": the model's variants aren't proof of anything (§0a).
+    return `- ${k.term} — ${k.importance}, ${k.kind.replace("_", " ")}: ${status}`;
   });
 
   // 3. Company context, 5. edit from the master.
@@ -294,8 +291,7 @@ export async function tailor(
 
   // 9. A second look at the finished copy. It gets plain text and returns
   // notes; `content` is final above this line and nothing below edits it.
-  // A keyword counts as on the resume here only in its own spelling: the
-  // variants are the keyword model's word, not a fact (M8 §0).
+  // On the resume in its own spelling only, as everywhere (M8 §0a).
   let suggestions: Suggestion[] = [];
   let looked: TailorResult["secondLook"] = "skipped";
   if (changes.length > 0) {
@@ -303,7 +299,7 @@ export async function tailor(
       postingBlock,
       keywordLines: keywords.map(
         (k) =>
-          `- ${k.term} — ${k.importance}: ${containsPhrase(finalText, k.term) ? "ON RESUME" : "MISSING"}`,
+          `- ${k.term} — ${k.importance}: ${hasKeyword(finalText, k) ? "ON RESUME" : "MISSING"}`,
       ),
       resumeText: finalText,
     });

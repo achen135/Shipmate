@@ -554,3 +554,73 @@ describe("never fabricates: a different skill passed off as another spelling", (
 function resumeText(content: ResumeContent) {
   return corpusLines(content, []).join("\n");
 }
+
+describe("never overstates: a sibling skill in the facts or the report (M8 §0a)", () => {
+  const person = PEOPLE[0];
+
+  it.each(SIBLINGS)(
+    "with $has on the resume and in a fact, $claims is reported missing, not matched or IN FACTS",
+    async ({ has, claims }) => {
+      const facts = [
+        ...person.facts,
+        {
+          id: "11111111-0000-4000-8000-0000000000aa",
+          kind: "skill" as const,
+          text: `Used ${has} in a course project`,
+          detail: "",
+          source: "manual" as const,
+        },
+      ];
+      const { provider, calls } = scriptedProvider({
+        posting_keywords: () => ({
+          keywords: [
+            {
+              term: claims,
+              importance: "required",
+              kind: "hard_skill",
+              variants: [has],
+            },
+            ...["Python", "REST APIs", "Redis", "Docker"].map((term) => ({
+              term,
+              importance: "required",
+              kind: "hard_skill",
+              variants: [],
+            })),
+          ],
+        }),
+        resume_edits: () => ({
+          edits: [
+            edit("reword_bullet", bulletId(1, 0, 1), {
+              text: `Wrote integration tests for 12 endpoints with pytest and ${has}`,
+              keyword: claims,
+            }),
+          ],
+        }),
+      });
+      const result = await tailor(
+        {
+          master: person.resume,
+          facts,
+          posting: siblingPosting,
+          research: null,
+        },
+        { provider, measure: lineMeasure(40).measure },
+      );
+      expect(result.matched).not.toContain(claims);
+      expect(result.missing).toContain(claims);
+      expect(
+        result.warnings.find((w) => w.kind === "skills_gap")?.message,
+      ).toContain(claims);
+      // The edit step is told the truth: missing, not on the resume or in facts.
+      const editInput = calls.find((c) => c.name === "resume_edits")!.input;
+      expect(editInput).toContain(
+        `- ${claims} — required, hard skill: MISSING`,
+      );
+      expect(editInput).not.toContain(`(also: ${has})`);
+      // And no change claims the posting asked for it because of the sibling.
+      for (const change of result.changes) {
+        expect(change.why).not.toContain(`“${claims}”`);
+      }
+    },
+  );
+});

@@ -150,7 +150,10 @@ export type ApplyInput = {
   /** The user's master resume: where words may come from. */
   master: ResumeContent;
   facts: Fact[];
-  /** The posting's keywords (verified against its text), with their variants. */
+  /**
+   * The posting's keywords (verified against its text). Their variants only
+   * add claim words (stricter checks); they never match anything (§0a).
+   */
   keywords: { term: string; variants: string[] }[];
   edits: unknown[];
   /** Only these ops (the one-page step allows drops only). */
@@ -396,16 +399,13 @@ export function applyEdits(input: ApplyInput): ApplyResult {
   const keywordFor = (edit: Edit, before: string, after: string) => {
     const wanted = edit.keyword.trim();
     if (!wanted) return null;
+    // In the keyword's own spelling only: a variant isn't proof (§0a).
     const known = keywords.find(
-      (k) =>
-        containsPhrase(k.term, wanted) ||
-        k.variants.some((v) => containsPhrase(v, wanted)),
+      (k) => containsPhrase(k.term, wanted) && containsPhrase(wanted, k.term),
     );
     if (!known) return null;
-    const spellings = [known.term, ...known.variants];
-    const mentioned = spellings.find(
-      (s) => containsPhrase(after, s) && !containsPhrase(before, s),
-    );
+    const mentioned =
+      containsPhrase(after, known.term) && !containsPhrase(before, known.term);
     return mentioned ? known.term : null;
   };
   const askedFor = (kw: string | null) =>

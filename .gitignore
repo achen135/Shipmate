@@ -49,3 +49,4 @@ CLAUDE.md
 
 # the browser extension build (npm run build:extension)
 /extension/dist/
+/extension/node_modules/

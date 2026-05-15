@@ -1,7 +1,8 @@
 /**
  * Resume import fixtures: four resumes with different section-naming
  * styles, as text the way unpdf / mammoth extract it, each with a faithful
- * conversion in the flat shape the AI returns. The conversions are written
+ * conversion in the flat shape the AI returns (list lines copied whole, as
+ * the prompt asks since M8 §0b). The conversions are written
  * by hand to the prompt's rules (not recorded from a model: CI never calls a
  * real API). lib/resume/import.test.ts checks that faithful ones pass
  * `checkImport` cleanly and that renamed / merged / reordered / invented
@@ -113,8 +114,8 @@ Frameworks: React, Node.js, Flask`,
         ),
       ]),
       list("Technical Skills", [
-        { label: "Languages", values: ["Python", "Go", "TypeScript", "SQL"] },
-        { label: "Frameworks", values: ["React", "Node.js", "Flask"] },
+        { line: "Languages: Python, Go, TypeScript, SQL" },
+        { line: "Frameworks: React, Node.js, Flask" },
       ]),
     ],
   },
@@ -182,13 +183,7 @@ Signals and Systems, Circuits II, Biomaterials, Data Structures`,
       ]),
       list("RELEVANT COURSEWORK", [
         {
-          label: "",
-          values: [
-            "Signals and Systems",
-            "Circuits II",
-            "Biomaterials",
-            "Data Structures",
-          ],
+          line: "Signals and Systems, Circuits II, Biomaterials, Data Structures",
         },
       ]),
     ],
@@ -235,14 +230,9 @@ Excel, Power BI, SAP, Tableau`,
         ),
       ]),
       list("Certifications", [
-        {
-          label: "",
-          values: ["APICS CPIM Part 1 (2026)", "Lean Six Sigma Yellow Belt"],
-        },
+        { line: "APICS CPIM Part 1 (2026); Lean Six Sigma Yellow Belt" },
       ]),
-      list("Tools I Use", [
-        { label: "", values: ["Excel", "Power BI", "SAP", "Tableau"] },
-      ]),
+      list("Tools I Use", [{ line: "Excel, Power BI, SAP, Tableau" }]),
     ],
   },
 };

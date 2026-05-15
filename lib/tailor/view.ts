@@ -4,7 +4,7 @@
  * name exactly what it changes, and code can check it (lib/tailor/edits.ts).
  */
 
-import type { ResumeContent } from "@/lib/resume/structured";
+import { type ResumeContent, joinValues } from "@/lib/resume/structured";
 import type { Fact } from "@/lib/schemas/fact-bank";
 
 export const sectionId = (s: number) => `s${s + 1}`;
@@ -38,7 +38,7 @@ export function describeResume(content: ResumeContent): string {
     } else if (section.layout === "list") {
       section.items.forEach((item, l) => {
         lines.push(
-          `  [${listId(s, l)}] ${item.label ? `${item.label}: ` : ""}${item.values.join(", ")}`,
+          `  [${listId(s, l)}] ${item.label ? `${item.label}: ` : ""}${joinValues(item)}`,
         );
       });
     } else {

@@ -47,6 +47,13 @@ import {
 
 type Person = (typeof PEOPLE)[number];
 
+/**
+ * The fuzzers take 1-3 s alone; on a loaded machine (or a slow CI runner)
+ * that can pass Vitest's 5 s default, which would read as a failure of
+ * hard rule 2 when it's only time.
+ */
+const FUZZ_TIMEOUT_MS = 30_000;
+
 function linesOf(content: ResumeContent): string[] {
   return corpusLines(content, []);
 }
@@ -255,58 +262,62 @@ describe.each(PEOPLE.map((p) => [p.name, p] as const))(
       }
     });
 
-    it("under a seeded fuzzer: 500 random edit lists", () => {
-      const random = mulberry32(7 + person.name.length);
-      const pick = <T>(items: readonly T[]): T =>
-        items[Math.floor(random() * items.length)];
-      const own = corpusLines(person.resume, [...person.facts]);
-      const words = [
-        ...postingPhrases(person.posting),
-        ...own,
-        ...own.flatMap((l) => l.split(/\s+/)),
-        "42",
-        "10,000",
-        "Rust",
-        "Led",
-        "Kubernetes",
-        "C++",
-      ];
-      const ids = idsOf(person.resume).concat(["s9", "s1.e9.b9", "f1", ""]);
-      const keywords: Keyword[] = verifyKeywords(
-        keywordsFor(person)() as never,
-        person.posting.text,
-      );
-
-      for (let run = 0; run < 500; run += 1) {
-        const edits = Array.from(
-          { length: 1 + Math.floor(random() * 12) },
-          () =>
-            edit(pick(EDIT_OPS), pick(ids), {
-              text: Array.from({ length: 1 + Math.floor(random() * 6) }, () =>
-                pick(words),
-              ).join(" "),
-              order: Array.from({ length: Math.floor(random() * 3) }, () =>
-                pick(ids),
-              ),
-              fact: random() < 0.5 ? factId(Math.floor(random() * 5)) : "",
-              keyword: random() < 0.5 ? pick(words) : "",
-            }),
+    it(
+      "under a seeded fuzzer: 500 random edit lists",
+      () => {
+        const random = mulberry32(7 + person.name.length);
+        const pick = <T>(items: readonly T[]): T =>
+          items[Math.floor(random() * items.length)];
+        const own = corpusLines(person.resume, [...person.facts]);
+        const words = [
+          ...postingPhrases(person.posting),
+          ...own,
+          ...own.flatMap((l) => l.split(/\s+/)),
+          "42",
+          "10,000",
+          "Rust",
+          "Led",
+          "Kubernetes",
+          "C++",
+        ];
+        const ids = idsOf(person.resume).concat(["s9", "s1.e9.b9", "f1", ""]);
+        const keywords: Keyword[] = verifyKeywords(
+          keywordsFor(person)() as never,
+          person.posting.text,
         );
-        let output = person.resume;
-        try {
-          output = applyEdits({
-            base: person.resume,
-            master: person.resume,
-            facts: [...person.facts],
-            keywords,
-            edits,
-          }).content;
-        } catch (error) {
-          expect(error).toBeInstanceOf(StructureChangeError);
+
+        for (let run = 0; run < 500; run += 1) {
+          const edits = Array.from(
+            { length: 1 + Math.floor(random() * 12) },
+            () =>
+              edit(pick(EDIT_OPS), pick(ids), {
+                text: Array.from({ length: 1 + Math.floor(random() * 6) }, () =>
+                  pick(words),
+                ).join(" "),
+                order: Array.from({ length: Math.floor(random() * 3) }, () =>
+                  pick(ids),
+                ),
+                fact: random() < 0.5 ? factId(Math.floor(random() * 5)) : "",
+                keyword: random() < 0.5 ? pick(words) : "",
+              }),
+          );
+          let output = person.resume;
+          try {
+            output = applyEdits({
+              base: person.resume,
+              master: person.resume,
+              facts: [...person.facts],
+              keywords,
+              edits,
+            }).content;
+          } catch (error) {
+            expect(error).toBeInstanceOf(StructureChangeError);
+          }
+          assertNothingInvented(person, output);
         }
-        assertNothingInvented(person, output);
-      }
-    });
+      },
+      FUZZ_TIMEOUT_MS,
+    );
   },
 );
 
@@ -510,45 +521,56 @@ describe("never fabricates: a different skill passed off as another spelling", (
     },
   );
 
-  it("under a seeded fuzzer: 500 edit lists of renames and additions against mismatched groupings", () => {
-    const random = mulberry32(2026);
-    const pick = <T>(items: readonly T[]): T =>
-      items[Math.floor(random() * items.length)];
-    const keywords = SIBLINGS.map((s) => ({
-      term: s.claims,
-      variants: [s.has],
-    }));
-    const ops = [
-      "rename_list_value",
-      "add_list_value",
-      "reword_bullet",
-      "reword_text",
-    ];
-    const ids = idsOf(person.resume);
-    for (let run = 0; run < 500; run += 1) {
-      const edits = Array.from({ length: 1 + Math.floor(random() * 8) }, () => {
-        const sibling = pick(SIBLINGS);
-        return edit(pick(ops), pick([LANGUAGES, ...ids]), {
-          text:
-            random() < 0.5 ? sibling.claims : `Used ${sibling.claims} daily`,
-          order: [random() < 0.8 ? sibling.has : pick(SIBLINGS).has],
-          keyword: sibling.claims,
-        });
-      });
-      const output = applyEdits({
-        base: person.resume,
-        master: person.resume,
-        facts: [...person.facts],
-        keywords,
-        edits,
-      }).content;
-      for (const { claims } of SIBLINGS) {
-        expect(languagesOf(output)).not.toContain(claims);
-        expect(resumeText(output)).not.toContain(claims);
+  it(
+    "under a seeded fuzzer: 500 edit lists of renames and additions against mismatched groupings",
+    () => {
+      const random = mulberry32(2026);
+      const pick = <T>(items: readonly T[]): T =>
+        items[Math.floor(random() * items.length)];
+      const keywords = SIBLINGS.map((s) => ({
+        term: s.claims,
+        variants: [s.has],
+      }));
+      const ops = [
+        "rename_list_value",
+        "add_list_value",
+        "reword_bullet",
+        "reword_text",
+      ];
+      const ids = idsOf(person.resume);
+      for (let run = 0; run < 500; run += 1) {
+        const edits = Array.from(
+          { length: 1 + Math.floor(random() * 8) },
+          () => {
+            const sibling = pick(SIBLINGS);
+            return edit(pick(ops), pick([LANGUAGES, ...ids]), {
+              text:
+                random() < 0.5
+                  ? sibling.claims
+                  : `Used ${sibling.claims} daily`,
+              order: [random() < 0.8 ? sibling.has : pick(SIBLINGS).has],
+              keyword: sibling.claims,
+            });
+          },
+        );
+        const output = applyEdits({
+          base: person.resume,
+          master: person.resume,
+          facts: [...person.facts],
+          keywords,
+          edits,
+        }).content;
+        for (const { claims } of SIBLINGS) {
+          expect(languagesOf(output)).not.toContain(claims);
+          expect(resumeText(output)).not.toContain(claims);
+        }
+        expect(untraceable(person.resume, [...person.facts], output)).toEqual(
+          [],
+        );
       }
-      expect(untraceable(person.resume, [...person.facts], output)).toEqual([]);
-    }
-  });
+    },
+    FUZZ_TIMEOUT_MS,
+  );
 });
 
 function resumeText(content: ResumeContent) {

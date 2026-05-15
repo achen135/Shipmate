@@ -212,7 +212,7 @@ const ACTIVITY_VALUES = [
   "Varsity Tennis Captain",
 ];
 const activitiesSource = `Sam Patel
-sam@example.edu | 555-0101
+Egg Harbor Township, NJ | sam@example.edu | 555-0101
 Education
 Atlantic County High School, Egg Harbor Township, NJ
 Activities & Leadership
@@ -223,6 +223,7 @@ const activitiesImport = (line: string): ImportedResume => ({
     name: "Sam Patel",
     email: "sam@example.edu",
     phone: "555-0101",
+    location: "",
     links: [],
   },
   sections: [
@@ -341,5 +342,49 @@ describe("splitListLine", () => {
     ["Spanish", { label: "", values: ["Spanish"] }],
   ])("%s", (line, expected) => {
     expect(splitListLine(line)).toEqual(expected);
+  });
+});
+
+/*
+ * M8 §0c: the top line's own location ("Egg Harbor Township, NJ") used to
+ * have nowhere to go and was dropped on import.
+ */
+describe("the header's location (M8 §0c)", () => {
+  const withLocation = (location: string): ImportedResume => {
+    const base = activitiesImport(ACTIVITIES);
+    return { ...base, header: { ...base.header, location } };
+  };
+
+  it("is imported, printed first on the contact line, and kept by the editor", async () => {
+    const result = await importResume(
+      fakeProvider(withLocation("Egg Harbor Township, NJ")).provider,
+      activitiesSource,
+    );
+    expect(result.content.header.location).toBe("Egg Harbor Township, NJ");
+    expect(result.notes).toEqual([]);
+    const html = renderResumeHtml(result.content);
+    expect(html).toMatch(
+      /<p class="contact">Egg Harbor Township, NJ<span class="sep">\|<\/span>555-0101/,
+    );
+    expect(fromEditor(toEditor(result.content))).toEqual(result.content);
+  });
+
+  it("none on the resume: no field, and the contact line is as before", () => {
+    const content = fromImported(withLocation(""));
+    expect(content.header).not.toHaveProperty("location");
+    expect(renderResumeHtml(content)).toMatch(/<p class="contact">555-0101/);
+    expect(fromEditor(toEditor(content))).toEqual(content);
+  });
+
+  it("a resume stored before it existed still reads as valid", () => {
+    const stored = fromImported(withLocation(""));
+    expect(resumeContentSchema.safeParse(stored).success).toBe(true);
+  });
+
+  it("a location that isn't in the file is flagged", () => {
+    const content = fromImported(withLocation("Atlantis, OC"));
+    expect(checkImport(activitiesSource, content)).toEqual([
+      expect.objectContaining({ where: "Header" }),
+    ]);
   });
 });

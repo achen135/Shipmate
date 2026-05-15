@@ -229,7 +229,10 @@ function convert(text) {
       section.entries.at(-1).bullets.push(line.replace(/^[-•]\s*/, ""));
     }
   }
-  return { header: { name, email, phone: "", links: [] }, sections };
+  return {
+    header: { name, email, phone: "", location: "", links: [] },
+    sections,
+  };
 }
 
 const TECH = [

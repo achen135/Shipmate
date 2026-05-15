@@ -111,6 +111,7 @@ function renderListItem(item: ListItem): string {
 export function renderResumeHtml(content: ResumeContent): string {
   const { header } = content;
   const contact = [
+    header.location ? escapeHtml(header.location) : "",
     header.phone ? escapeHtml(header.phone) : "",
     header.email ? link(header.email, safeHref(`mailto:${header.email}`)) : "",
     ...header.links

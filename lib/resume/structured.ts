@@ -30,6 +30,8 @@ export const headerSchema = z.object({
   name: line(120),
   email: line(200),
   phone: line(60),
+  /** Where they live, as the resume's top line writes it (M8 §0c). */
+  location: line(120).optional(),
   links: z.array(linkSchema).max(8),
 });
 
@@ -92,6 +94,7 @@ export const importedResumeSchema = z.object({
     name: z.string(),
     email: z.string(),
     phone: z.string(),
+    location: z.string(),
     links: z.array(z.object({ label: z.string(), url: z.string() })),
   }),
   sections: z.array(
@@ -243,6 +246,9 @@ export function fromImported(
       name: clip(imported.header.name, 120),
       email: clip(imported.header.email, 200),
       phone: clip(imported.header.phone, 60),
+      ...(clip(imported.header.location, 120)
+        ? { location: clip(imported.header.location, 120) }
+        : {}),
       links: imported.header.links
         .filter((l) => l.label.trim() || l.url.trim())
         .slice(0, 8)

@@ -93,6 +93,9 @@ export function fromEditor(state: EditorState): ResumeContent {
       name: state.header.name.trim(),
       email: state.header.email.trim(),
       phone: state.header.phone.trim(),
+      ...(state.header.location?.trim()
+        ? { location: state.header.location.trim() }
+        : {}),
       links: state.header.links
         .map((l) => ({ label: l.label.trim(), url: l.url.trim() }))
         .filter((l) => l.label || l.url),

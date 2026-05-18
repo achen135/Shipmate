@@ -484,3 +484,28 @@ describe("the header's location survives tailoring (M8 §0c)", () => {
     expect(untraceable(base, sweFacts, moved)).toEqual(["the header changed"]);
   });
 });
+
+describe("the fabrication checks stay exact (M8 §0d)", () => {
+  it("AI editing agents on the resume doesn't let AI agents be added to a list", () => {
+    const base = structuredClone(sweResume);
+    const projects = base.sections[2];
+    if (projects.layout === "entries") {
+      projects.items[0].bullets.push(
+        "Built AI editing agents for the marketplace",
+      );
+    }
+    const result = applyEdits({
+      base,
+      master: base,
+      facts: sweFacts,
+      keywords: [kw("AI agents")],
+      edits: [
+        edit({ op: "add_list_value", target: "s4.l2", text: "AI agents" }),
+      ],
+    });
+    expect(result.changes).toEqual([]);
+    expect(result.dropped[0].reason).toContain(
+      "isn't on your resume or in your facts",
+    );
+  });
+});

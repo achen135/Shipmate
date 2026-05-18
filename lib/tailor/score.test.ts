@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { backendPosting } from "./__fixtures__/people";
+import { KEYWORDS_SYSTEM } from "./prompts";
 import {
   type ExtractedKeywords,
   hasKeyword,
@@ -116,4 +117,66 @@ describe("score: a variant is never proof (M8 §0a)", () => {
       expect(result.missing.map((m) => m.term)).toEqual([claims]);
     },
   );
+});
+
+/*
+ * M8 §0d: the score reads like a person. A phrase with a word inserted
+ * still counts ("AI editing agents" has "AI agents"), and phrases that are
+ * interview criteria, not resume words ("communicate openly", "experience
+ * building software"), aren't keywords at all. §0a stays: variants never
+ * count, and single words are exact.
+ */
+describe("score: closer to how a person reads it (M8 §0d)", () => {
+  it("AI agents is matched by AI editing agents", () => {
+    const result = scoreText(
+      [k("AI agents"), k("Python")],
+      "Built AI editing agents in Python",
+    );
+    expect(result.score).toBe(100);
+  });
+
+  it("C still never counts as C++ through the looser phrase match", () => {
+    const result = scoreText(
+      [k("C++"), k("C++ tooling"), k("embedded C++")],
+      "Wrote embedded C code and C tooling",
+    );
+    expect(result.matched).toEqual([]);
+  });
+
+  it("the keyword prompt asks for resume words, not interview criteria", () => {
+    expect(KEYWORDS_SYSTEM).toMatch(/things an interview judges/);
+    expect(KEYWORDS_SYSTEM).toMatch(/communicate openly/);
+  });
+
+  it("generic qualifying phrases aren't kept as keywords", () => {
+    const posting = `You'll communicate openly, ask questions early, and have experience building software.
+You show leadership and stakeholder management, an ability to learn quickly, and a passion for learning.
+Requirements: Python.`;
+    const verified = verifyKeywords(
+      {
+        keywords: [
+          { ...k("communicate openly"), kind: "soft_skill" },
+          { ...k("ask questions early"), kind: "soft_skill" },
+          k("experience building software"),
+          { ...k("ability to learn quickly"), kind: "soft_skill" },
+          { ...k("passion for learning"), kind: "soft_skill" },
+          { ...k("leadership"), kind: "soft_skill" },
+          { ...k("stakeholder management"), kind: "soft_skill" },
+          k("Python"),
+        ],
+      },
+      posting,
+    );
+    expect(verified.map((v) => v.term)).toEqual([
+      "leadership",
+      "stakeholder management",
+      "Python",
+    ]);
+    // A resume that clearly shows the substance isn't marked missing on them.
+    const result = scoreText(
+      verified,
+      "Led a team of 6 as project leadership; stakeholder and vendor management; Python",
+    );
+    expect(result.missing).toEqual([]);
+  });
 });

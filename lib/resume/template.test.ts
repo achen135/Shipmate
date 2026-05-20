@@ -1,9 +1,12 @@
 // @vitest-environment node
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { IMPORT_CASES } from "./__fixtures__/import-cases";
 import { fromImported } from "./structured";
-import { escapeHtml, renderResumeHtml, safeHref } from "./template";
+import { RESUME_CSS, escapeHtml, renderResumeHtml, safeHref } from "./template";
 
 describe("renderResumeHtml", () => {
   const content = fromImported(IMPORT_CASES[0].faithful);
@@ -78,6 +81,45 @@ describe("escapeHtml", () => {
   it("escapes the five characters", () => {
     expect(escapeHtml(`<a href="x">'&'</a>`)).toBe(
       "&lt;a href=&quot;x&quot;&gt;&#39;&amp;&#39;&lt;/a&gt;",
+    );
+  });
+});
+
+describe("the preview's font (fix handoff, Finding 2)", () => {
+  const content = fromImported(IMPORT_CASES[0].faithful);
+
+  it("the preview loads CMU Serif, the PDF's font, in all four faces", () => {
+    const html = renderResumeHtml(content, { previewFont: true });
+    const faces = [...html.matchAll(/@font-face \{([^}]*)\}/g)].map(
+      (m) => m[1],
+    );
+    expect(faces).toHaveLength(4);
+    for (const face of faces)
+      expect(face).toContain('font-family: "CMU Serif"');
+    expect(html).toContain('url("/fonts/cmu-serif/cmu-serif-500-roman.woff2")');
+    expect(html).toContain(
+      'url("/fonts/cmu-serif/cmu-serif-700-italic.woff2")',
+    );
+  });
+
+  it("the PDF's HTML doesn't: the worker has the font installed", () => {
+    expect(renderResumeHtml(content)).not.toContain("@font-face");
+  });
+
+  it("CMU Serif comes first, so preview and PDF pick the same face", () => {
+    expect(RESUME_CSS).toMatch(
+      /font-family: "CMU Serif", "Latin Modern Roman"/,
+    );
+  });
+
+  it("the font files are in public/, as WOFF2, with their licence", () => {
+    const dir = join(__dirname, "..", "..", "public", "fonts", "cmu-serif");
+    for (const face of ["500-roman", "500-italic", "700-roman", "700-italic"]) {
+      const bytes = readFileSync(join(dir, `cmu-serif-${face}.woff2`));
+      expect(bytes.subarray(0, 4).toString("latin1")).toBe("wOF2");
+    }
+    expect(readFileSync(join(dir, "OFL.txt"), "utf8")).toContain(
+      "SIL OPEN FONT LICENSE",
     );
   });
 });

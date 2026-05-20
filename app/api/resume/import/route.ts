@@ -52,7 +52,7 @@ export async function POST(request: Request) {
   let provider: AiProvider | null = null;
   try {
     provider = await providerFor(viewer.id);
-    result = await importResume(provider, read.text);
+    result = await importResume(provider, read.text, read.bold);
   } catch (error) {
     if (error instanceof NoKeyError) {
       return json({ message: error.message }, 503);

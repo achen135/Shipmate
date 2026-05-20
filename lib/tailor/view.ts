@@ -4,6 +4,7 @@
  * name exactly what it changes, and code can check it (lib/tailor/edits.ts).
  */
 
+import { stripBold } from "@/lib/resume/bold";
 import { type ResumeContent, joinValues } from "@/lib/resume/structured";
 import type { Fact } from "@/lib/schemas/fact-bank";
 
@@ -32,17 +33,17 @@ export function describeResume(content: ResumeContent): string {
           .join(" | ");
         lines.push(`  [${entryId(s, e)}] ${head}`);
         entry.bullets.forEach((bullet, b) => {
-          lines.push(`    [${bulletId(s, e, b)}] ${bullet}`);
+          lines.push(`    [${bulletId(s, e, b)}] ${stripBold(bullet)}`);
         });
       });
     } else if (section.layout === "list") {
       section.items.forEach((item, l) => {
         lines.push(
-          `  [${listId(s, l)}] ${item.label ? `${item.label}: ` : ""}${joinValues(item)}`,
+          `  [${listId(s, l)}] ${item.label ? `${item.label}: ` : ""}${stripBold(joinValues(item))}`,
         );
       });
     } else {
-      lines.push(`  ${section.text}`);
+      lines.push(`  ${stripBold(section.text)}`);
     }
   });
   return lines.join("\n");

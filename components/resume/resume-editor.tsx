@@ -13,7 +13,12 @@ import { toast } from "sonner";
 
 import { ResumePreview } from "@/components/resume/resume-preview";
 import { Button } from "@/components/ui/button";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -440,6 +445,7 @@ function SectionCard({
               </FieldLabel>
               <Textarea
                 id={`${id}-${i}-bullets`}
+                aria-describedby={`${id}-${i}-bullets-bold`}
                 value={entry.bullets}
                 onChange={(e) =>
                   edit((s) => {
@@ -448,6 +454,9 @@ function SectionCard({
                   })
                 }
               />
+              <FieldDescription id={`${id}-${i}-bullets-bold`}>
+                **Double asterisks** around words make them bold.
+              </FieldDescription>
             </Field>
             <div>
               <Button

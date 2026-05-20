@@ -12,7 +12,9 @@
 
 import type { AiProvider, AiUsage } from "@/lib/ai/types";
 
+import { type BoldSource, markBold } from "./bold";
 import {
+  MAX_LIST_VALUE,
   type ImportedResume,
   type ResumeContent,
   fromImported,
@@ -46,7 +48,10 @@ export const MAX_IMPORT_CHARS = 40_000;
 export async function importResume(
   provider: AiProvider,
   sourceText: string,
+  /** Which characters of `sourceText` were bold in the file. */
+  bold: BoldSource["ranges"] = [],
 ): Promise<ImportResult> {
+  // A slice from the start: the bold ranges' offsets still hold.
   const text = sourceText.slice(0, MAX_IMPORT_CHARS);
   const { data, usage } = await provider.generateStructured<ImportedResume>({
     tier: "fast",
@@ -59,11 +64,56 @@ export async function importResume(
   const listNotes: ImportNote[] = [];
   // List lines are taken from the file itself, not as the model retyped
   // them (M8 §0b).
-  const content = fromImported(data, { source: text, notes: listNotes });
+  const content = withSourceBold(
+    fromImported(data, { source: text, notes: listNotes }),
+    { text, ranges: bold },
+  );
   return {
     content,
     notes: [...listNotes, ...checkImport(text, content)],
     usage,
+  };
+}
+
+/**
+ * The file's own bold on every bullet, list value and paragraph (never on
+ * headings, labels or titles: the template bolds those by layout). The
+ * model structured plain text; code finds each line back in the file.
+ */
+export function withSourceBold(
+  content: ResumeContent,
+  source: BoldSource,
+): ResumeContent {
+  if (source.ranges.length === 0) return content;
+  // Markers count toward the stored limits: a line they'd push over one
+  // stays plain rather than fail to save.
+  const mark = (max: number) => (line: string) => {
+    const marked = markBold(line, source);
+    return marked.length <= max ? marked : line;
+  };
+  return {
+    ...content,
+    sections: content.sections.map((section) => {
+      if (section.layout === "entries") {
+        return {
+          ...section,
+          items: section.items.map((e) => ({
+            ...e,
+            bullets: e.bullets.map(mark(600)),
+          })),
+        };
+      }
+      if (section.layout === "list") {
+        return {
+          ...section,
+          items: section.items.map((i) => ({
+            ...i,
+            values: i.values.map(mark(MAX_LIST_VALUE)),
+          })),
+        };
+      }
+      return { ...section, text: mark(3000)(section.text) };
+    }),
   };
 }
 

@@ -15,8 +15,11 @@
  *   every word in it (bar function words) is on the master or in a fact.
  * - List lines: the same labels in the same order; every value is written,
  *   as a phrase, on the master or in a fact.
+ * - Bold: every bold span is a span the master has bold. Tailoring never
+ *   makes something bold.
  */
 
+import { boldSpans } from "@/lib/resume/bold";
 import type { ResumeContent } from "@/lib/resume/structured";
 import type { Fact } from "@/lib/schemas/fact-bank";
 
@@ -42,6 +45,17 @@ export function untraceable(
   const lineTraces = (line: string) =>
     exact.has(line.trim()) ||
     tokenize(line).every((t) => isFunctionWord(t.key) || hasWord(words, t.key));
+
+  const masterBold = new Set(
+    corpusLines(master, []).flatMap((line) => boldSpans(line)),
+  );
+  for (const line of corpusLines(tailored, [])) {
+    for (const span of boldSpans(line)) {
+      if (!masterBold.has(span)) {
+        problems.push(`“${span}” is bold, and isn't on the master`);
+      }
+    }
+  }
 
   if (JSON.stringify(master.header) !== JSON.stringify(tailored.header)) {
     problems.push("the header changed");

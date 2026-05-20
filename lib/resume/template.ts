@@ -9,12 +9,8 @@
  * what gets sent.
  */
 
-import {
-  type Entry,
-  type ListItem,
-  type ResumeContent,
-  joinValues,
-} from "./structured";
+import { renderBold } from "./bold";
+import { type Entry, type ListItem, type ResumeContent } from "./structured";
 
 const ESCAPES: Record<string, string> = {
   "&": "&amp;",
@@ -94,15 +90,17 @@ function renderEntry(entry: Entry): string {
       : "";
   const bullets = entry.bullets.filter((b) => b.trim());
   const list = bullets.length
-    ? `<ul>${bullets.map((b) => `<li>${escapeHtml(b)}</li>`).join("")}</ul>`
+    ? `<ul>${bullets.map((b) => `<li>${renderBold(b)}</li>`).join("")}</ul>`
     : "";
   return `<div class="entry">${first}${second}${list}</div>`;
 }
 
 function renderListItem(item: ListItem): string {
-  const values = escapeHtml(
-    joinValues({ ...item, values: item.values.filter((v) => v.trim()) }),
-  );
+  // Each value's own bold; the separator itself is never inside a span.
+  const values = item.values
+    .filter((v) => v.trim())
+    .map(renderBold)
+    .join(item.separator === ";" ? "; " : ", ");
   return item.label.trim()
     ? `<li><span class="label">${escapeHtml(item.label)}:</span> ${values}</li>`
     : `<li>${values}</li>`;
@@ -130,7 +128,7 @@ export function renderResumeHtml(content: ResumeContent): string {
           : section.layout === "list"
             ? `<ul class="list">${section.items.map(renderListItem).join("")}</ul>`
             : section.text.trim()
-              ? `<p class="text">${escapeHtml(section.text)}</p>`
+              ? `<p class="text">${renderBold(section.text)}</p>`
               : "";
       return `<section>${title}${body}</section>`;
     })

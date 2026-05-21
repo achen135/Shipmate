@@ -71,6 +71,8 @@ h2 {
 .row .right { text-align: right; white-space: nowrap; }
 .heading { font-weight: 700; }
 .sub { font-style: italic; font-size: 9.5pt; }
+.compact .stack { font-style: italic; font-size: 9.5pt; }
+.compact .sep { margin: 0 5pt; }
 ul { margin: 2pt 0 0; padding-left: 16pt; }
 li { font-size: 9.5pt; margin: 0 0 1pt; }
 .list { margin: 0 0 0 6pt; padding: 0; list-style: none; }
@@ -102,6 +104,19 @@ function renderEntry(
   entry: Entry,
   pairsWith: "dates" | "location" = "dates",
 ): string {
+  const bullets = entry.bullets.filter((b) => b.trim());
+  const list = bullets.length
+    ? `<ul>${bullets.map((b) => `<li>${renderBold(b)}</li>`).join("")}</ul>`
+    : "";
+
+  // A project-style entry (a subheading such as its tech stack, and no
+  // location: Finding 4) fits on one line, "Name | Stack … Dates", as in
+  // the original layout. Anything with a location keeps two rows.
+  if (entry.subheading && !entry.location) {
+    const sep = entry.heading ? '<span class="sep">|</span>' : "";
+    return `<div class="entry"><div class="row compact"><span><span class="heading">${escapeHtml(entry.heading)}</span>${sep}<span class="stack">${escapeHtml(entry.subheading)}</span></span><span class="right">${escapeHtml(entry.dates)}</span></div>${list}</div>`;
+  }
+
   const [right1, right2] =
     pairsWith === "location"
       ? [entry.location, entry.dates]
@@ -114,10 +129,6 @@ function renderEntry(
     entry.subheading || right2
       ? `<div class="row sub"><span>${escapeHtml(entry.subheading)}</span><span class="right">${escapeHtml(right2)}</span></div>`
       : "";
-  const bullets = entry.bullets.filter((b) => b.trim());
-  const list = bullets.length
-    ? `<ul>${bullets.map((b) => `<li>${renderBold(b)}</li>`).join("")}</ul>`
-    : "";
   return `<div class="entry">${first}${second}${list}</div>`;
 }
 

@@ -176,3 +176,41 @@ describe("which side of the first line holds the dates (fix handoff, Finding 3)"
     );
   });
 });
+
+describe("project-style entries on one line (fix handoff, Finding 4)", () => {
+  const entry = (location: string) => ({
+    header: { name: "Jordan Lee", email: "", phone: "", links: [] },
+    sections: [
+      {
+        title: "Projects",
+        layout: "entries" as const,
+        items: [
+          {
+            heading: "Tide Tracker",
+            subheading: "Next.js, TypeScript, <PostgreSQL>",
+            dates: "April 2025 – August 2025",
+            location,
+            bullets: ["Cut reads by **97.2%**"],
+          },
+        ],
+      },
+    ],
+  });
+
+  it("a subheading and no location: name | stack, dates right, one row", () => {
+    const html = renderResumeHtml(entry(""));
+    expect(html).toContain(
+      '<div class="row compact"><span><span class="heading">Tide Tracker</span><span class="sep">|</span><span class="stack">Next.js, TypeScript, &lt;PostgreSQL&gt;</span></span><span class="right">April 2025 – August 2025</span></div>',
+    );
+    expect(html).not.toContain('class="row sub"');
+    expect(html).toContain("<li>Cut reads by <strong>97.2%</strong></li>");
+  });
+
+  it("an entry with a real location keeps its two rows, unchanged", () => {
+    const html = renderResumeHtml(entry("Boston, MA"));
+    expect(html).not.toContain('class="row compact"');
+    expect(html).toContain(
+      '<div class="row"><span class="heading">Tide Tracker</span><span class="right">April 2025 – August 2025</span></div><div class="row sub"><span>Next.js, TypeScript, &lt;PostgreSQL&gt;</span><span class="right">Boston, MA</span></div>',
+    );
+  });
+});

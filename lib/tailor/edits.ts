@@ -189,7 +189,13 @@ type WList = {
   separator?: ";";
 };
 type WSection =
-  | { id: string; title: string; layout: "entries"; entries: WEntry[] }
+  | {
+      id: string;
+      title: string;
+      layout: "entries";
+      entries: WEntry[];
+      headingPairsWith?: "dates" | "location";
+    }
   | { id: string; title: string; layout: "list"; lists: WList[] }
   | {
       id: string;
@@ -206,6 +212,9 @@ function toWorking(content: ResumeContent): WSection[] {
         id: sectionId(s),
         title: section.title,
         layout: "entries",
+        ...(section.headingPairsWith
+          ? { headingPairsWith: section.headingPairsWith }
+          : {}),
         entries: section.items.map((e, i) => ({
           id: entryId(s, i),
           heading: e.heading,
@@ -257,6 +266,9 @@ function fromWorking(
         return {
           title: section.title,
           layout: "entries" as const,
+          ...(section.headingPairsWith
+            ? { headingPairsWith: section.headingPairsWith }
+            : {}),
           items: section.entries
             .filter((e) => !e.dropped)
             .map((e) => ({

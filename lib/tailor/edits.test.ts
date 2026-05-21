@@ -590,3 +590,23 @@ describe("bold: tailoring never adds any (fix handoff, Finding 1)", () => {
     expect(describeResume(withBold())).not.toContain("**");
   });
 });
+
+describe("a section's row layout survives tailoring (fix handoff, Finding 3)", () => {
+  it("is copied from the master unchanged", () => {
+    const base = structuredClone(sweResume);
+    const education = base.sections[0];
+    if (education.layout === "entries") education.headingPairsWith = "location";
+    const result = applyEdits({
+      base,
+      master: base,
+      facts: sweFacts,
+      keywords: KEYWORDS,
+      edits: [
+        edit({ op: "order_list_values", target: "s4.l1", order: ["SQL"] }),
+      ],
+    });
+    const out = result.content.sections[0];
+    expect(out.layout === "entries" && out.headingPairsWith).toBe("location");
+    expect(untraceable(base, sweFacts, result.content)).toEqual([]);
+  });
+});

@@ -5,7 +5,8 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { IMPORT_CASES } from "./__fixtures__/import-cases";
-import { fromImported } from "./structured";
+import { fromEditor, toEditor } from "./editor";
+import { fromImported, resumeContentSchema } from "./structured";
 import { RESUME_CSS, escapeHtml, renderResumeHtml, safeHref } from "./template";
 
 describe("renderResumeHtml", () => {
@@ -120,6 +121,58 @@ describe("the preview's font (fix handoff, Finding 2)", () => {
     }
     expect(readFileSync(join(dir, "OFL.txt"), "utf8")).toContain(
       "SIL OPEN FONT LICENSE",
+    );
+  });
+});
+
+describe("which side of the first line holds the dates (fix handoff, Finding 3)", () => {
+  const school = {
+    heading: "Riverside State University",
+    subheading: "Bachelor of Science in Computer Science",
+    dates: "Expected May 2029",
+    location: "Riverside, CA",
+    bullets: [],
+  };
+  const resume = (headingPairsWith?: "dates" | "location") => ({
+    header: { name: "Jordan Lee", email: "", phone: "", links: [] },
+    sections: [
+      {
+        title: "Education",
+        layout: "entries" as const,
+        items: [school],
+        ...(headingPairsWith ? { headingPairsWith } : {}),
+      },
+    ],
+  });
+  const rows = (html: string) =>
+    [
+      ...html.matchAll(
+        /<div class="row[^"]*"><span[^>]*>(.*?)<\/span><span class="right">(.*?)<\/span><\/div>/g,
+      ),
+    ].map((m) => [m[1], m[2]]);
+
+  it("by default (and for every resume saved before): title with dates, then location", () => {
+    expect(rows(renderResumeHtml(resume()))).toEqual([
+      ["Riverside State University", "Expected May 2029"],
+      ["Bachelor of Science in Computer Science", "Riverside, CA"],
+    ]);
+    expect(renderResumeHtml(resume())).toBe(renderResumeHtml(resume("dates")));
+  });
+
+  it("set to location: title with location, then degree with dates", () => {
+    expect(rows(renderResumeHtml(resume("location")))).toEqual([
+      ["Riverside State University", "Riverside, CA"],
+      ["Bachelor of Science in Computer Science", "Expected May 2029"],
+    ]);
+  });
+
+  it("the editor keeps it, and doesn't store the default", () => {
+    expect(fromEditor(toEditor(resume("location")))).toEqual(
+      resume("location"),
+    );
+    expect(fromEditor(toEditor(resume()))).toEqual(resume());
+    expect(resumeContentSchema.safeParse(resume("location")).success).toBe(
+      true,
     );
   });
 });

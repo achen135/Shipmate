@@ -29,7 +29,13 @@ export type EditorListItem = {
 };
 
 export type EditorSection =
-  | { key: string; title: string; layout: "entries"; items: EditorEntry[] }
+  | {
+      key: string;
+      title: string;
+      layout: "entries";
+      items: EditorEntry[];
+      headingPairsWith?: "dates" | "location";
+    }
   | { key: string; title: string; layout: "list"; items: EditorListItem[] }
   | { key: string; title: string; layout: "text"; text: string };
 
@@ -51,6 +57,9 @@ export function toEditor(content: ResumeContent): EditorState {
           key: sectionKey(),
           title: section.title,
           layout: "entries",
+          ...(section.headingPairsWith
+            ? { headingPairsWith: section.headingPairsWith }
+            : {}),
           items: section.items.map((e) => ({
             heading: e.heading,
             subheading: e.subheading,
@@ -106,6 +115,10 @@ export function fromEditor(state: EditorState): ResumeContent {
         return {
           title,
           layout: "entries" as const,
+          // Only stored when it isn't the default.
+          ...(section.headingPairsWith === "location"
+            ? { headingPairsWith: "location" as const }
+            : {}),
           items: section.items.map((e) => ({
             heading: e.heading.trim(),
             subheading: e.subheading.trim(),

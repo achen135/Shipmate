@@ -60,6 +60,12 @@ export const sectionSchema = z.discriminatedUnion("layout", [
     title,
     layout: z.literal("entries"),
     items: z.array(entrySchema).max(30),
+    /**
+     * What sits right of an entry's heading on its first line: its dates
+     * (the default, "Role … Dates") or its location ("School … City",
+     * dates then go on the second line). Set by the user per section.
+     */
+    headingPairsWith: z.enum(["dates", "location"]).optional(),
   }),
   z.object({
     title,

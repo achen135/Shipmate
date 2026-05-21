@@ -397,6 +397,32 @@ function SectionCard({
         </Button>
       </div>
 
+      {section.layout === "entries" && (
+        <Field orientation="horizontal" className="w-auto">
+          <FieldLabel htmlFor={`${id}-pairs`} className="font-normal">
+            Beside each title on the first line
+          </FieldLabel>
+          <Select
+            value={section.headingPairsWith ?? "dates"}
+            onValueChange={(value) =>
+              edit((s) => {
+                if (s.layout === "entries") {
+                  s.headingPairsWith = value as "dates" | "location";
+                }
+              })
+            }
+          >
+            <SelectTrigger id={`${id}-pairs`} className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="dates">Dates</SelectItem>
+              <SelectItem value="location">Location</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+      )}
+
       {section.layout === "text" && (
         <Field>
           <FieldLabel htmlFor={`${id}-text`}>Text</FieldLabel>

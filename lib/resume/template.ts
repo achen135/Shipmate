@@ -98,14 +98,21 @@ export const PREVIEW_FONT_CSS = [
   )
   .join("\n");
 
-function renderEntry(entry: Entry): string {
+function renderEntry(
+  entry: Entry,
+  pairsWith: "dates" | "location" = "dates",
+): string {
+  const [right1, right2] =
+    pairsWith === "location"
+      ? [entry.location, entry.dates]
+      : [entry.dates, entry.location];
   const first =
-    entry.heading || entry.dates
-      ? `<div class="row"><span class="heading">${escapeHtml(entry.heading)}</span><span class="right">${escapeHtml(entry.dates)}</span></div>`
+    entry.heading || right1
+      ? `<div class="row"><span class="heading">${escapeHtml(entry.heading)}</span><span class="right">${escapeHtml(right1)}</span></div>`
       : "";
   const second =
-    entry.subheading || entry.location
-      ? `<div class="row sub"><span>${escapeHtml(entry.subheading)}</span><span class="right">${escapeHtml(entry.location)}</span></div>`
+    entry.subheading || right2
+      ? `<div class="row sub"><span>${escapeHtml(entry.subheading)}</span><span class="right">${escapeHtml(right2)}</span></div>`
       : "";
   const bullets = entry.bullets.filter((b) => b.trim());
   const list = bullets.length
@@ -147,7 +154,9 @@ export function renderResumeHtml(
         : "";
       const body =
         section.layout === "entries"
-          ? section.items.map(renderEntry).join("")
+          ? section.items
+              .map((e) => renderEntry(e, section.headingPairsWith))
+              .join("")
           : section.layout === "list"
             ? `<ul class="list">${section.items.map(renderListItem).join("")}</ul>`
             : section.text.trim()

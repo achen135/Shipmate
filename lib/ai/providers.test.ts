@@ -6,6 +6,9 @@ import { z } from "zod";
 
 import { createAnthropicProvider } from "./anthropic";
 import { sealApiKey } from "./crypto";
+import { ApiError as GoogleApiError } from "@google/genai";
+
+import { isOverloaded, toAiError } from "./errors";
 import { createGoogleProvider, geminiSchema } from "./google";
 import { NoKeyError, getProvider, serviceRoleKeySources } from "./index";
 import { createOpenAIProvider } from "./openai";
@@ -339,6 +342,46 @@ describe("OpenAI provider", () => {
     expect(logged.join("\n")).not.toContain(OPENAI_KEY);
   });
 
+  it("a 503 from OpenAI or Anthropic is the same 'overloaded, come back later'", async () => {
+    const openai = fakeFetch(() => ({
+      status: 503,
+      body: {
+        error: {
+          message: "The server is overloaded.",
+          type: "server_error",
+          code: null,
+        },
+      },
+    }));
+    const anthropic = fakeFetch(() => ({
+      status: 503,
+      body: {
+        type: "error",
+        error: { type: "api_error", message: "Service unavailable" },
+      },
+    }));
+    const errors = await Promise.all([
+      createOpenAIProvider({
+        apiKey: OPENAI_KEY,
+        fetch: openai.impl,
+        maxRetries: 0,
+      })
+        .generateStructured(request)
+        .catch((e: unknown) => e),
+      createAnthropicProvider({
+        apiKey: ANTHROPIC_KEY,
+        fetch: anthropic.impl,
+        maxRetries: 0,
+      })
+        .generateStructured(request)
+        .catch((e: unknown) => e),
+    ]);
+    for (const error of errors) {
+      expect((error as AiError).code).toBe("rate_limited");
+      expect(isOverloaded(error)).toBe(true);
+    }
+  });
+
   it("insufficient_quota (a 429) means out of credit, not 'slow down'", async () => {
     const { impl } = fakeFetch(() => ({
       status: 429,
@@ -523,6 +566,66 @@ describe("Google Gemini provider", () => {
     expect((error as AiError).message).not.toContain(GOOGLE_KEY);
     expect(calls).toHaveLength(1);
     expect(logged.join("\n")).not.toContain(GOOGLE_KEY);
+  });
+
+  it("a 503 (overloaded) is rate_limited too, after the SDK's one retry, and says overloaded, not quota", async () => {
+    const { impl, calls } = fakeFetch(() => ({
+      status: 503,
+      body: {
+        error: {
+          code: 503,
+          message:
+            "This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.",
+          status: "UNAVAILABLE",
+        },
+      },
+    }));
+    const error = await createGoogleProvider({
+      apiKey: GOOGLE_KEY,
+      fetch: impl,
+      maxRetries: 1,
+    })
+      .generateStructured(request)
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(AiError);
+    expect((error as AiError).code).toBe("rate_limited");
+    expect((error as AiError).status).toBe(503);
+    expect(isOverloaded(error)).toBe(true);
+    expect((error as AiError).message).toMatch(/briefly overloaded/);
+    expect((error as AiError).message).not.toMatch(/rate-limiting this key/);
+    expect((error as AiError).message).toContain("high demand");
+    expect(calls).toHaveLength(2);
+  });
+
+  it("Google's UNAVAILABLE in the body counts as overloaded even without a status, in either error shape", () => {
+    for (const body of [
+      { error: { code: 503, message: "overloaded", status: "UNAVAILABLE" } },
+      { error: { code: "service_unavailable", message: "overloaded" } },
+    ]) {
+      const error = toAiError(
+        new GoogleApiError({
+          message: JSON.stringify(body),
+          status: undefined as unknown as number,
+        }),
+        "google",
+      );
+      expect(error.code).toBe("rate_limited");
+      expect(isOverloaded(error)).toBe(true);
+    }
+  });
+
+  it("a 429 isn't 'overloaded': a quota a few seconds won't fix", () => {
+    const error = toAiError(
+      new GoogleApiError({
+        message: JSON.stringify({
+          error: { code: 429, message: "quota", status: "RESOURCE_EXHAUSTED" },
+        }),
+        status: 429,
+      }),
+      "google",
+    );
+    expect(error.code).toBe("rate_limited");
+    expect(isOverloaded(error)).toBe(false);
   });
 
   it("redacts the newer AQ. key format from error text", async () => {

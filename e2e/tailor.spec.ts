@@ -3,6 +3,8 @@ import { execFileSync } from "node:child_process";
 import { expect, test } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 
+import { lastFour, sealApiKey } from "../lib/ai/crypto";
+
 import {
   andWaitForAction,
   applyAndReturn,
@@ -37,6 +39,17 @@ test.skip(
 
 const MOCK_ORIGIN = "http://localhost:3101";
 
+/**
+ * The worker's master key for keys sealed in these tests (the web server
+ * never opens them, so it needn't match the server's). Fixed, not random:
+ * every worker run, from any Playwright worker process, gets the same one,
+ * so any run can take any row.
+ */
+const WORKER_MASTER_KEY = Buffer.from(
+  "e2e-only-worker-master-key-32-b!",
+  "utf8",
+);
+
 const db = () =>
   createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
@@ -59,6 +72,7 @@ function runTailorWorker(): string {
         ...process.env,
         E2E_ATS_ORIGIN: MOCK_ORIGIN,
         E2E_AI_ORIGIN: MOCK_ORIGIN,
+        API_KEY_ENCRYPTION_KEY: WORKER_MASTER_KEY.toString("base64"),
       },
       encoding: "utf8",
       timeout: 120_000,
@@ -333,11 +347,86 @@ test("tailor a posting on the shared key: score, changes, PDF, edit the copy, da
   expect(count.count).toBe(1);
 });
 
-test("the shared key's main model is out of quota: the backup model tailors it, and the page says so", async ({
+// Out of quota (429) and overloaded (503) are the same "come back later":
+// either way the backup model takes the row at once.
+for (const [why, marker] of [
+  ["out of quota (429)", "E2E-FLASH-BUSY"],
+  ["overloaded (503)", "E2E-FLASH-OVERLOADED"],
+] as const) {
+  test(`the shared key's main model is ${why}: the backup model tailors it, and the page says so`, async ({
+    page,
+  }, info) => {
+    test.setTimeout(180_000);
+    const tag = `b${info.project.name.length}${Date.now().toString(36)}`;
+    const user = await createTestUser(`tailor-${tag}`);
+    await finishOnboarding(user.id);
+    const admin = db();
+    await admin
+      .from("profiles")
+      .update({ mode: "ai", daily_cap: 2, name: "Jordan Lee" })
+      .eq("user_id", user.id);
+    await admin
+      .from("resumes")
+      .insert({ user_id: user.id, kind: "structured", content: MASTER });
+    await admin.from("fact_bank").insert({
+      user_id: user.id,
+      kind: "skill",
+      content: { text: "Kubernetes" },
+    });
+    const [postingId] = await seedPostings(`Seaway ${tag}`, [
+      {
+        title: "Backend Intern",
+        category: "Software",
+        daysAgo: 1,
+        // The mock answers 429 or 503 for gemini-3.8-flash on this posting.
+        description: `${DESCRIPTION}\n${marker}`,
+      },
+    ]);
+    await addToInbox(user.id, postingId);
+
+    await signIn(page, user, `/postings/${postingId}`);
+    await page.getByRole("button", { name: "Tailor this" }).click();
+    await expect(page.getByText(/Charting course/)).toBeVisible();
+
+    let rowId = "";
+    await expect
+      .poll(async () => {
+        const { data } = await admin
+          .from("tailorings")
+          .select("id")
+          .eq("user_id", user.id);
+        rowId = data?.[0]?.id ?? "";
+        return data?.length;
+      })
+      .toBe(1);
+    await tailorUntilFinished(rowId);
+
+    const row = await admin
+      .from("tailorings")
+      .select("state, model, key_source, est_cost, rate_limited_at")
+      .eq("user_id", user.id)
+      .single();
+    expect(row.data).toMatchObject({
+      state: "done",
+      model: "gemini-3.5-flash-lite",
+      key_source: "shared",
+      est_cost: 0,
+      rate_limited_at: null,
+    });
+    await expect(page.getByTestId("fit-score")).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByTestId("own-key-hint")).toContainText(
+      "ran on its backup model (Gemini 3.5 Flash-Lite)",
+    );
+  });
+}
+
+test("a model overloaded (503) past every retry: the tailoring waits for the next run, never failed", async ({
   page,
 }, info) => {
   test.setTimeout(180_000);
-  const tag = `b${info.project.name.length}${Date.now().toString(36)}`;
+  const tag = `o${info.project.name.length}${Date.now().toString(36)}`;
   const user = await createTestUser(`tailor-${tag}`);
   await finishOnboarding(user.id);
   const admin = db();
@@ -348,18 +437,27 @@ test("the shared key's main model is out of quota: the backup model tailors it, 
   await admin
     .from("resumes")
     .insert({ user_id: user.id, kind: "structured", content: MASTER });
-  await admin.from("fact_bank").insert({
+  // The user's own Gemini key, not the shared one: a shared-key row that
+  // can only wait would make whichever run takes it skip every other
+  // shared-key row (other tests' too). The same code queues both kinds.
+  const ownKey = "AIza-own-e2e-valid-overloaded-0000";
+  await admin.from("api_keys").insert({
     user_id: user.id,
-    kind: "skill",
-    content: { text: "Kubernetes" },
+    provider: "google",
+    ...sealApiKey(
+      ownKey,
+      { userId: user.id, provider: "google" },
+      WORKER_MASTER_KEY,
+    ),
+    last4: lastFour(ownKey),
   });
-  const [postingId] = await seedPostings(`Seaway ${tag}`, [
+  const [postingId] = await seedPostings(`Overcast ${tag}`, [
     {
       title: "Backend Intern",
       category: "Software",
       daysAgo: 1,
-      // The mock answers 429 for gemini-3.8-flash on this posting.
-      description: `${DESCRIPTION}\nE2E-FLASH-BUSY`,
+      // The mock answers 503 for every Gemini model on this posting.
+      description: `${DESCRIPTION}\nE2E-ALL-OVERLOADED`,
     },
   ]);
   await addToInbox(user.id, postingId);
@@ -379,22 +477,32 @@ test("the shared key's main model is out of quota: the backup model tailors it, 
       return data?.length;
     })
     .toBe(1);
-  await tailorUntilFinished(rowId);
-
-  const row = await admin
-    .from("tailorings")
-    .select("state, model, key_source, est_cost, rate_limited_at")
-    .eq("user_id", user.id)
-    .single();
-  expect(row.data).toMatchObject({
-    state: "done",
-    model: "gemini-3.5-flash-lite",
-    key_source: "shared",
-    est_cost: 0,
-    rate_limited_at: null,
-  });
-  await expect(page.getByTestId("fit-score")).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByTestId("own-key-hint")).toContainText(
-    "ran on its backup model (Gemini 3.5 Flash-Lite)",
-  );
+  runTailorWorker();
+  // Whichever run took it (the queue is shared), it's back in the queue as
+  // waiting, not failed, and the attempt wasn't spent.
+  await expect
+    .poll(async () => {
+      const { data } = await admin
+        .from("tailorings")
+        .select("state, error, attempts, key_source, rate_limited_at")
+        .eq("id", rowId)
+        .single();
+      return {
+        state: data?.state,
+        error: data?.error,
+        attempts: data?.attempts,
+        key_source: data?.key_source,
+        waiting: Boolean(data?.rate_limited_at),
+      };
+    })
+    .toEqual({
+      state: "queued",
+      error: null,
+      attempts: 0,
+      key_source: "own",
+      waiting: true,
+    });
+  await page.reload();
+  await expect(page.getByText(/^Waiting:/)).toBeVisible({ timeout: 15_000 });
+  await admin.from("tailorings").delete().eq("id", rowId);
 });

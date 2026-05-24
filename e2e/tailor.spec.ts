@@ -177,15 +177,23 @@ test("tailor a posting on the shared key: score, changes, PDF, edit the copy, da
   await page.getByRole("button", { name: "Tailor this" }).click();
   await expect(page.getByText(/Charting course/)).toBeVisible();
 
-  const queued = await admin
-    .from("tailorings")
-    .select("id, state")
-    .eq("user_id", user.id)
-    .single();
-  expect(queued.data?.state).toBe("queued");
+  // "Charting course" shows as soon as it's clicked; the row lands a moment
+  // later, when the Route Handler answers.
+  let queuedId = "";
+  await expect
+    .poll(async () => {
+      const { data } = await admin
+        .from("tailorings")
+        .select("id, state")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      queuedId = data?.id ?? "";
+      return data?.state;
+    })
+    .toBe("queued");
 
   // The worker (the database would have started tailor.yml in production).
-  await tailorUntilFinished(queued.data!.id);
+  await tailorUntilFinished(queuedId);
 
   // The page refreshes itself while it waits.
   await expect(page.getByTestId("fit-score")).toHaveText(/^\d+% → \d+%$/, {
@@ -210,7 +218,7 @@ test("tailor a posting on the shared key: score, changes, PDF, edit the copy, da
     .select(
       "state, score_before, score_after, missing, key_source, provider, est_cost, pdf_path, resume_content, suggestions",
     )
-    .eq("id", queued.data!.id)
+    .eq("id", queuedId)
     .single();
   expect(row.data).toMatchObject({
     state: "done",
@@ -256,7 +264,7 @@ test("tailor a posting on the shared key: score, changes, PDF, edit the copy, da
   const copy = await admin
     .from("tailorings")
     .select("resume_content, edited_at, pdf_requested_at")
-    .eq("id", queued.data!.id)
+    .eq("id", queuedId)
     .single();
   expect(JSON.stringify(copy.data?.resume_content)).toContain("by hand");
   expect(copy.data?.pdf_requested_at).not.toBeNull();
@@ -294,7 +302,7 @@ test("tailor a posting on the shared key: score, changes, PDF, edit the copy, da
     kind: "tailored",
     bucket: "pdfs",
     path: row.data!.pdf_path,
-    tailoring_id: queued.data!.id,
+    tailoring_id: queuedId,
   });
   await page.goto(`/tracker/${applied.data!.id}`);
   await expect(page.getByTestId("resume-used")).toContainText(
@@ -310,7 +318,7 @@ test("tailor a posting on the shared key: score, changes, PDF, edit the copy, da
           await admin
             .from("tailorings")
             .select("pdf_path, pdf_requested_at")
-            .eq("id", queued.data!.id)
+            .eq("id", queuedId)
             .single()
         ).data,
     )
@@ -318,7 +326,7 @@ test("tailor a posting on the shared key: score, changes, PDF, edit the copy, da
   const reprinted = await admin
     .from("tailorings")
     .select("pdf_path")
-    .eq("id", queued.data!.id)
+    .eq("id", queuedId)
     .single();
   expect(reprinted.data?.pdf_path).not.toBe(row.data!.pdf_path);
   const sent = await page.request.get(

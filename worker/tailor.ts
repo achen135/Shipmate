@@ -22,7 +22,9 @@
  *   key's backup model (Flash-Lite, its own free quota and a less contested
  *   model), and so is every later shared-key row this run. The SDK has
  *   already retried once, so it's a repeated one. Each run starts on Flash
- *   again.
+ *   again. Only the edit step is on Flash: the other steps are already on
+ *   Flash-Lite (lib/ai/models.ts), so a 429 from one of them comes back
+ *   again on the backup, and the row waits as below (one wasted call).
  * - rate limited otherwise (the backup too, or the user's own key): back to
  *   queued with rate_limited_at set, never shown as a failure. Once the
  *   backup says 429 or 503, no other shared-key row is tried this run.
@@ -399,7 +401,8 @@ async function tailorOne(
           pdf_requested_at: null,
           provider:
             result.usage.provider ?? researchUsage?.provider ?? provider.name,
-          model: result.usage.model ?? researchUsage?.model ?? null,
+          // The edit step's model (research and scoring run on the fast tier).
+          model: result.usage.model,
           key_source: provider.shared ? "shared" : "own",
           tokens_in: inTokens,
           tokens_out: outTokens,

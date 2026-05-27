@@ -81,6 +81,12 @@ export type TailorResult = {
   warnings: Warning[];
   usage: {
     provider: AiUsage["provider"] | null;
+    /**
+     * The model the edit step ran on, null if it never ran. Not simply the
+     * last call's: on Gemini the steps around the edit run on Flash-Lite,
+     * which is also the shared key's backup, and the review page reads this
+     * to say a tailoring ran on the backup.
+     */
     model: string | null;
     inputTokens: number;
     outputTokens: number;
@@ -126,6 +132,7 @@ export async function tailor(
     partial: Partial<TailorResult> & { content: ResumeContent },
   ): TailorResult => {
     const last = calls.at(-1)?.usage;
+    const edit = calls.find((c) => c.tier === "strong")?.usage;
     return {
       scoreBefore: null,
       scoreAfter: null,
@@ -141,7 +148,7 @@ export async function tailor(
       notes,
       usage: {
         provider: last?.provider ?? null,
-        model: last?.model ?? null,
+        model: edit?.model ?? null,
         inputTokens: calls.reduce((n, c) => n + c.usage.inputTokens, 0),
         outputTokens: calls.reduce((n, c) => n + c.usage.outputTokens, 0),
         costUsd: calls.reduce(

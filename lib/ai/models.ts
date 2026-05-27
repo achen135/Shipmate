@@ -13,10 +13,19 @@
  *   project there's a free tier instead (rate-limited, $0).
  * Update PRICES_CHECKED when these change; the cost explainer reads them.
  *
- * `strong` (edits) uses the same models and effort as `fast` for now (Alex,
- * 2026-10-14): every user pays for tailoring with their own key, so the
- * default is the cheaper model. The two tiers stay separate so a later
- * "stronger model for edits" option has somewhere to attach.
+ * `strong` (edits) uses the same models and effort as `fast` on Anthropic
+ * and OpenAI (Alex, 2026-10-14): a user pays for tailoring with their own
+ * key, so the default is the cheaper model.
+ *
+ * Google splits them (Alex, 2026-10-16, Fix Handoff "shared key quota"):
+ * the edit step stays on Flash, and everything else (keyword scoring, the
+ * second look, resume import, company research, fact suggestions) runs on
+ * Flash-Lite. Google's 429 on the shared key showed Flash's free quota is 20
+ * requests a day per project, so Flash is kept for the one step where the
+ * model's judgment shapes what the user sends; the fast-tier steps are each
+ * checked in code or read-only (Design Decisions "Which Gemini model runs
+ * which step"). The same split for a user's own Gemini key: it's about
+ * which model suits which step, not about whose key it is.
  */
 
 import type { ProviderName, Tier } from "./types";
@@ -62,10 +71,10 @@ export const MODELS: Record<ProviderName, Record<Tier, Model>> = {
   },
   google: {
     fast: {
-      id: "gemini-3.8-flash",
-      label: "Gemini 3.8 Flash",
-      inputPerM: 0.75,
-      outputPerM: 3.75,
+      id: "gemini-3.5-flash-lite",
+      label: "Gemini 3.5 Flash-Lite",
+      inputPerM: 0.3,
+      outputPerM: 2.5,
     },
     strong: {
       id: "gemini-3.8-flash",
@@ -79,13 +88,14 @@ export const MODELS: Record<ProviderName, Record<Tier, Model>> = {
 /**
  * The shared key's backup model (M8 §1, the "safety valve" in Design
  * Decisions "AI cost model"): Flash-Lite has its own free quota, separate
- * from Flash's and larger, but is the weaker model, so it's only used for a
- * tailoring Flash has already turned away with a 429 (worker/tailor.ts).
+ * from Flash's. The fast tier runs on it anyway; the backup also moves the
+ * edit step onto it for a tailoring Flash has already turned away with a
+ * 429 or 503 (worker/tailor.ts).
  * gemini-3.5-flash-lite is Google's current stable Flash-Lite (there's no
  * 3.8 Flash-Lite for text); it has a free tier and takes the same
  * thinkingLevel values. Checked 2026-10-15 on ai.google.dev /models,
- * /pricing and /thinking. Only ever used on the shared key (cost $0); the
- * paid price is here for completeness.
+ * /pricing and /thinking. As a backup, only ever used on the shared key
+ * (cost $0); a user's own key uses it as its fast tier (MODELS.google.fast).
  */
 export const SHARED_BACKUP_MODEL: Model = {
   id: "gemini-3.5-flash-lite",

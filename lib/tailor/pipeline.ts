@@ -44,6 +44,7 @@ import {
   MIN_POSTING_CHARS,
   extractedKeywordsSchema,
   hasKeyword,
+  keywordLabel,
   scoreText,
   verifyKeywords,
 } from "./score";
@@ -110,10 +111,7 @@ export const NOTES = {
 } as const;
 
 const list = (keywords: Keyword[], max = 5) =>
-  keywords
-    .slice(0, max)
-    .map((k) => k.term)
-    .join(", ") +
+  keywords.slice(0, max).map(keywordLabel).join(", ") +
   (keywords.length > max ? `, and ${keywords.length - max} more` : "");
 
 export async function tailor(
@@ -191,7 +189,8 @@ export async function tailor(
         ? `IN FACTS ${factId(factFor(k))}`
         : "MISSING";
     // No "(also: …)": the model's variants aren't proof of anything (§0a).
-    return `- ${k.term} — ${k.importance}, ${k.kind.replace("_", " ")}: ${status}`;
+    // An "or" list: "Bachelor's or Master's or PhD", any one of them counts.
+    return `- ${keywordLabel(k)} — ${k.importance}, ${k.kind.replace("_", " ")}: ${status}`;
   });
 
   // 3. Company context, 5. edit from the master.
@@ -299,7 +298,7 @@ export async function tailor(
       postingBlock,
       keywordLines: keywords.map(
         (k) =>
-          `- ${k.term} — ${k.importance}: ${hasKeyword(finalText, k) ? "ON RESUME" : "MISSING"}`,
+          `- ${keywordLabel(k)} — ${k.importance}: ${hasKeyword(finalText, k) ? "ON RESUME" : "MISSING"}`,
       ),
       resumeText: finalText,
     });
@@ -316,8 +315,8 @@ export async function tailor(
     secondLook: looked,
     scoreBefore: before.score,
     scoreAfter: after.score,
-    matched: after.matched.map((k) => k.term),
-    missing: missing.map((k) => k.term),
+    matched: after.matched.map(keywordLabel),
+    missing: missing.map(keywordLabel),
     changes,
     warnings,
     dropped,

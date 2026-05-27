@@ -28,6 +28,7 @@ const keywords = () => ({
       importance: "required",
       kind: "hard_skill",
       variants: [],
+      alternatives: [],
     }),
   ),
 });

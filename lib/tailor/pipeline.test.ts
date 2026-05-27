@@ -20,7 +20,7 @@ const k = (
   term: string,
   importance: "required" | "preferred" = "required",
   variants: string[] = [],
-) => ({ term, importance, kind: "hard_skill", variants });
+) => ({ term, importance, kind: "hard_skill", variants, alternatives: [] });
 
 const backendKeywords = () => ({
   keywords: [

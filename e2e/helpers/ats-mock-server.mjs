@@ -262,6 +262,7 @@ function postingKeywords(input) {
     importance: i < 4 ? "required" : "preferred",
     kind: "tool",
     variants: [],
+    alternatives: [],
   }));
 }
 

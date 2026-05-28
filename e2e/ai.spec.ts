@@ -76,6 +76,12 @@ test("add an Anthropic key, see it as 'ending ####', remove it", async ({
   await expect(page.getByText("What it costs")).toBeVisible();
   await expect(page.getByText(/What gets sent to Google/)).toBeVisible();
   await expect(page.getByText(/improve its products/)).toBeVisible();
+  // On the shared key: a key of their own, offered as the next step.
+  const nudge = page.getByTestId("own-key-nudge");
+  await expect(nudge).toContainText("about 2 minutes, still $0");
+  await expect(
+    nudge.getByRole("link", { name: "Google AI Studio" }),
+  ).toHaveAttribute("href", "https://aistudio.google.com/app/apikey");
 
   // A key the provider rejects: its error, and nothing saved.
   await addKey(page, BAD_KEY);
@@ -96,6 +102,7 @@ test("add an Anthropic key, see it as 'ending ####', remove it", async ({
   await expect(
     page.getByText(/Using your Anthropic key ending 7f3a\./),
   ).toBeVisible();
+  await expect(page.getByTestId("own-key-nudge")).toHaveCount(0);
   expect(await page.content()).not.toContain(GOOD_KEY);
 
   const stored = await db()

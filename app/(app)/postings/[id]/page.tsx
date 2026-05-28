@@ -132,6 +132,7 @@ function TailoredResume({
         waitingForQuota={
           tailoring.state === "queued" && tailoring.rateLimitedAt !== null
         }
+        shared={tailoring.keySource !== "own"}
       />
     );
   }

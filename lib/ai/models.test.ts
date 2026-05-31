@@ -9,7 +9,7 @@ describe("model tiers (Alex, 2026-10-14: edits on the cheaper model)", () => {
     expect(EFFORT.strong).toBe(EFFORT.fast);
   });
 
-  it("Google: Flash edits, Flash-Lite does everything else, and is the backup (Alex, 2026-10-16)", () => {
+  it("Google: Flash scores and edits, Flash-Lite does the rest, and is the backup (Alex, 2026-10-17)", () => {
     expect(MODELS.google.strong.id).toBe("gemini-3.8-flash");
     expect(MODELS.google.fast.id).toBe("gemini-3.5-flash-lite");
     expect(SHARED_BACKUP_MODEL.id).toBe(MODELS.google.fast.id);

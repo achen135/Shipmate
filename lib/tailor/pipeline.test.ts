@@ -85,7 +85,7 @@ describe("tailor: the pipeline end to end (fake model, fake page measure)", () =
     });
 
     expect(calls.map((c) => [c.name, c.tier])).toEqual([
-      ["posting_keywords", "fast"],
+      ["posting_keywords", "strong"],
       ["resume_edits", "strong"],
     ]);
     // The edit step sees the master resume with ids, the gap, and the facts.
@@ -147,9 +147,8 @@ describe("tailor: the pipeline end to end (fake model, fake page measure)", () =
       provider: scriptedProvider(script).provider,
       measure: lineMeasure(40).measure,
     });
-    // Keywords on Flash-Lite, edits on Flash: (1000 × $0.30 + 500 × $2.50
-    // + 1000 × $0.75 + 500 × $3.75) / 1M
-    expect(own.usage.costUsd).toBeCloseTo(0.004175, 6);
+    // Keywords and edits both on Flash: 2 × (1000 × $0.75 + 500 × $3.75) / 1M
+    expect(own.usage.costUsd).toBeCloseTo(0.00525, 6);
     expect(own.notes).toEqual([NOTES.nothing]);
   });
 
@@ -172,7 +171,8 @@ describe("tailor: the pipeline end to end (fake model, fake page measure)", () =
     // …but the tailoring ran on Flash.
     expect(result.usage.model).toBe("gemini-3.8-flash");
 
-    // Stopped before the edit step: no model to name.
+    // Stopped before the edit step: no model to name, even though scoring
+    // ran on the same (strong) tier.
     const few = await tailor(input, {
       provider: scriptedProvider({
         posting_keywords: () => ({ keywords: [k("Python")] }),

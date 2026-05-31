@@ -8,7 +8,7 @@ import type { ResumeContent } from "@/lib/resume/structured";
  * answer is parsed with the request's own schema, as real structured output
  * would be, so a script can't hand the pipeline something a real model
  * couldn't. Each answer names the model Gemini's tier really uses (Flash-Lite
- * for the fast tier, Flash for edits).
+ * for the fast tier, Flash for scoring and edits).
  */
 export type Script = Partial<
   Record<string, (input: string, call: number) => unknown>

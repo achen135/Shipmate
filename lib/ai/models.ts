@@ -17,15 +17,15 @@
  * and OpenAI (Alex, 2026-10-14): a user pays for tailoring with their own
  * key, so the default is the cheaper model.
  *
- * Google splits them (Alex, 2026-10-16, Fix Handoff "shared key quota"):
- * the edit step stays on Flash, and everything else (keyword scoring, the
- * second look, resume import, company research, fact suggestions) runs on
- * Flash-Lite. Google's 429 on the shared key showed Flash's free quota is 20
- * requests a day per project, so Flash is kept for the one step where the
- * model's judgment shapes what the user sends; the fast-tier steps are each
- * checked in code or read-only (Design Decisions "Which Gemini model runs
- * which step"). The same split for a user's own Gemini key: it's about
- * which model suits which step, not about whose key it is.
+ * Google splits them (Alex, 2026-10-16/17, Fix Handoff "shared key quota"):
+ * keyword scoring and the edit step run on Flash; the second look, resume
+ * import, company research and fact suggestions on Flash-Lite. Flash's free
+ * quota is 20 requests a day per project (Flash-Lite's 500), so Flash is
+ * kept for the two steps whose judgment shapes the score, the warnings and
+ * the copy; the fast-tier steps are each checked in code or read-only.
+ * Scoring was tried on Flash-Lite and didn't hold up (Design Decisions
+ * "Which Gemini model runs which step"). The same split for a user's own
+ * Gemini key: it's about which model suits which step, not whose key it is.
  */
 
 import type { ProviderName, Tier } from "./types";
@@ -88,9 +88,9 @@ export const MODELS: Record<ProviderName, Record<Tier, Model>> = {
 /**
  * The shared key's backup model (M8 §1, the "safety valve" in Design
  * Decisions "AI cost model"): Flash-Lite has its own free quota, separate
- * from Flash's. The fast tier runs on it anyway; the backup also moves the
- * edit step onto it for a tailoring Flash has already turned away with a
- * 429 or 503 (worker/tailor.ts).
+ * from Flash's. The fast tier runs on it anyway; the backup also moves
+ * scoring and the edit step onto it for a tailoring Flash has already
+ * turned away with a 429 or 503 (worker/tailor.ts).
  * gemini-3.5-flash-lite is Google's current stable Flash-Lite (there's no
  * 3.8 Flash-Lite for text); it has a free tier and takes the same
  * thinkingLevel values. Checked 2026-10-15 on ai.google.dev /models,
@@ -136,12 +136,13 @@ export const STEP_ESTIMATES = {
   /** One-time: resume file → structured resume. */
   import: [{ tier: "fast", input: 3_000, output: 4_000 }],
   /**
-   * One tailored posting: score + gap check on the fast model, the edit on
-   * the strong one (M7), then the second look on the fast one (M8): the
-   * posting plus the finished resume in, a few short notes out.
+   * One tailored posting: keyword scoring and the edit on the strong model
+   * (2026-10-17: scoring moved back from fast on Gemini), then the second
+   * look on the fast one (M8): the posting plus the finished resume in, a
+   * few short notes out.
    */
   tailor: [
-    { tier: "fast", input: 8_000, output: 2_000 },
+    { tier: "strong", input: 8_000, output: 2_000 },
     { tier: "strong", input: 10_000, output: 4_000 },
     { tier: "fast", input: 5_000, output: 1_500 },
   ],

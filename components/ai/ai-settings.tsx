@@ -320,7 +320,7 @@ function CostExplainer({
         <p className="mt-3 text-xs text-muted-foreground">
           {oneModel
             ? `Model: ${models.fast.label} (${price("fast")}).`
-            : `Models: ${models.fast.label} for reading and scoring (${price("fast")}), ${models.strong.label} for editing (${price("strong")}).`}{" "}
+            : `Models: ${models.fast.label} for reading and notes (${price("fast")}), ${models.strong.label} for scoring and editing (${price("strong")}).`}{" "}
           A long posting or a two-page resume costs more.
         </p>
       </div>

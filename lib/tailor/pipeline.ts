@@ -83,9 +83,9 @@ export type TailorResult = {
     provider: AiUsage["provider"] | null;
     /**
      * The model the edit step ran on, null if it never ran. Not simply the
-     * last call's: on Gemini the steps around the edit run on Flash-Lite,
-     * which is also the shared key's backup, and the review page reads this
-     * to say a tailoring ran on the backup.
+     * last call's: on Gemini the second look runs on Flash-Lite, which is
+     * also the shared key's backup, and the review page reads this to say a
+     * tailoring ran on the backup.
      */
     model: string | null;
     inputTokens: number;
@@ -128,11 +128,12 @@ export async function tailor(
   const { provider, measure } = deps;
   const calls: { usage: AiUsage; tier: Tier }[] = [];
   const notes: string[] = [];
+  /** The edit step's model, once it has run (see TailorResult.usage.model). */
+  let editModel: string | null = null;
   const result = (
     partial: Partial<TailorResult> & { content: ResumeContent },
   ): TailorResult => {
     const last = calls.at(-1)?.usage;
-    const edit = calls.find((c) => c.tier === "strong")?.usage;
     return {
       scoreBefore: null,
       scoreAfter: null,
@@ -148,7 +149,7 @@ export async function tailor(
       notes,
       usage: {
         provider: last?.provider ?? null,
-        model: edit?.model ?? null,
+        model: editModel,
         inputTokens: calls.reduce((n, c) => n + c.usage.inputTokens, 0),
         outputTokens: calls.reduce((n, c) => n + c.usage.outputTokens, 0),
         costUsd: calls.reduce(
@@ -167,16 +168,18 @@ export async function tailor(
   }
   const postingBlock = `<posting>\nCompany: ${posting.company}\nTitle: ${posting.title}\n\n${text.slice(0, MAX_POSTING_CHARS)}\n</posting>`;
 
-  // 2. Baseline score.
+  // 2. Baseline score. On the strong tier, not the fast one: on Gemini,
+  // Flash-Lite's keyword lists didn't hold up (Design Decisions "Which
+  // Gemini model runs which step").
   const extracted = await provider.generateStructured({
-    tier: "fast",
+    tier: "strong",
     system: KEYWORDS_SYSTEM,
     input: postingBlock,
     schema: extractedKeywordsSchema,
     name: "posting_keywords",
     maxOutputTokens: 8_000,
   });
-  calls.push({ usage: extracted.usage, tier: "fast" });
+  calls.push({ usage: extracted.usage, tier: "strong" });
   const keywords = verifyKeywords(extracted.data, `${posting.title}\n${text}`);
   if (keywords.length < MIN_KEYWORDS) {
     notes.push(NOTES.fewKeywords);
@@ -229,6 +232,7 @@ export async function tailor(
     maxOutputTokens: 12_000,
   });
   calls.push({ usage: plan.usage, tier: "strong" });
+  editModel = plan.usage.model;
 
   let content = master;
   let changes: Change[] = [];

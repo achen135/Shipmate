@@ -74,7 +74,7 @@ describe("the second look", () => {
     const result = await tailor(input, { provider, measure: measure() });
 
     expect(calls.map((c) => [c.name, c.tier])).toEqual([
-      ["posting_keywords", "fast"],
+      ["posting_keywords", "strong"],
       ["resume_edits", "strong"],
       ["second_look", "fast"],
     ]);

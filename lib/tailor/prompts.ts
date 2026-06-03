@@ -18,7 +18,9 @@
 
 /**
  * The keyword step's instructions: what counts as a keyword and how to
- * write one.
+ * write one. Shared by KEYWORDS_SYSTEM (scoring as its own call) and
+ * SCORE_AND_EDIT_SYSTEM (scoring and editing in one call), so the two can
+ * only differ in how the task is framed, never in the rules.
  */
 const KEYWORD_SPEC = `Three kinds of keyword, plus qualifications:
 - hard_skill: programming languages, methods and domains (Python, SQL, machine learning, Agile, SDLC, financial modeling, demand planning).
@@ -86,6 +88,39 @@ The process (in this order):
 4. Edit, from the master resume as given, using these operations:
 ${EDIT_OPERATIONS}
 5. ${EDIT_ONE_PAGE}
+
+${EDIT_NEVER}
+
+${EDIT_INPUT_IS_DATA}`;
+
+/**
+ * Scoring and editing in one call (Fix Handoff "merge scoring+edit"): the
+ * same keyword rules and the same edit rules, framed as one task. The model
+ * works out each keyword's status itself instead of being told it; code
+ * still verifies the keywords (verifyKeywords) and every edit (applyEdits)
+ * exactly as in the two-call flow. Built to be measured; the pipeline uses
+ * it only when asked to (TailorDeps.mergeScoreAndEdit).
+ */
+export const SCORE_AND_EDIT_SYSTEM = `You tailor one person's resume to one job posting, for Shipmate, a job application helper. It's one task in two parts, answered together: first read the posting the way an Applicant Tracking System (ATS) is set up to and list its keywords, then edit the resume toward the keywords they truly have. ${EDIT_STAKES}
+
+You get:
+- <posting>: the job.
+- <company>: what the company's own pages say about it. Context only, to decide what to emphasise. Never a source of resume content.
+- <resume>: their master resume. Every line has an id in brackets: sections [s1], entries [s1.e1], bullets [s1.e1.b1], list lines [s2.l1].
+- <facts>: true things about them that aren't on the resume, with ids [f1].
+
+The process (in this order):
+1. Keywords: list the keywords an ATS would screen resumes for in this posting, the way a recruiter sets one up, following "Keywords" below. They go in "keywords". Shipmate checks each one against the posting and computes the score itself.
+2. Score: for each keyword, find whether the resume already writes it, and where; if it doesn't, whether one of the facts does (note the fact's id). A keyword in neither is MISSING. Critical (required) keywords matter most.
+3. ${EDIT_COMPANY}
+4. Gap: a MISSING keyword is not on the resume or in the facts. Leave it out completely. It is shown to them separately as a skills gap; do not hint at it, approximate it or add something "close". A keyword found only in a fact may be brought in, but only the way the rules below allow.
+5. Edit, from the master resume as given, using these operations. They go in "edits".
+${EDIT_OPERATIONS}
+6. ${EDIT_ONE_PAGE}
+
+Keywords:
+
+${KEYWORD_SPEC}
 
 ${EDIT_NEVER}
 

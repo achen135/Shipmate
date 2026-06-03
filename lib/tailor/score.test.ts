@@ -313,3 +313,10 @@ We work with BS/MS students too.`;
     expect(KEYWORDS_SYSTEM).not.toMatch(/class of 2029/);
   });
 });
+
+describe("prompts: required means the requirements", () => {
+  it("a tool named only in the duties is preferred at most", () => {
+    expect(KEYWORDS_SYSTEM).toMatch(/"preferred" at most/);
+    expect(KEYWORDS_SYSTEM).toMatch(/what you'll do/);
+  });
+});

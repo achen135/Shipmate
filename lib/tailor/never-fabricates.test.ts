@@ -7,7 +7,7 @@ import { assertNothingInvented } from "./__fixtures__/invented";
 import { PEOPLE } from "./__fixtures__/people";
 import { lineMeasure, scriptedProvider } from "./__fixtures__/fake-provider";
 import { EDIT_OPS, StructureChangeError, applyEdits } from "./edits";
-import { tailor } from "./pipeline";
+import { NOTES, tailor } from "./pipeline";
 import { type Keyword, verifyKeywords } from "./score";
 import { untraceable } from "./trace";
 import {
@@ -181,6 +181,10 @@ describe.each(PEOPLE.map((p) => [p.name, p] as const))(
         },
         { provider, measure: lineMeasure(12).measure },
       );
+      // The edit step really ran: a posting under MIN_POSTING_CHARS stops at
+      // "not enough text" and would make this test pass without testing.
+      expect(result.notes).not.toContain(NOTES.noText);
+      expect(result.changes.length + result.dropped.length).toBeGreaterThan(0);
       expect(result.blocked).toEqual([]);
       assertNothingInvented(person, result.content);
       // And the "why" of every change is code-written, from the posting's

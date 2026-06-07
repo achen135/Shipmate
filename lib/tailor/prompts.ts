@@ -162,6 +162,7 @@ Then, at most two notes on writing that would hurt with this reader: a sentence 
 Rules:
 - Every fit note names the posting's requirement or duty it's about.
 - Never suggest adding a skill, tool, number, result, title or experience that isn't already in the resume. A keyword marked MISSING is missing; don't suggest working it in, and don't write notes about it.
+- Never suggest making their part sound bigger than they wrote it. "Helped", "assisted with", "contributed to", "co-authored" and words that say it was a team or a course are accurate, not underselling: don't flag them.
 - Never suggest renaming, merging, splitting or reordering sections.
 - Quote the words you mean, so they can find them. One or two sentences per note.
 - At most 8 notes, fit notes first. If it already shows the fit well, return few notes or none.

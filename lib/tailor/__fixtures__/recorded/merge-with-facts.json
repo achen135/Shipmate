@@ -1,0 +1,1883 @@
+{
+  "note": "Real Gemini 3.8 Flash answers (keywords and edits) and Gemini 3.5 Flash-Lite second looks for the fictional PEOPLE fixtures, recorded 2026-10-18 on a throwaway test key. Replayed by recorded-runs.test.ts.",
+  "runs": [
+    {
+      "person": "SWE",
+      "approach": "one-call",
+      "rep": 1,
+      "at": "2026-10-18T02:33:57.231Z",
+      "outputs": {
+        "keywords_and_edits": {
+          "keywords": [
+            {
+              "term": "Python",
+              "importance": "required",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "SQL",
+              "importance": "required",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "REST APIs",
+              "importance": "required",
+              "kind": "hard_skill",
+              "variants": ["REST API", "REST"],
+              "alternatives": []
+            },
+            {
+              "term": "Git",
+              "importance": "required",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "Bachelor's",
+              "importance": "required",
+              "kind": "qualification",
+              "variants": ["B.S.", "BS"],
+              "alternatives": []
+            },
+            {
+              "term": "Computer Science",
+              "importance": "required",
+              "kind": "qualification",
+              "variants": ["CS"],
+              "alternatives": []
+            },
+            {
+              "term": "Kubernetes",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": ["Kafka", "Go", "C++"]
+            },
+            {
+              "term": "PostgreSQL",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": ["Postgres"],
+              "alternatives": []
+            },
+            {
+              "term": "Celery",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "Redis",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "Docker",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "AWS",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "code review",
+              "importance": "preferred",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            }
+          ],
+          "edits": [
+            {
+              "op": "add_list_value",
+              "target": "s4.l2",
+              "text": "Kubernetes",
+              "order": [],
+              "fact": "f1",
+              "keyword": "Kubernetes"
+            },
+            {
+              "op": "order_list_values",
+              "target": "s4.l2",
+              "text": "",
+              "order": ["Git", "Docker", "Kubernetes", "FastAPI", "React"],
+              "fact": "",
+              "keyword": "Git"
+            },
+            {
+              "op": "order_list_values",
+              "target": "s4.l1",
+              "text": "",
+              "order": ["Python", "SQL", "TypeScript", "Java", "C"],
+              "fact": "",
+              "keyword": "Python"
+            },
+            {
+              "op": "reword_bullet",
+              "target": "s2.e1.b1",
+              "text": "Built a Redis caching layer for the pricing API that cut p95 latency by 40%",
+              "order": [],
+              "fact": "",
+              "keyword": "Redis"
+            },
+            {
+              "op": "add_bullet",
+              "target": "s2.e1",
+              "text": "Ran background jobs with Celery workers at Harbor Labs",
+              "order": [],
+              "fact": "f2",
+              "keyword": "Celery"
+            },
+            {
+              "op": "order_bullets",
+              "target": "s3.e1",
+              "text": "",
+              "order": ["s3.e1.b2", "s3.e1.b1"],
+              "fact": "",
+              "keyword": "REST APIs"
+            }
+          ]
+        },
+        "second_look": {
+          "suggestions": [
+            {
+              "what": "For the SQL requirement, 'SQL' is only listed under Technical Skills, even though the MarkIt project bullet 'Designed the PostgreSQL schema and REST API' describes doing database work."
+            },
+            {
+              "what": "The bullet 'Ran background jobs with Celery workers at Harbor Labs' unnecessarily repeats the company name from the section header at the end of the sentence."
+            }
+          ]
+        }
+      },
+      "expected": {
+        "changes": [
+          {
+            "what": "Added “Kubernetes” to Tools",
+            "why": "the posting asks for “Kubernetes”; from your profile facts"
+          },
+          {
+            "what": "Reworded a bullet under Harbor Labs to mention “Redis”",
+            "why": "the posting asks for “Redis”",
+            "before": "Built a caching layer for the pricing API that cut p95 latency by 40%",
+            "after": "Built a Redis caching layer for the pricing API that cut p95 latency by 40%"
+          },
+          {
+            "what": "Added a bullet under Harbor Labs: “Ran background jobs with Celery workers at Harbor Labs”",
+            "why": "from your profile facts (“Used Celery workers at Harbor Labs”); the posting asks for “Celery”",
+            "after": "Ran background jobs with Celery workers at Harbor Labs"
+          },
+          {
+            "what": "Put Tools in a new order, starting with “Git”, “Docker”, “Kubernetes”",
+            "why": "what the posting asks for goes first"
+          },
+          {
+            "what": "Put Languages in a new order, starting with “Python”, “SQL”, “TypeScript”",
+            "why": "what the posting asks for goes first"
+          },
+          {
+            "what": "Put the bullets under MarkIt in a new order, starting with “Designed the PostgreSQL schema and REST API”",
+            "why": "the posting asks for “REST APIs”"
+          }
+        ],
+        "dropped": [],
+        "scoreBefore": 68,
+        "scoreAfter": 79,
+        "missing": ["Bachelor's", "AWS", "code review"]
+      }
+    },
+    {
+      "person": "supply chain",
+      "approach": "two-call",
+      "rep": 1,
+      "at": "2026-10-18T02:34:42.074Z",
+      "outputs": {
+        "posting_keywords": {
+          "keywords": [
+            {
+              "term": "Supply Chain Management",
+              "importance": "required",
+              "kind": "qualification",
+              "variants": [],
+              "alternatives": ["Operations", "Industrial Engineering"]
+            },
+            {
+              "term": "Excel",
+              "importance": "required",
+              "kind": "tool",
+              "variants": ["Microsoft Excel"],
+              "alternatives": []
+            },
+            {
+              "term": "SQL",
+              "importance": "required",
+              "kind": "hard_skill",
+              "variants": ["Structured Query Language"],
+              "alternatives": []
+            },
+            {
+              "term": "pivot tables",
+              "importance": "required",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "VLOOKUP",
+              "importance": "required",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "communication",
+              "importance": "required",
+              "kind": "soft_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "stakeholder management",
+              "importance": "required",
+              "kind": "soft_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "SAP",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "Six Sigma",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "Tableau",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "demand forecasts",
+              "importance": "preferred",
+              "kind": "hard_skill",
+              "variants": ["demand forecasting"],
+              "alternatives": []
+            },
+            {
+              "term": "procurement",
+              "importance": "preferred",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "vendor scorecards",
+              "importance": "preferred",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            }
+          ]
+        },
+        "resume_edits": {
+          "edits": [
+            {
+              "op": "add_list_value",
+              "target": "s4.l1",
+              "text": "SQL",
+              "order": [],
+              "fact": "f1",
+              "keyword": "SQL"
+            },
+            {
+              "op": "order_list_values",
+              "target": "s4.l1",
+              "text": "",
+              "order": ["Excel", "SQL", "Tableau", "PowerPoint"],
+              "fact": "",
+              "keyword": "Excel"
+            }
+          ]
+        },
+        "second_look": {
+          "suggestions": [
+            {
+              "what": "Your bullet \"Contributed to a vendor scorecard for 15 suppliers\" matches the posting's requirement to \"maintain vendor scorecards,\" but using \"Contributed to\" can hide your specific ownership from a fast-scanning recruiter."
+            },
+            {
+              "what": "The word \"Helped\" in \"Helped count and reconcile weekly inventory in Excel\" undersells your direct execution for a role that requires you to \"Build demand forecasts and inventory reports in Excel and SQL\"."
+            }
+          ]
+        }
+      },
+      "expected": {
+        "changes": [
+          {
+            "what": "Added “SQL” to Skills",
+            "why": "the posting asks for “SQL”; from your profile facts"
+          },
+          {
+            "what": "Put Skills in a new order, starting with “Excel”, “SQL”, “Tableau”",
+            "why": "what the posting asks for goes first"
+          }
+        ],
+        "dropped": [],
+        "scoreBefore": 30,
+        "scoreAfter": 40,
+        "missing": [
+          "pivot tables",
+          "VLOOKUP",
+          "communication",
+          "stakeholder management",
+          "SAP",
+          "Six Sigma",
+          "demand forecasts",
+          "procurement"
+        ]
+      }
+    },
+    {
+      "person": "supply chain",
+      "approach": "one-call",
+      "rep": 1,
+      "at": "2026-10-18T02:35:29.517Z",
+      "outputs": {
+        "keywords_and_edits": {
+          "keywords": [
+            {
+              "term": "Supply Chain Management",
+              "importance": "required",
+              "kind": "qualification",
+              "variants": [],
+              "alternatives": ["Operations", "Industrial Engineering"]
+            },
+            {
+              "term": "Excel",
+              "importance": "required",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "SQL",
+              "importance": "required",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "pivot tables",
+              "importance": "required",
+              "kind": "hard_skill",
+              "variants": ["Pivot Tables", "PivotTable"],
+              "alternatives": []
+            },
+            {
+              "term": "VLOOKUP",
+              "importance": "required",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "communication",
+              "importance": "required",
+              "kind": "soft_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "stakeholder management",
+              "importance": "required",
+              "kind": "soft_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "SAP",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "Six Sigma",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "Tableau",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "vendor scorecards",
+              "importance": "preferred",
+              "kind": "hard_skill",
+              "variants": ["vendor scorecard"],
+              "alternatives": []
+            },
+            {
+              "term": "inventory reports",
+              "importance": "preferred",
+              "kind": "hard_skill",
+              "variants": ["inventory reporting"],
+              "alternatives": []
+            },
+            {
+              "term": "demand forecasts",
+              "importance": "preferred",
+              "kind": "hard_skill",
+              "variants": ["demand forecasting"],
+              "alternatives": []
+            },
+            {
+              "term": "supplier performance",
+              "importance": "preferred",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "procurement",
+              "importance": "preferred",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            }
+          ],
+          "edits": [
+            {
+              "op": "add_list_value",
+              "target": "s4.l1",
+              "text": "SQL",
+              "order": [],
+              "fact": "f1",
+              "keyword": "SQL"
+            },
+            {
+              "op": "order_list_values",
+              "target": "s4.l1",
+              "text": "",
+              "order": ["Excel", "SQL", "Tableau", "PowerPoint"],
+              "fact": "",
+              "keyword": "Excel"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "changes": [
+          {
+            "what": "Added “SQL” to Skills",
+            "why": "the posting asks for “SQL”; from your profile facts"
+          },
+          {
+            "what": "Put Skills in a new order, starting with “Excel”, “SQL”, “Tableau”",
+            "why": "what the posting asks for goes first"
+          }
+        ],
+        "dropped": [],
+        "scoreBefore": 27,
+        "scoreAfter": 36,
+        "missing": [
+          "pivot tables",
+          "VLOOKUP",
+          "communication",
+          "stakeholder management",
+          "SAP",
+          "Six Sigma",
+          "inventory reports",
+          "demand forecasts",
+          "supplier performance",
+          "procurement"
+        ]
+      }
+    },
+    {
+      "person": "summary",
+      "approach": "two-call",
+      "rep": 1,
+      "at": "2026-10-18T02:36:19.220Z",
+      "outputs": {
+        "posting_keywords": {
+          "keywords": [
+            {
+              "term": "Python",
+              "importance": "required",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "pandas",
+              "importance": "required",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "statistics",
+              "importance": "required",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "algorithms",
+              "importance": "required",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "Spark",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": ["Apache Spark"],
+              "alternatives": []
+            },
+            {
+              "term": "Airflow",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": ["Apache Airflow"],
+              "alternatives": []
+            },
+            {
+              "term": "publishing research",
+              "importance": "preferred",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "SQL",
+              "importance": "preferred",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "machine learning",
+              "importance": "preferred",
+              "kind": "hard_skill",
+              "variants": ["ML"],
+              "alternatives": []
+            },
+            {
+              "term": "scikit-learn",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": ["sklearn"],
+              "alternatives": []
+            },
+            {
+              "term": "LightGBM",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "XGBoost",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            }
+          ]
+        },
+        "resume_edits": {
+          "edits": [
+            {
+              "op": "add_bullet",
+              "target": "s2.e1",
+              "text": "Used LightGBM at the Open Data Lab to predict bus delays",
+              "order": [],
+              "fact": "f1",
+              "keyword": "LightGBM"
+            },
+            {
+              "op": "order_list_values",
+              "target": "s3.l1",
+              "text": "",
+              "order": ["Statistics", "Algorithms"],
+              "fact": "",
+              "keyword": "statistics"
+            }
+          ]
+        },
+        "second_look": {
+          "suggestions": [
+            {
+              "what": "For the requirement 'Coursework in statistics and algorithms', 'statistics' appears only in your coursework list, even though your bullet 'Co-authored a poster on bus delay prediction' describes applying it."
+            },
+            {
+              "what": "For the bonus 'publishing research', your entry 'Co-authored a poster on bus delay prediction' matches what this job does, written so a recruiter might miss it by using 'poster'."
+            },
+            {
+              "what": "For the duty 'Build machine learning models (LightGBM, XGBoost, scikit-learn) to predict demand', your strongest match bullet 'Used LightGBM at the Open Data Lab to predict bus delays' sits below the poster bullet and should come first within its section."
+            }
+          ]
+        }
+      },
+      "expected": {
+        "changes": [
+          {
+            "what": "Added a bullet under Open Data Lab: “Used LightGBM at the Open Data Lab to predict bus delays”",
+            "why": "from your profile facts (“Trained a gradient boosting model at the Open Data Lab”); the posting asks for “LightGBM”",
+            "after": "Used LightGBM at the Open Data Lab to predict bus delays"
+          },
+          {
+            "what": "Put Relevant Coursework in a new order, starting with “Statistics”, “Algorithms”",
+            "why": "what the posting asks for goes first"
+          }
+        ],
+        "dropped": [],
+        "scoreBefore": 50,
+        "scoreAfter": 56,
+        "missing": [
+          "Spark",
+          "Airflow",
+          "publishing research",
+          "SQL",
+          "machine learning",
+          "scikit-learn",
+          "XGBoost"
+        ]
+      }
+    },
+    {
+      "person": "summary",
+      "approach": "one-call",
+      "rep": 1,
+      "at": "2026-10-18T02:36:56.470Z",
+      "outputs": {
+        "keywords_and_edits": {
+          "keywords": [
+            {
+              "term": "Python",
+              "importance": "required",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "pandas",
+              "importance": "required",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "statistics",
+              "importance": "required",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "algorithms",
+              "importance": "required",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "machine learning",
+              "importance": "preferred",
+              "kind": "hard_skill",
+              "variants": ["ML"],
+              "alternatives": []
+            },
+            {
+              "term": "LightGBM",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "XGBoost",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "scikit-learn",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": ["sklearn"],
+              "alternatives": []
+            },
+            {
+              "term": "SQL",
+              "importance": "preferred",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "Spark",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "Airflow",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "research",
+              "importance": "preferred",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            }
+          ],
+          "edits": [
+            {
+              "op": "order_list_values",
+              "target": "s3.l1",
+              "text": "",
+              "order": ["Statistics", "Algorithms"],
+              "fact": "",
+              "keyword": "statistics"
+            },
+            {
+              "op": "add_bullet",
+              "target": "s2.e1",
+              "text": "Used LightGBM to predict bus delays",
+              "order": [],
+              "fact": "f1",
+              "keyword": "LightGBM"
+            }
+          ]
+        },
+        "second_look": {
+          "suggestions": [
+            {
+              "what": "For the posting duty to build machine learning models, your bullet \"Used LightGBM to predict bus delays\" sits below the poster bullet and should come first under Open Data Lab to lead with your modeling experience."
+            },
+            {
+              "what": "Your resume states \"Cleaned 2 million rows of transit data with pandas\", which matches the posting's requirement to \"Clean and analyze large datasets\", but leaving out analysis makes the analytical scope easy to miss."
+            }
+          ]
+        }
+      },
+      "expected": {
+        "changes": [
+          {
+            "what": "Added a bullet under Open Data Lab: “Used LightGBM to predict bus delays”",
+            "why": "from your profile facts (“Trained a gradient boosting model at the Open Data Lab”); the posting asks for “LightGBM”",
+            "after": "Used LightGBM to predict bus delays"
+          },
+          {
+            "what": "Put Relevant Coursework in a new order, starting with “Statistics”, “Algorithms”",
+            "why": "what the posting asks for goes first"
+          }
+        ],
+        "dropped": [],
+        "scoreBefore": 56,
+        "scoreAfter": 63,
+        "missing": [
+          "machine learning",
+          "XGBoost",
+          "scikit-learn",
+          "SQL",
+          "Spark",
+          "Airflow"
+        ]
+      }
+    },
+    {
+      "person": "SWE",
+      "approach": "one-call",
+      "rep": 2,
+      "at": "2026-10-18T02:37:17.537Z",
+      "outputs": {
+        "keywords_and_edits": {
+          "keywords": [
+            {
+              "term": "Python",
+              "importance": "required",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "SQL",
+              "importance": "required",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "REST APIs",
+              "importance": "required",
+              "kind": "hard_skill",
+              "variants": ["REST API", "REST"],
+              "alternatives": []
+            },
+            {
+              "term": "Git",
+              "importance": "required",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "Computer Science",
+              "importance": "required",
+              "kind": "qualification",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "Bachelor's",
+              "importance": "required",
+              "kind": "qualification",
+              "variants": ["B.S."],
+              "alternatives": []
+            },
+            {
+              "term": "Kubernetes",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": ["K8s"],
+              "alternatives": ["Kafka", "Go", "C++"]
+            },
+            {
+              "term": "PostgreSQL",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": ["Postgres"],
+              "alternatives": []
+            },
+            {
+              "term": "Celery",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "Redis",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "Docker",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "AWS",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            }
+          ],
+          "edits": [
+            {
+              "op": "order_list_values",
+              "target": "s4.l1",
+              "text": "",
+              "order": ["Python", "SQL", "TypeScript", "Java", "C"],
+              "fact": "",
+              "keyword": "Python"
+            },
+            {
+              "op": "add_list_value",
+              "target": "s4.l2",
+              "text": "Kubernetes",
+              "order": [],
+              "fact": "f1",
+              "keyword": "Kubernetes"
+            },
+            {
+              "op": "add_list_value",
+              "target": "s4.l2",
+              "text": "Redis",
+              "order": [],
+              "fact": "",
+              "keyword": "Redis"
+            },
+            {
+              "op": "reword_bullet",
+              "target": "s2.e1.b1",
+              "text": "Built a Redis caching layer for the pricing API that cut p95 latency by 40%",
+              "order": [],
+              "fact": "",
+              "keyword": "Redis"
+            },
+            {
+              "op": "add_bullet",
+              "target": "s2.e1",
+              "text": "Ran background jobs with Celery workers at Harbor Labs",
+              "order": [],
+              "fact": "f2",
+              "keyword": "Celery"
+            },
+            {
+              "op": "order_bullets",
+              "target": "s3.e1",
+              "text": "",
+              "order": ["s3.e1.b2", "s3.e1.b1"],
+              "fact": "",
+              "keyword": "REST APIs"
+            }
+          ]
+        },
+        "second_look": {
+          "suggestions": [
+            {
+              "what": "In the Harbor Labs section, the bullet 'Ran background jobs with Celery workers at Harbor Labs' unnecessarily repeats the company name already established in the section header."
+            }
+          ]
+        }
+      },
+      "expected": {
+        "changes": [
+          {
+            "what": "Added “Kubernetes” to Tools",
+            "why": "the posting asks for “Kubernetes”; from your profile facts"
+          },
+          {
+            "what": "Added “Redis” to Tools",
+            "why": "the posting asks for “Redis”; it's already elsewhere on your resume"
+          },
+          {
+            "what": "Reworded a bullet under Harbor Labs to mention “Redis”",
+            "why": "the posting asks for “Redis”",
+            "before": "Built a caching layer for the pricing API that cut p95 latency by 40%",
+            "after": "Built a Redis caching layer for the pricing API that cut p95 latency by 40%"
+          },
+          {
+            "what": "Added a bullet under Harbor Labs: “Ran background jobs with Celery workers at Harbor Labs”",
+            "why": "from your profile facts (“Used Celery workers at Harbor Labs”); the posting asks for “Celery”",
+            "after": "Ran background jobs with Celery workers at Harbor Labs"
+          },
+          {
+            "what": "Put Languages in a new order, starting with “Python”, “SQL”, “TypeScript”",
+            "why": "what the posting asks for goes first"
+          },
+          {
+            "what": "Put the bullets under MarkIt in a new order, starting with “Designed the PostgreSQL schema and REST API”",
+            "why": "the posting asks for “REST APIs”"
+          }
+        ],
+        "dropped": [],
+        "scoreBefore": 72,
+        "scoreAfter": 83,
+        "missing": ["Bachelor's", "AWS"]
+      }
+    },
+    {
+      "person": "SWE",
+      "approach": "two-call",
+      "rep": 2,
+      "at": "2026-10-18T02:38:46.789Z",
+      "outputs": {
+        "posting_keywords": {
+          "keywords": [
+            {
+              "term": "Python",
+              "importance": "required",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "SQL",
+              "importance": "required",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "Computer Science",
+              "importance": "required",
+              "kind": "qualification",
+              "variants": ["CS"],
+              "alternatives": []
+            },
+            {
+              "term": "Bachelor's",
+              "importance": "required",
+              "kind": "qualification",
+              "variants": ["BS", "B.S.", "BA", "B.A."],
+              "alternatives": []
+            },
+            {
+              "term": "REST APIs",
+              "importance": "preferred",
+              "kind": "hard_skill",
+              "variants": ["REST API", "RESTful APIs", "RESTful API", "REST"],
+              "alternatives": []
+            },
+            {
+              "term": "Git",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "Kubernetes",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": ["K8s"],
+              "alternatives": ["Kafka", "Go", "C++"]
+            },
+            {
+              "term": "PostgreSQL",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": ["Postgres"],
+              "alternatives": []
+            },
+            {
+              "term": "Celery",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "AWS",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": ["Amazon Web Services"],
+              "alternatives": []
+            },
+            {
+              "term": "Docker",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "Redis",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "distributed systems",
+              "importance": "preferred",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "logistics",
+              "importance": "preferred",
+              "kind": "industry",
+              "variants": [],
+              "alternatives": []
+            }
+          ]
+        },
+        "resume_edits": {
+          "edits": [
+            {
+              "op": "order_list_values",
+              "target": "s4.l1",
+              "text": "",
+              "order": ["Python", "SQL", "TypeScript", "Java", "C"],
+              "fact": "",
+              "keyword": "SQL"
+            },
+            {
+              "op": "add_list_value",
+              "target": "s4.l2",
+              "text": "Kubernetes",
+              "order": [],
+              "fact": "f1",
+              "keyword": "Kubernetes or Kafka or Go or C++"
+            },
+            {
+              "op": "add_list_value",
+              "target": "s4.l2",
+              "text": "Redis",
+              "order": [],
+              "fact": "",
+              "keyword": "Redis"
+            },
+            {
+              "op": "add_list_value",
+              "target": "s4.l2",
+              "text": "PostgreSQL",
+              "order": [],
+              "fact": "",
+              "keyword": "PostgreSQL"
+            },
+            {
+              "op": "order_list_values",
+              "target": "s4.l2",
+              "text": "",
+              "order": [
+                "Git",
+                "Docker",
+                "Kubernetes",
+                "Redis",
+                "PostgreSQL",
+                "FastAPI",
+                "React"
+              ],
+              "fact": "",
+              "keyword": "Git"
+            },
+            {
+              "op": "reword_bullet",
+              "target": "s2.e1.b1",
+              "text": "Built a Redis caching layer for the pricing API that cut p95 latency by 40%",
+              "order": [],
+              "fact": "",
+              "keyword": "Redis"
+            },
+            {
+              "op": "add_bullet",
+              "target": "s2.e1",
+              "text": "Ran background jobs with Celery workers at Harbor Labs",
+              "order": [],
+              "fact": "f2",
+              "keyword": "Celery"
+            },
+            {
+              "op": "order_bullets",
+              "target": "s3.e1",
+              "text": "",
+              "order": ["s3.e1.b2", "s3.e1.b1"],
+              "fact": "",
+              "keyword": "REST APIs"
+            }
+          ]
+        },
+        "second_look": {
+          "suggestions": [
+            {
+              "what": "For the Python services and REST APIs requirement, your bullet \"Built a Redis caching layer for the pricing API that cut p95 latency by 40%\" describes building a pricing API, but doesn't name Python or REST APIs which are listed under Technical Skills."
+            },
+            {
+              "what": "Your project bullet \"Designed the PostgreSQL schema and REST API\" matches the posting's requirement for \"REST APIs\" and preferred \"PostgreSQL\" in MarkIt, but sits under Projects instead of being highlighted for backend roles."
+            },
+            {
+              "what": "For the background job systems nice-to-have, your bullet \"Ran background jobs with Celery workers at Harbor Labs\" mentions Celery, but it appears as a standalone sentence instead of being grouped with the API and caching work."
+            }
+          ]
+        }
+      },
+      "expected": {
+        "changes": [
+          {
+            "what": "Added “Kubernetes” to Tools",
+            "why": "the posting asks for “Kubernetes”; from your profile facts"
+          },
+          {
+            "what": "Added “Redis” to Tools",
+            "why": "the posting asks for “Redis”; it's already elsewhere on your resume"
+          },
+          {
+            "what": "Added “PostgreSQL” to Tools",
+            "why": "the posting asks for “PostgreSQL”; it's already elsewhere on your resume"
+          },
+          {
+            "what": "Reworded a bullet under Harbor Labs to mention “Redis”",
+            "why": "the posting asks for “Redis”",
+            "before": "Built a caching layer for the pricing API that cut p95 latency by 40%",
+            "after": "Built a Redis caching layer for the pricing API that cut p95 latency by 40%"
+          },
+          {
+            "what": "Added a bullet under Harbor Labs: “Ran background jobs with Celery workers at Harbor Labs”",
+            "why": "from your profile facts (“Used Celery workers at Harbor Labs”); the posting asks for “Celery”",
+            "after": "Ran background jobs with Celery workers at Harbor Labs"
+          },
+          {
+            "what": "Put Languages in a new order, starting with “Python”, “SQL”, “TypeScript”",
+            "why": "what the posting asks for goes first"
+          },
+          {
+            "what": "Put Tools in a new order, starting with “Git”, “Docker”, “Kubernetes”",
+            "why": "what the posting asks for goes first"
+          },
+          {
+            "what": "Put the bullets under MarkIt in a new order, starting with “Designed the PostgreSQL schema and REST API”",
+            "why": "the posting asks for “REST APIs”"
+          }
+        ],
+        "dropped": [],
+        "scoreBefore": 61,
+        "scoreAfter": 72,
+        "missing": ["Bachelor's", "AWS", "distributed systems", "logistics"]
+      }
+    },
+    {
+      "person": "supply chain",
+      "approach": "one-call",
+      "rep": 2,
+      "at": "2026-10-18T02:39:57.151Z",
+      "outputs": {
+        "keywords_and_edits": {
+          "keywords": [
+            {
+              "term": "Supply Chain Management",
+              "importance": "required",
+              "kind": "qualification",
+              "variants": [],
+              "alternatives": ["Operations", "Industrial Engineering"]
+            },
+            {
+              "term": "Excel",
+              "importance": "required",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "SQL",
+              "importance": "required",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "communication",
+              "importance": "required",
+              "kind": "soft_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "stakeholder management",
+              "importance": "required",
+              "kind": "soft_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "pivot tables",
+              "importance": "required",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "VLOOKUP",
+              "importance": "required",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "SAP",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "Six Sigma",
+              "importance": "preferred",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "Tableau",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "vendor scorecards",
+              "importance": "preferred",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "demand forecasts",
+              "importance": "preferred",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "procurement",
+              "importance": "preferred",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            }
+          ],
+          "edits": [
+            {
+              "op": "add_list_value",
+              "target": "s4.l1",
+              "text": "SQL",
+              "order": [],
+              "fact": "f1",
+              "keyword": "SQL"
+            },
+            {
+              "op": "order_list_values",
+              "target": "s4.l1",
+              "text": "",
+              "order": ["Excel", "SQL", "Tableau", "PowerPoint"],
+              "fact": "",
+              "keyword": "Excel"
+            }
+          ]
+        },
+        "second_look": {
+          "suggestions": [
+            {
+              "what": "For the duty 'maintain vendor scorecards', your bullet 'Contributed to a vendor scorecard for 15 suppliers' directly matches the posting's requirement for analyzing supplier performance."
+            }
+          ]
+        }
+      },
+      "expected": {
+        "changes": [
+          {
+            "what": "Added “SQL” to Skills",
+            "why": "the posting asks for “SQL”; from your profile facts"
+          },
+          {
+            "what": "Put Skills in a new order, starting with “Excel”, “SQL”, “Tableau”",
+            "why": "what the posting asks for goes first"
+          }
+        ],
+        "dropped": [],
+        "scoreBefore": 30,
+        "scoreAfter": 40,
+        "missing": [
+          "communication",
+          "stakeholder management",
+          "pivot tables",
+          "VLOOKUP",
+          "SAP",
+          "Six Sigma",
+          "demand forecasts",
+          "procurement"
+        ]
+      }
+    },
+    {
+      "person": "supply chain",
+      "approach": "two-call",
+      "rep": 2,
+      "at": "2026-10-18T02:40:30.421Z",
+      "outputs": {
+        "posting_keywords": {
+          "keywords": [
+            {
+              "term": "Supply Chain Management",
+              "importance": "required",
+              "kind": "qualification",
+              "variants": ["Supply Chain"],
+              "alternatives": ["Operations", "Industrial Engineering"]
+            },
+            {
+              "term": "Excel",
+              "importance": "required",
+              "kind": "tool",
+              "variants": ["Microsoft Excel"],
+              "alternatives": []
+            },
+            {
+              "term": "SQL",
+              "importance": "required",
+              "kind": "hard_skill",
+              "variants": ["Structured Query Language"],
+              "alternatives": []
+            },
+            {
+              "term": "pivot tables",
+              "importance": "required",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "VLOOKUP",
+              "importance": "required",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "communication",
+              "importance": "required",
+              "kind": "soft_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "stakeholder management",
+              "importance": "required",
+              "kind": "soft_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "SAP",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "Six Sigma",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "Tableau",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "demand forecasts",
+              "importance": "preferred",
+              "kind": "hard_skill",
+              "variants": ["demand forecasting"],
+              "alternatives": []
+            },
+            {
+              "term": "inventory reports",
+              "importance": "preferred",
+              "kind": "hard_skill",
+              "variants": ["inventory reporting"],
+              "alternatives": []
+            },
+            {
+              "term": "supplier performance",
+              "importance": "preferred",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "vendor scorecards",
+              "importance": "preferred",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "procurement",
+              "importance": "preferred",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            }
+          ]
+        },
+        "resume_edits": {
+          "edits": [
+            {
+              "op": "order_list_values",
+              "target": "s4.l1",
+              "text": "",
+              "order": ["Excel", "Tableau", "PowerPoint"],
+              "fact": "",
+              "keyword": "Tableau"
+            },
+            {
+              "op": "add_list_value",
+              "target": "s4.l1",
+              "text": "SQL",
+              "order": [],
+              "fact": "f1",
+              "keyword": "SQL"
+            }
+          ]
+        },
+        "second_look": {
+          "suggestions": [
+            {
+              "what": "For the posting's requirement of strong Excel and SQL skills, your skills list currently reads \"Excel, Tableau, PowerPoint, SQL\" where PowerPoint sits between your strongest matches; lead your line with Excel and SQL since the posting explicitly requires both."
+            },
+            {
+              "what": "For the duty \"Analyze supplier performance and maintain vendor scorecards\", your bullet \"Contributed to a vendor scorecard for 15 suppliers\" matches the requirement, but starting with \"Contributed to\" risks underselling your direct experience with vendor scorecards."
+            }
+          ]
+        }
+      },
+      "expected": {
+        "changes": [
+          {
+            "what": "Added “SQL” to Skills",
+            "why": "the posting asks for “SQL”; from your profile facts"
+          },
+          {
+            "what": "Put Skills in a new order, starting with “Excel”, “Tableau”, “PowerPoint”",
+            "why": "what the posting asks for goes first"
+          }
+        ],
+        "dropped": [],
+        "scoreBefore": 27,
+        "scoreAfter": 36,
+        "missing": [
+          "pivot tables",
+          "VLOOKUP",
+          "communication",
+          "stakeholder management",
+          "SAP",
+          "Six Sigma",
+          "demand forecasts",
+          "inventory reports",
+          "supplier performance",
+          "procurement"
+        ]
+      }
+    },
+    {
+      "person": "summary",
+      "approach": "one-call",
+      "rep": 2,
+      "at": "2026-10-18T02:41:28.131Z",
+      "outputs": {
+        "keywords_and_edits": {
+          "keywords": [
+            {
+              "term": "Python",
+              "importance": "required",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "pandas",
+              "importance": "required",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "statistics",
+              "importance": "required",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "algorithms",
+              "importance": "required",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "machine learning",
+              "importance": "preferred",
+              "kind": "hard_skill",
+              "variants": ["ML"],
+              "alternatives": []
+            },
+            {
+              "term": "LightGBM",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "XGBoost",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "scikit-learn",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": ["sklearn"],
+              "alternatives": []
+            },
+            {
+              "term": "SQL",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "Spark",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "Airflow",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "research",
+              "importance": "preferred",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            }
+          ],
+          "edits": [
+            {
+              "op": "add_bullet",
+              "target": "s2.e1",
+              "text": "Used LightGBM at the Open Data Lab to predict bus delays",
+              "order": [],
+              "fact": "f1",
+              "keyword": "LightGBM"
+            },
+            {
+              "op": "order_list_values",
+              "target": "s3.l1",
+              "text": "",
+              "order": ["Statistics", "Algorithms"],
+              "fact": "",
+              "keyword": "statistics"
+            }
+          ]
+        },
+        "second_look": {
+          "suggestions": [
+            {
+              "what": "For the posting duty to build machine learning models to predict demand, your entry \"Used LightGBM at the Open Data Lab to predict bus delays\" is a strong match that should come first within your Selected Work section."
+            },
+            {
+              "what": "For the posting requirement of coursework in statistics and algorithms, lead your Relevant Coursework line with \"Statistics\" since it directly supports the transit forecasting team's needs."
+            },
+            {
+              "what": "To avoid repetition, vary your phrasing instead of using \"bus delay prediction\" and \"predict bus delays\" back to back in your Selected Work bullets."
+            }
+          ]
+        }
+      },
+      "expected": {
+        "changes": [
+          {
+            "what": "Added a bullet under Open Data Lab: “Used LightGBM at the Open Data Lab to predict bus delays”",
+            "why": "from your profile facts (“Trained a gradient boosting model at the Open Data Lab”); the posting asks for “LightGBM”",
+            "after": "Used LightGBM at the Open Data Lab to predict bus delays"
+          },
+          {
+            "what": "Put Relevant Coursework in a new order, starting with “Statistics”, “Algorithms”",
+            "why": "what the posting asks for goes first"
+          }
+        ],
+        "dropped": [],
+        "scoreBefore": 56,
+        "scoreAfter": 63,
+        "missing": [
+          "machine learning",
+          "XGBoost",
+          "scikit-learn",
+          "SQL",
+          "Spark",
+          "Airflow"
+        ]
+      }
+    },
+    {
+      "person": "summary",
+      "approach": "two-call",
+      "rep": 2,
+      "at": "2026-10-18T02:41:51.811Z",
+      "outputs": {
+        "posting_keywords": {
+          "keywords": [
+            {
+              "term": "Python",
+              "importance": "required",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "pandas",
+              "importance": "required",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "statistics",
+              "importance": "required",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "algorithms",
+              "importance": "required",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "machine learning",
+              "importance": "preferred",
+              "kind": "hard_skill",
+              "variants": ["ML"],
+              "alternatives": []
+            },
+            {
+              "term": "SQL",
+              "importance": "preferred",
+              "kind": "hard_skill",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "scikit-learn",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": ["sklearn"],
+              "alternatives": []
+            },
+            {
+              "term": "XGBoost",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "LightGBM",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": [],
+              "alternatives": []
+            },
+            {
+              "term": "Spark",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": ["Apache Spark"],
+              "alternatives": []
+            },
+            {
+              "term": "Airflow",
+              "importance": "preferred",
+              "kind": "tool",
+              "variants": ["Apache Airflow"],
+              "alternatives": []
+            },
+            {
+              "term": "communication",
+              "importance": "preferred",
+              "kind": "soft_skill",
+              "variants": [],
+              "alternatives": []
+            }
+          ]
+        },
+        "resume_edits": {
+          "edits": [
+            {
+              "op": "add_bullet",
+              "target": "s2.e1",
+              "text": "Used LightGBM at the Open Data Lab to predict bus delays",
+              "order": [],
+              "fact": "f1",
+              "keyword": "LightGBM"
+            },
+            {
+              "op": "order_list_values",
+              "target": "s3.l1",
+              "text": "",
+              "order": ["Statistics", "Algorithms"],
+              "fact": "",
+              "keyword": "statistics"
+            }
+          ]
+        },
+        "second_look": {
+          "suggestions": [
+            {
+              "what": "Your entry \"Co-authored a poster on bus delay prediction\" matches the posting's bonus for \"experience publishing research\", but a recruiter might miss the connection."
+            },
+            {
+              "what": "The bullet \"Used LightGBM at the Open Data Lab to predict bus delays\" is your strongest match for building machine learning models to predict demand and should lead your bullets under Open Data Lab."
+            }
+          ]
+        }
+      },
+      "expected": {
+        "changes": [
+          {
+            "what": "Added a bullet under Open Data Lab: “Used LightGBM at the Open Data Lab to predict bus delays”",
+            "why": "from your profile facts (“Trained a gradient boosting model at the Open Data Lab”); the posting asks for “LightGBM”",
+            "after": "Used LightGBM at the Open Data Lab to predict bus delays"
+          },
+          {
+            "what": "Put Relevant Coursework in a new order, starting with “Statistics”, “Algorithms”",
+            "why": "what the posting asks for goes first"
+          }
+        ],
+        "dropped": [],
+        "scoreBefore": 53,
+        "scoreAfter": 60,
+        "missing": [
+          "machine learning",
+          "SQL",
+          "scikit-learn",
+          "XGBoost",
+          "Spark",
+          "Airflow"
+        ]
+      }
+    }
+  ]
+}

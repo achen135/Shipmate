@@ -31,6 +31,9 @@ export type AiUsage = {
   outputTokens: number;
 };
 
+/** One model's calls today on the shared key, against its free daily limit. */
+export type SharedQuotaLine = { label: string; used: number; perDay: number };
+
 export type StructuredRequest<T> = {
   tier: Tier;
   /** Instructions: fixed per step, so it caches. */

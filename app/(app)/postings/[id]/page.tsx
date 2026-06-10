@@ -199,9 +199,12 @@ function TailoredResume({
       {tailoring.keySource === "shared" &&
       tailoring.model === SHARED_BACKUP_MODEL.id ? (
         <p className="text-sm text-muted-foreground" data-testid="own-key-hint">
-          Shipmate&apos;s shared free AI was busy, so this ran on its backup
-          model ({SHARED_BACKUP_MODEL.label}), which is a little weaker. Tailor
-          again later for the main one, or add{" "}
+          This ran on Shipmate&apos;s backup model ({SHARED_BACKUP_MODEL.label})
+          because the main one was busy. The fit score and the skills-gap
+          warning may be less reliable than usual. The resume still uses only
+          what&apos;s true on your resume and in your profile, though its
+          wording may be a little weaker. Tailor again later for the main model,
+          or add{" "}
           <Link href="/profile/ai" className="underline underline-offset-2">
             your own key
           </Link>

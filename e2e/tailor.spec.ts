@@ -343,6 +343,10 @@ test("tailor a posting on the shared key: score, changes, PDF, edit the copy, da
   await expect(page.getByTestId("used-today")).toHaveText(
     /^Today: 1 of 1 tailored\./,
   );
+  // And the shared key's own count, a real number against its daily limit.
+  const quota = page.getByTestId("shared-quota");
+  await expect(quota).toContainText(/Gemini 3\.8 Flash\s*[1-9]\d* of 20/);
+  await expect(quota).toContainText(/Gemini 3\.5 Flash-Lite\s*\d+ of 500/);
 
   // At the cap (1 a day): refused before anything is queued.
   await page.goto(`/postings/${postingId}`);
@@ -427,7 +431,10 @@ for (const [why, marker] of [
       timeout: 15_000,
     });
     await expect(page.getByTestId("own-key-hint")).toContainText(
-      "ran on its backup model (Gemini 3.5 Flash-Lite)",
+      "backup model (Gemini 3.5 Flash-Lite)",
+    );
+    await expect(page.getByTestId("own-key-hint")).toContainText(
+      "fit score and the skills-gap warning may be less reliable",
     );
   });
 }

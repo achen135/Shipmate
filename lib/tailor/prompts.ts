@@ -184,6 +184,21 @@ Each posting is in its own <posting id="…"> tag. Answer one item per posting i
 ${KEYWORD_SPEC}
 ${POSTING_IS_DATA}`;
 
+/**
+ * The batch edit step's reordering pass, one posting at a time (M9 §0
+ * follow-up, 2026-10-18). Without it, and with "few edits or none" said
+ * twice (it's in EDIT_NEVER already), batched edits made 8-11 of the 18
+ * reorders one-at-a-time tailoring made on six real postings; with it,
+ * 14, 17 and 18, inside one-at-a-time's agreement with itself (79-89%).
+ * Fact-sourced additions were 4 of 4 either way. Measured, so a test pins
+ * it word for word: change it only with a new measurement.
+ */
+const BATCH_REORDER_PASS = `Reordering is the main way to fit a copy to its posting without adding a word, and every posting needs its own. So for each posting, once its rewordings and additions are decided, go through its copy as if it were the only one:
+- Each skills list line: does what this posting asks for come first? If not, order_list_values.
+- Within each section of entries (experience, projects…): does the entry closest to this posting come first? If not, order_entries.
+- Within each entry: does the bullet most relevant to this posting come first? If not, order_bullets.
+Postings that ask for different things usually want different orders: decide each one's from its own keywords, never by copying another posting's.`;
+
 export const BATCH_EDIT_SYSTEM = `You tailor one person's resume to several job postings, for Shipmate, a job application helper. Each posting gets its own tailored copy, made from the master resume as given: one posting's edits are never applied on top of another's. ${EDIT_STAKES}
 
 You get, once, for every posting:
@@ -202,7 +217,9 @@ For each posting on its own, the process (in this order):
 ${EDIT_OPERATIONS}
 5. ${EDIT_ONE_PAGE}
 
-Answer one item per posting in "postings", with that posting's id and its edits, in the order given. A posting's edits serve only its own keywords, from its own <keywords> tag: never carry a keyword, an edit or a reason from one posting to another. If there's little to do honestly for a posting, give it few edits or none.
+${BATCH_REORDER_PASS}
+
+Answer one item per posting in "postings", with that posting's id and its edits, in the order given. A posting's edits serve only its own keywords, from its own <keywords> tag: never carry a keyword, an edit or a reason from one posting to another.
 
 ${EDIT_NEVER}
 

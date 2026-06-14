@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { describe, expect, it } from "vitest";
 
 import { assertNothingInvented } from "./__fixtures__/invented";
@@ -381,6 +383,44 @@ describe("batch prompts: the one-posting rules, word for word", () => {
     expect(BATCH_KEYWORDS_SYSTEM).toMatch(/never from another posting/);
     expect(BATCH_EDIT_SYSTEM).toMatch(
       /never carry a keyword, an edit or a reason from one posting to another/,
+    );
+  });
+
+  // M9 §0 follow-up (2026-10-18): without this pass, and with "few edits or
+  // none" said twice, batched edits made 8-11 of the 18 reorders one at a
+  // time made on six real postings; with it, 14, 17 and 18. A test can't
+  // measure the model, so these fail on any change to what was measured.
+  it("asks for each posting's reordering pass, word for word", () => {
+    expect(BATCH_EDIT_SYSTEM).toContain(
+      `Reordering is the main way to fit a copy to its posting without adding a word, and every posting needs its own. So for each posting, once its rewordings and additions are decided, go through its copy as if it were the only one:
+- Each skills list line: does what this posting asks for come first? If not, order_list_values.
+- Within each section of entries (experience, projects…): does the entry closest to this posting come first? If not, order_entries.
+- Within each entry: does the bullet most relevant to this posting come first? If not, order_bullets.
+Postings that ask for different things usually want different orders: decide each one's from its own keywords, never by copying another posting's.`,
+    );
+    // After the operations it refers to, before the answer it shapes.
+    const pass = BATCH_EDIT_SYSTEM.indexOf("Reordering is the main way");
+    expect(pass).toBeGreaterThan(
+      BATCH_EDIT_SYSTEM.indexOf("   - order_list_values"),
+    );
+    expect(pass).toBeLessThan(
+      BATCH_EDIT_SYSTEM.indexOf('Answer one item per posting in "postings"'),
+    );
+  });
+
+  it("says 'few edits or none' once, as the one-posting prompt does", () => {
+    const count = (s: string) => s.match(/few edits or none/g)?.length ?? 0;
+    expect(count(EDIT_SYSTEM)).toBe(1);
+    expect(count(BATCH_EDIT_SYSTEM)).toBe(1);
+  });
+
+  it("is the prompt that was measured: change it only with a new measurement", () => {
+    // sha256 of BATCH_EDIT_SYSTEM as run in the 2026-10-18 measurements
+    // (docs/Sessions.md, M9 §0 follow-up). This includes the parts shared
+    // with the one-posting prompt: changing those changes batched
+    // behaviour too, so it needs measuring again before the hash moves.
+    expect(createHash("sha256").update(BATCH_EDIT_SYSTEM).digest("hex")).toBe(
+      "599b93aa99878539962f321b9ff6098152f714f819810ec13336960102aae26f",
     );
   });
 });

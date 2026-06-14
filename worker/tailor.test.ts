@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { tailoringDay } from "@/lib/tailor/mass";
+
 import { pdfPathFor, sharedModel } from "./tailor";
 
 describe("the shared key's backup model (Flash-Lite)", () => {
@@ -16,5 +18,13 @@ describe("tailored PDF paths", () => {
     const b = pdfPathFor("user", "posting", 2_000);
     expect(a).toMatch(/^user\/posting\/[a-z0-9]+\.pdf$/);
     expect(a).not.toBe(b);
+  });
+});
+
+describe("tailoring days", () => {
+  it("are Eastern dates, like the cap", () => {
+    // 03:30 UTC on 19 Oct is still 18 Oct in New York (EDT, UTC-4).
+    expect(tailoringDay(Date.UTC(2026, 9, 19, 3, 30))).toBe("2026-10-18");
+    expect(tailoringDay(Date.UTC(2026, 9, 19, 4, 30))).toBe("2026-10-19");
   });
 });

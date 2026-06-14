@@ -224,12 +224,21 @@ describe("tailorBatch: several postings, one edit request", () => {
       "batch_posting_keywords",
       "batch_resume_edits",
     ]);
-    expect(a.outcomes).toEqual(b.outcomes);
+    for (const [i, outcome] of a.outcomes.entries()) {
+      const other = b.outcomes[i];
+      if (outcome.status !== "done" || other.status !== "done") {
+        throw new Error("not done");
+      }
+      for (const key of SAME) {
+        expect(outcome.result[key]).toEqual(other.result[key]);
+      }
+    }
   });
 
-  it("a posting the edit answer leaves out, or answers twice, is left to tailor alone", async () => {
-    const { provider } = scriptedProvider({
+  it("a posting the edit answer leaves out, or answers twice, gets its edit step asked alone, with its keywords already in hand", async () => {
+    const { provider, calls } = scriptedProvider({
       ...batchScript(),
+      resume_edits: (input: string) => ({ edits: answers[about(input)].edits }),
       batch_resume_edits: () => ({
         postings: [
           { id: "p1", edits: answers.backend.edits },
@@ -242,15 +251,51 @@ describe("tailorBatch: several postings, one edit request", () => {
       provider,
       measure: lineMeasure(40).measure,
     });
-    expect(run.outcomes.map((o) => o.status)).toEqual([
-      "done",
-      "alone",
-      "alone",
-    ]);
+    expect(run.outcomes.map((o) => o.status)).toEqual(["done", "done", "done"]);
     expect(run.problems).toEqual([
       "posting p2 not answered",
       "posting p3 answered 2 times",
     ]);
+    // Three keyword requests, the batch, then the two left out, alone: no
+    // keyword request is made twice.
+    expect(calls.map((c) => c.name)).toEqual([
+      "posting_keywords",
+      "posting_keywords",
+      "posting_keywords",
+      "batch_resume_edits",
+      "resume_edits",
+      "resume_edits",
+    ]);
+    const data = run.outcomes[1];
+    if (data.status !== "done") throw new Error("not done");
+    expect(data.result.changes.map((c) => c.what)).toEqual([
+      "Put Languages in a new order, starting with “Python”, “SQL”, “TypeScript”",
+    ]);
+  });
+
+  it("each posting carries its own keyword request's usage and a share of the edit request's", async () => {
+    const { provider } = scriptedProvider(batchScript());
+    const run = await tailorBatch(batchInput, {
+      provider,
+      measure: lineMeasure(40).measure,
+    });
+    const total = run.usage.reduce((n, u) => n + u.inputTokens, 0);
+    const perPosting = run.outcomes.reduce(
+      (n, o) => n + (o.status === "done" ? o.result.usage.inputTokens : 0),
+      0,
+    );
+    // Every token counted once, spread over the postings (second looks are
+    // the postings' own, so subtract them).
+    const secondLooks = run.outcomes.reduce(
+      (n, o) =>
+        n + (o.status === "done" && o.result.secondLook === "done" ? 1000 : 0),
+      0,
+    );
+    expect(perPosting - secondLooks).toBe(total);
+    for (const o of run.outcomes) {
+      if (o.status !== "done") throw new Error("not done");
+      expect(o.result.usage.model).toBe("gemini-3.8-flash");
+    }
   });
 
   it("a posting answered twice or not at all is left to tailor alone; an unknown id is ignored", async () => {

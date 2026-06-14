@@ -4,8 +4,9 @@
  * requests a day (Flash: 20), not tokens, so asking once for a batch is what
  * lets a sit-down session tailor more than a handful.
  *
- * Built to be measured before anything uses it: nothing in the app or the
- * worker calls this yet.
+ * Measured before use (M9 §0, Design Decisions "Mass apply": measured and
+ * decided): keywords one request per posting, the edit step batched, on
+ * Gemini only, at most BATCH_SIZE postings per batch.
  *
  *   1. keywords: by default one request per posting, exactly the
  *      one-posting step (pipeline.ts askKeywords), because one request for
@@ -22,7 +23,11 @@
  *
  * Attribution is by the id the model echoes, nothing else: an answer for an
  * id that wasn't asked about is ignored, and an id answered twice or not at
- * all is left for a one-posting tailoring ("alone"), never guessed at. One
+ * all is never guessed at: that posting's edit step is asked alone, with the
+ * keywords already in hand (with `keywords: "batch"`, a posting the keyword
+ * answer leaves out comes back "alone" for the caller). Each posting's
+ * result carries its own keyword request's tokens and an even share of the
+ * edit request's, so a tailoring's cost adds up. One
  * person per batch, always: the resume and facts are the same for every
  * posting, so a mixed-up answer can't put someone else's words on a resume,
  * and the checks still hold every item to that person's own words.
@@ -76,6 +81,14 @@ export const batchEditsSchema = z.object({
  * asks for all of it; how many postings fit is measured, not assumed.
  */
 export const BATCH_MAX_OUTPUT_TOKENS = 65_536;
+
+/**
+ * At most this many postings per batched edit request. Measured with the
+ * shipped prompt: it held its per-posting edits at 17 (4.0 each) and had
+ * halved by 37 (2.0). On the shared key a day's 20 Flash requests cover at
+ * most 19 postings anyway (one keyword request each, plus the edit one).
+ */
+export const BATCH_SIZE = 17;
 
 export type BatchPosting = {
   /** The caller's id (a tailoring row, a posting): only used to report back. */
@@ -140,23 +153,35 @@ export function attribute<T extends { id: string }>(
 }
 
 /**
+ * The index-th of `ways` even shares of one request's tokens (the first
+ * takes what doesn't divide evenly), so the shares add up to the request.
+ */
+function share(usage: AiUsage, ways: number, index: number): AiUsage {
+  const part = (n: number) =>
+    Math.floor(n / ways) + (index === 0 ? n % ways : 0);
+  return {
+    ...usage,
+    inputTokens: part(usage.inputTokens),
+    outputTokens: part(usage.outputTokens),
+  };
+}
+
+/**
  * The real provider, except that the two strong steps of one posting are
- * answered from the batch. The edit step's answer is given only if the
- * pipeline marked that posting's keywords exactly as the batch request did:
- * otherwise the edits were made against something else, and that's a bug.
+ * answered from the batch, each with its share of what the batch's requests
+ * used. The edit step's answer is given only if the pipeline marked that
+ * posting's keywords exactly as the batch request did: otherwise the edits
+ * were made against something else, and that's a bug. "ask": the batch's
+ * edit answer left this posting out, so its edit step is asked alone.
  */
 function answeredFromBatch(
   provider: AiProvider,
   answers: {
-    keywords: ExtractedKeywords;
-    edits: { lines: string[]; edits: unknown[]; model: string } | null;
-    keywordModel: string;
+    keywords: { data: ExtractedKeywords; usage: AiUsage };
+    edits: { lines: string[]; edits: unknown[]; usage: AiUsage } | "ask" | null;
   },
 ): AiProvider {
-  const replay = <T>(data: T, model: string) => ({
-    data,
-    usage: { provider: provider.name, model, inputTokens: 0, outputTokens: 0 },
-  });
+  const replay = <T>(data: T, usage: AiUsage) => ({ data, usage });
   return {
     name: provider.name,
     shared: provider.shared,
@@ -165,22 +190,24 @@ function answeredFromBatch(
     async generateStructured(request) {
       if (request.name === "posting_keywords") {
         return replay(
-          request.schema.parse(answers.keywords),
-          answers.keywordModel,
+          request.schema.parse(answers.keywords.data),
+          answers.keywords.usage,
         );
       }
       if (request.name === "resume_edits") {
+        const edits = answers.edits;
+        if (edits === "ask") return provider.generateStructured(request);
         const sent = /<keywords>\n([\s\S]*?)\n<\/keywords>/.exec(
           request.input,
         )?.[1];
-        if (!answers.edits || sent !== answers.edits.lines.join("\n")) {
+        if (!edits || sent !== edits.lines.join("\n")) {
           throw new Error(
             "batch: the edit step's keywords aren't the ones the batch was asked about",
           );
         }
         return replay(
-          request.schema.parse({ edits: answers.edits.edits }),
-          answers.edits.model,
+          request.schema.parse({ edits: edits.edits }),
+          edits.usage,
         );
       }
       return provider.generateStructured(request);
@@ -211,14 +238,15 @@ export async function tailorBatch(
   const scored = items.filter((p) => p.body !== null);
 
   // 1. Keywords.
-  const keywordsFor = new Map<string, ExtractedKeywords>();
-  const keywordModel = new Map<string, string>();
+  const keywordsFor = new Map<
+    string,
+    { data: ExtractedKeywords; usage: AiUsage }
+  >();
   if (deps.keywords !== "batch") {
     for (const p of scored) {
       const answer = await askKeywords(provider, p.body!);
       usage.push(answer.usage);
-      keywordsFor.set(p.key, answer.data);
-      keywordModel.set(p.key, answer.usage.model);
+      keywordsFor.set(p.key, answer);
     }
   } else if (scored.length > 0) {
     const answer = await provider.generateStructured({
@@ -238,8 +266,14 @@ export async function tailorBatch(
     );
     problems.push(...found.problems);
     for (const [key, item] of found.byId) {
-      keywordsFor.set(key, { keywords: item.keywords });
-      keywordModel.set(key, answer.usage.model);
+      keywordsFor.set(key, {
+        data: { keywords: item.keywords },
+        usage: share(
+          answer.usage,
+          scored.length,
+          scored.findIndex((p) => p.key === key),
+        ),
+      });
     }
   }
 
@@ -247,7 +281,7 @@ export async function tailorBatch(
   // edit: keywords that pass the same checks, enough of them.
   const linesFor = new Map<string, string[]>();
   for (const p of scored) {
-    const extracted = keywordsFor.get(p.key);
+    const extracted = keywordsFor.get(p.key)?.data;
     if (!extracted) continue;
     const text = (p.posting.text ?? "").trim();
     const keywords = verifyKeywords(extracted, `${p.posting.title}\n${text}`);
@@ -256,7 +290,7 @@ export async function tailorBatch(
     }
   }
   const editsFor = new Map<string, unknown[]>();
-  let editModel = "";
+  let editAnswer: AiUsage | null = null;
   const toEdit = scored.filter((p) => linesFor.has(p.key));
   if (toEdit.length > 0) {
     const answer = await provider.generateStructured({
@@ -278,7 +312,7 @@ export async function tailorBatch(
       maxOutputTokens,
     });
     usage.push(answer.usage);
-    editModel = answer.usage.model;
+    editAnswer = answer.usage;
     const found = attribute(
       toEdit.map((p) => p.key),
       answer.data.postings,
@@ -316,19 +350,25 @@ export async function tailorBatch(
     }
     const lines = linesFor.get(p.key);
     const edits = editsFor.get(p.key);
-    if (lines && !edits) {
-      outcomes.push({
-        id: p.id,
-        status: "alone",
-        reason: "not answered in the edit request",
-      });
-      continue;
-    }
+    // Left out of (or answered twice in) the edit answer: its edit step is
+    // asked alone, with the keywords already in hand.
     const result = await tailor(tailorInput, {
       provider: answeredFromBatch(provider, {
         keywords,
-        keywordModel: keywordModel.get(p.key)!,
-        edits: lines && edits ? { lines, edits, model: editModel } : null,
+        edits:
+          lines && edits && editAnswer
+            ? {
+                lines,
+                edits,
+                usage: share(
+                  editAnswer,
+                  toEdit.length,
+                  toEdit.findIndex((t) => t.key === p.key),
+                ),
+              }
+            : lines
+              ? "ask"
+              : null,
       }),
       measure,
     });

@@ -214,7 +214,7 @@ function OwnKeyNudge() {
  * out by hitting "Tailor this" and being told to wait. Everyone's calls
  * count, not just yours. Google's day ends at midnight Pacific.
  */
-function SharedQuota({ lines }: { lines: SharedQuotaLine[] }) {
+export function SharedQuota({ lines }: { lines: SharedQuotaLine[] }) {
   return (
     <div
       className="rounded-xl border bg-card p-4 text-sm"

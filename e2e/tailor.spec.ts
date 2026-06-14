@@ -527,3 +527,112 @@ test("a model overloaded (503) past every retry: the tailoring waits for the nex
   await expect(page.getByTestId("own-key-nudge")).toHaveCount(0);
   await admin.from("tailorings").delete().eq("id", rowId);
 });
+
+test("Tailor all on To Apply: today's share now, in one batch; the rest on later days", async ({
+  page,
+}, info) => {
+  test.setTimeout(180_000);
+  const tag = `a${info.project.name.length}${Date.now().toString(36)}`;
+  const user = await createTestUser(`tailor-all-${tag}`);
+  await finishOnboarding(user.id);
+  const admin = db();
+  await admin
+    .from("profiles")
+    .update({ mode: "ai", daily_cap: 2, name: "Jordan Lee" })
+    .eq("user_id", user.id);
+  await admin
+    .from("resumes")
+    .insert({ user_id: user.id, kind: "structured", content: MASTER });
+  await admin.from("fact_bank").insert({
+    user_id: user.id,
+    kind: "skill",
+    content: { text: "Kubernetes" },
+  });
+  const postingIds = await seedPostings(`Harborview ${tag}`, [
+    {
+      title: "Backend Intern",
+      category: "Software",
+      daysAgo: 1,
+      description: DESCRIPTION,
+    },
+    {
+      title: "Platform Intern",
+      category: "Software",
+      daysAgo: 2,
+      description: DESCRIPTION,
+    },
+    {
+      title: "Data Intern",
+      category: "Software",
+      daysAgo: 3,
+      description: DESCRIPTION,
+    },
+  ]);
+  for (const id of postingIds) {
+    await addToInbox(user.id, id);
+    // Saved one after another: that's the order they're queued in.
+    await admin
+      .from("user_postings")
+      .update({ status: "saved" })
+      .eq("user_id", user.id)
+      .eq("posting_id", id);
+  }
+
+  await signIn(page, user, "/to-apply");
+  const panel = page.getByTestId("tailor-all");
+  await expect(panel).toContainText(
+    "Tailors 2 today; the other 1 wait for the next day (your daily cap is 2).",
+  );
+  // On the shared key: how busy it is today, before spending any of it.
+  await expect(panel.getByTestId("shared-quota")).toBeVisible();
+
+  await panel.getByRole("button", { name: "Tailor all" }).click();
+  await expect(panel.getByRole("status")).toContainText(
+    /^Tailoring 2 now\. 1 more is queued for later days, the last on \w{3}, \w{3} \d{1,2}, because your daily cap is 2\.$/,
+  );
+
+  const { data: rows } = await admin
+    .from("tailorings")
+    .select("id, user_posting_id, run_on, mass")
+    .eq("user_id", user.id)
+    .order("queue_rank");
+  expect(rows).toHaveLength(3);
+  const { data: today } = await admin.rpc("tailoring_today");
+  expect(rows!.map((r) => [r.run_on === today, r.mass])).toEqual([
+    [true, true],
+    [true, true],
+    [false, true],
+  ]);
+  // The one for tomorrow says so on its card, without a spinner.
+  await page.reload();
+  await expect(page.getByTestId("card-tailoring-later")).toHaveCount(1);
+  await expect(page.getByTestId("card-tailoring-later")).toContainText(
+    /^Queued to tailor on \w{3}, \w{3} \d{1,2}$/,
+  );
+
+  // The worker: today's two together, one batched edit request.
+  const log = await tailorUntilFinished(rows![1].id);
+  for (const row of rows!.slice(0, 2)) {
+    const { data } = await admin
+      .from("tailorings")
+      .select("state, changes, missing, resume_content")
+      .eq("id", row.id)
+      .single();
+    expect(data?.state).toBe("done");
+    expect(JSON.stringify(data!.changes)).toContain(
+      "Added “Kubernetes” to Tools",
+    );
+    expect(data!.missing).toEqual(["Kafka"]);
+    expect(JSON.stringify(data!.resume_content)).not.toContain("Kafka");
+    // Whichever worker took them (the queue is shared), they went together.
+    if (log.includes(row.id)) {
+      expect(log).toMatch(new RegExp(`${row.id}: done.*, batch\\)`));
+    }
+  }
+  const { data: later } = await admin
+    .from("tailorings")
+    .select("state")
+    .eq("id", rows![2].id)
+    .single();
+  expect(later?.state).toBe("queued");
+});

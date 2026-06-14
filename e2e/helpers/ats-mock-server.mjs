@@ -304,6 +304,21 @@ function tailoringEdits(input) {
   return edits;
 }
 
+/**
+ * The batched edit step (M9): the resume once, then each posting's
+ * <keywords id="pN">; each answered like a one-posting edit step, under its
+ * id.
+ */
+function batchEdits(input) {
+  const resume = input.match(/<resume>[\s\S]*?<\/resume>/)?.[0] ?? "";
+  return [
+    ...input.matchAll(/<keywords id="(p\d+)">\n([\s\S]*?)\n<\/keywords>/g),
+  ].map(([, id, lines]) => ({
+    id,
+    edits: tailoringEdits(`${resume}\n${lines}`),
+  }));
+}
+
 function answerAi(url, request, raw, response) {
   let body = {};
   try {
@@ -357,6 +372,13 @@ function answerAi(url, request, raw, response) {
   const answer = () => {
     if (/keywords an Applicant Tracking System/.test(instructions)) {
       return { keywords: postingKeywords(input) };
+    }
+    if (
+      /You tailor one person's resume to several job postings/.test(
+        instructions,
+      )
+    ) {
+      return { postings: batchEdits(input) };
     }
     if (/You tailor one person's resume/.test(instructions)) {
       return { edits: tailoringEdits(input) };

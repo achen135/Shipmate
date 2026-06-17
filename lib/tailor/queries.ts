@@ -52,22 +52,34 @@ export type TailoringView = {
   error: string | null;
 };
 
-/** The latest tailoring for one Inbox row, or null. */
-export async function getLatestTailoring(
-  userPostingId: string,
-): Promise<TailoringView | null> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("tailorings")
-    .select(
-      "id, state, created_at, rate_limited_at, score_before, score_after, matched, missing, changes, suggestions, notes, warnings, pdf_path, pdf_requested_at, edited_at, key_source, model, est_cost, error",
-    )
-    .eq("user_posting_id", userPostingId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error) throw new Error(`tailoring: ${error.message}`);
-  if (!data) return null;
+/** The columns toTailoringView() reads, for any query that embeds tailorings. */
+export const TAILORING_FIELDS =
+  "id, state, created_at, rate_limited_at, score_before, score_after, matched, missing, changes, suggestions, notes, warnings, pdf_path, pdf_requested_at, edited_at, key_source, model, est_cost, error" as const;
+
+type TailoringRow = {
+  id: string;
+  state: string;
+  created_at: string;
+  rate_limited_at: string | null;
+  score_before: number | null;
+  score_after: number | null;
+  matched: string[];
+  missing: string[];
+  changes: unknown;
+  suggestions: unknown;
+  notes: unknown;
+  warnings: unknown;
+  pdf_path: string | null;
+  pdf_requested_at: string | null;
+  edited_at: string | null;
+  key_source: string | null;
+  model: string | null;
+  est_cost: number | string;
+  error: string | null;
+};
+
+/** One tailorings row → what the review page and the fast-review queue show. */
+export function toTailoringView(data: TailoringRow): TailoringView {
   return {
     id: data.id,
     state: data.state as TailoringView["state"],
@@ -89,6 +101,22 @@ export async function getLatestTailoring(
     estCost: Number(data.est_cost),
     error: data.error,
   };
+}
+
+/** The latest tailoring for one Inbox row, or null. */
+export async function getLatestTailoring(
+  userPostingId: string,
+): Promise<TailoringView | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("tailorings")
+    .select(TAILORING_FIELDS)
+    .eq("user_posting_id", userPostingId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`tailoring: ${error.message}`);
+  return data ? toTailoringView(data) : null;
 }
 
 /**

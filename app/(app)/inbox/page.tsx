@@ -1,4 +1,4 @@
-import { Anchor } from "lucide-react";
+import { Anchor, ListChecks } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -47,6 +47,16 @@ export default async function InboxPage() {
             : `${items.length} new posting${items.length === 1 ? "" : "s"}. Save the ones worth applying to.`}
         </p>
       </div>
+      {items.some((i) => i.tailorings[0]?.state === "done") && (
+        <Link
+          href="/to-apply/review"
+          data-testid="fast-review-link"
+          className="flex items-center gap-2 text-sm underline underline-offset-4"
+        >
+          <ListChecks aria-hidden="true" className="size-4" />
+          Review tailored results quickly
+        </Link>
+      )}
       {groupByDay(items, now).map((group) => (
         <section
           key={group.key}

@@ -636,3 +636,143 @@ test("Tailor all on To Apply: today's share now, in one batch; the rest on later
     .single();
   expect(later?.state).toBe("queued");
 });
+
+test("fast-review queue: tailored results from the real pipeline, keys to move and decide, nothing re-tailored", async ({
+  page,
+}, info) => {
+  test.setTimeout(180_000);
+  const tag = `a${info.project.name.length}${Date.now().toString(36)}`;
+  const user = await createTestUser(`fast-review-${tag}`);
+  await finishOnboarding(user.id);
+  const admin = db();
+  await admin
+    .from("profiles")
+    .update({ mode: "ai", daily_cap: 3, name: "Jordan Lee" })
+    .eq("user_id", user.id);
+  await admin
+    .from("resumes")
+    .insert({ user_id: user.id, kind: "structured", content: MASTER });
+  await admin.from("fact_bank").insert({
+    user_id: user.id,
+    kind: "skill",
+    content: { text: "Kubernetes" },
+  });
+  const titles = ["Backend Intern", "Platform Intern", "Data Intern"];
+  const postingIds = await seedPostings(
+    `Seawall ${tag}`,
+    titles.map((title, i) => ({
+      title,
+      category: "Software",
+      daysAgo: i + 1,
+      description: DESCRIPTION,
+    })),
+  );
+  for (const id of postingIds) {
+    await addToInbox(user.id, id);
+    await admin
+      .from("user_postings")
+      .update({ status: "saved" })
+      .eq("user_id", user.id)
+      .eq("posting_id", id);
+  }
+
+  // Tailor all, then the worker: the results come from the real pipeline.
+  await signIn(page, user, "/to-apply");
+  await page
+    .getByTestId("tailor-all")
+    .getByRole("button", { name: "Tailor all" })
+    .click();
+  await expect(
+    page.getByTestId("tailor-all").getByRole("status"),
+  ).toContainText("Tailoring 3 now");
+  const { data: queued } = await admin
+    .from("tailorings")
+    .select("id")
+    .eq("user_id", user.id);
+  expect(queued).toHaveLength(3);
+  for (const row of queued!) await tailorUntilFinished(row.id);
+
+  const snapshot = async () =>
+    JSON.stringify(
+      (
+        await admin
+          .from("tailorings")
+          .select("id, state, score_after, changes, resume_content, pdf_path")
+          .eq("user_id", user.id)
+          .order("id")
+      ).data,
+    );
+  const before = await snapshot();
+
+  // The entry point is on To Apply.
+  await page.reload();
+  await page.getByTestId("fast-review-link").click();
+  await expect(page).toHaveURL(/\/to-apply\/review$/);
+  const items = page.getByTestId("queue-item");
+  await expect(items).toHaveCount(3);
+  await expect(page.getByTestId("queue-count")).toHaveText(
+    "3 of 3 left to review.",
+  );
+  // Scored, and what changed is visible without opening anything.
+  await expect(page.getByTestId("queue-score").first()).toHaveText(
+    /^\d+% → \d+%$/,
+  );
+  await expect(page.getByTestId("queue-changes").first()).toContainText(
+    "Added “Kubernetes” to Tools",
+  );
+
+  const statusOf = async (postingId: string) =>
+    (
+      await admin
+        .from("user_postings")
+        .select("status")
+        .eq("user_id", user.id)
+        .eq("posting_id", postingId)
+        .single()
+    ).data?.status;
+
+  // Keys: j moves, e expands in place, x skips, s keeps.
+  await expect(items.first()).toHaveAttribute("aria-current", "true");
+  await page.keyboard.press("j");
+  await expect(items.nth(1)).toHaveAttribute("aria-current", "true");
+  await page.keyboard.press("k");
+  await page.keyboard.press("e");
+  await expect(items.first().getByTestId("queue-detail")).toBeVisible();
+  await expect(page).toHaveURL(/\/to-apply\/review$/);
+  await page.keyboard.press("e");
+  await expect(items.first().getByTestId("queue-detail")).toHaveCount(0);
+
+  const firstTitle = await items.first().getByTestId("queue-title").innerText();
+  const idOfTitle = (title: string) =>
+    postingIds[titles.findIndex((t) => title.includes(t))];
+  const firstPosting = idOfTitle(firstTitle);
+
+  await page.keyboard.press("x");
+  await expect(items.first().getByTestId("queue-decision")).toHaveText(
+    "Skipped",
+  );
+  await expect(items.nth(1)).toHaveAttribute("aria-current", "true");
+  await expect.poll(() => statusOf(firstPosting)).toBe("skipped");
+
+  await page.keyboard.press("s");
+  await expect(items.nth(1).getByTestId("queue-decision")).toHaveText(
+    "Kept in To Apply",
+  );
+  await expect(page.getByTestId("queue-count")).toHaveText(
+    "1 of 3 left to review.",
+  );
+
+  // o: the full review page, in a new tab, with the queue left where it was.
+  const popup = page.waitForEvent("popup");
+  await page.keyboard.press("o");
+  expect((await popup).url()).toMatch(/\/postings\/[0-9a-f-]{36}$/);
+  await expect(page).toHaveURL(/\/to-apply\/review$/);
+
+  // The skip stuck: a reload leaves it out. The kept one is still saved.
+  await page.reload();
+  await expect(items).toHaveCount(2);
+  expect(await statusOf(firstPosting)).toBe("skipped");
+
+  // Reviewing re-tailored and edited nothing.
+  expect(await snapshot()).toBe(before);
+});

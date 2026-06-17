@@ -12,10 +12,13 @@
  *   4. one notification per user for the rows just created (push, with an
  *      email fallback; worker/notify.ts). Sent before tailoring: the
  *      review page shows "tailoring…" until it's ready.
- *   5. queue auto-tailoring for those rows (users who turned it on, within
+ *   5. fetch the full text of postings people have saved to To Apply and that
+ *      have none yet, so a later "Tailor all" doesn't wait on it
+ *      (worker/prefetch.ts; no AI)
+ *   6. queue auto-tailoring for those rows (users who turned it on, within
  *      their daily cap), then drain the tailoring queue, one row at a time,
  *      within a time budget (worker/tailor.ts; tailor.yml drains it too)
- *   6. write the `runs` row
+ *   7. write the `runs` row
  * M9 adds the cold tier.
  *
  * WATCH_SOURCES=greenhouse:stripe,lever:palantir limits a run to those
@@ -44,12 +47,15 @@ import { type CheckOutcome, formatAlert, nextHealth } from "./health";
 import { type MatchResult, matchNewPostings } from "./match";
 import { type NotifyStats, notifyUsers } from "./notify";
 import { createPrinter } from "./pdf";
+import { type PrefetchStats, prefetchSavedText } from "./prefetch";
 import { type TailorStats, drainTailorings, queueAutoTailor } from "./tailor";
 import { serviceRoleKeySources } from "@/lib/ai";
 import { withE2eOrigin } from "@/lib/e2e-origin";
 
 /** watch.yml's timeout is 20 minutes; tailoring stops claiming after this. */
 const TAILOR_DEADLINE_MS = 14 * 60 * 1000;
+/** Pre-fetching posting text gets this long, so tailoring keeps its time. */
+const PREFETCH_DEADLINE_MS = 3 * 60 * 1000;
 
 type SourceRunStats = {
   outcome: CheckOutcome["kind"];
@@ -110,6 +116,7 @@ async function main(): Promise<number> {
   let isSeed = false;
   let matching: Omit<MatchResult, "newRows"> | null = null;
   let notifications: NotifyStats | null = null;
+  let prefetch: PrefetchStats | null = null;
   let tailoring:
     (TailorStats & { autoQueued: number; autoCapped: number }) | null = null;
   let crashed: unknown = null;
@@ -127,6 +134,8 @@ async function main(): Promise<number> {
     if (notifications) {
       console.log(`[worker] notifications: ${JSON.stringify(notifications)}`);
     }
+    prefetch = await runPrefetch(db);
+    if (prefetch) console.log(`[worker] prefetch: ${JSON.stringify(prefetch)}`);
     tailoring = await runTailoring(db, newRows, started);
     console.log(`[worker] tailoring: ${JSON.stringify(tailoring)}`);
   } catch (error) {
@@ -144,6 +153,7 @@ async function main(): Promise<number> {
         sources: stats,
         matching,
         notifications,
+        prefetch,
         tailoring,
       } as unknown as NonNullable<Json>,
       errors,
@@ -160,6 +170,22 @@ async function main(): Promise<number> {
 }
 
 /** Step 5. A failure here is logged and never fails the watch run. */
+async function runPrefetch(db: Db): Promise<PrefetchStats | null> {
+  try {
+    return await prefetchSavedText(db, {
+      fetch: withE2eOrigin(createPoliteFetch(), process.env),
+      deadline: Date.now() + PREFETCH_DEADLINE_MS,
+    });
+  } catch (error) {
+    console.error(
+      "[worker] prefetch failed:",
+      error instanceof Error ? error.message : "unknown",
+    );
+    return null;
+  }
+}
+
+/** Step 6. A failure here is logged and never fails the watch run. */
 async function runTailoring(
   db: Db,
   newRows: { userId: string; postingId: string }[],

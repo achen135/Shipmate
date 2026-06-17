@@ -1,5 +1,6 @@
 "use server";
 
+import { after } from "next/server";
 import { z } from "zod";
 
 import type { ActionResult } from "@/lib/action-result";
@@ -9,6 +10,7 @@ import {
   statusChangeSchema,
   statusUpdate,
 } from "@/lib/inbox/status";
+import { prefetchQuestions } from "@/lib/questions/prefetch";
 import type { Json } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -16,7 +18,8 @@ import { createClient } from "@/lib/supabase/server";
  * Inbox / To Apply / posting detail actions. RLS limits each update to the
  * caller's own row; column grants limit it to status, skip_reason, seen_at.
  * No revalidation: the card shows the result itself (with Undo), and the
- * lists are dynamic, so the next visit reads fresh rows.
+ * lists are dynamic, so the next visit reads fresh rows. Saving also starts
+ * the no-AI prep that can start early (the application form: M9 §3).
  */
 
 export async function changeStatus(input: StatusChange): Promise<ActionResult> {
@@ -36,6 +39,13 @@ export async function changeStatus(input: StatusChange): Promise<ActionResult> {
   }
   if (parsed.data.status === "applied") {
     await recordResumeUsed(parsed.data.id);
+  }
+  if (parsed.data.status === "saved") {
+    // After the answer has gone: read the application form now, so the review
+    // page and a later "Tailor all" don't wait on the ATS (M9 §3). The client
+    // is made here because cookies aren't readable once the response is sent.
+    const id = parsed.data.id;
+    after(() => prefetchQuestions(supabase, id));
   }
   return { ok: true };
 }

@@ -31,10 +31,11 @@ export type SeedPosting = {
 
 const companyIds: string[] = [];
 
+/** Insert postings for a new company; returns their ids in order. */
 export async function seedPostings(
   company: string,
   postings: SeedPosting[],
-): Promise<void> {
+): Promise<string[]> {
   const db = admin();
   const { data: row, error } = await db
     .from("companies")
@@ -61,8 +62,12 @@ export async function seedPostings(
       status: p.status ?? "open",
     };
   });
-  const { error: postingsError } = await db.from("postings").insert(rows);
+  const { data: inserted, error: postingsError } = await db
+    .from("postings")
+    .insert(rows)
+    .select("id");
   if (postingsError) throw new Error(`seed postings: ${postingsError.message}`);
+  return inserted.map((p) => p.id as string);
 }
 
 /** Mark a user invited with Basics done, as if steps 1-2 already happened. */
@@ -80,6 +85,27 @@ export async function finishBasics(
     })
     .eq("user_id", userId);
   if (error) throw new Error(`finish basics: ${error.message}`);
+}
+
+/** Invited, Basics and What to watch done: a member with an empty Inbox. */
+export async function finishOnboarding(userId: string): Promise<void> {
+  await finishBasics(userId);
+  const { error } = await admin()
+    .from("profiles")
+    .update({ onboarding_step: 6 })
+    .eq("user_id", userId);
+  if (error) throw new Error(`finish onboarding: ${error.message}`);
+}
+
+/** Put a posting in a user's Inbox, as the worker's matching would. */
+export async function addToInbox(
+  userId: string,
+  postingId: string,
+): Promise<void> {
+  const { error } = await admin()
+    .from("user_postings")
+    .insert({ user_id: userId, posting_id: postingId });
+  if (error) throw new Error(`inbox row: ${error.message}`);
 }
 
 /** Delete seeded companies (their postings and inbox rows cascade). */

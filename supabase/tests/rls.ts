@@ -643,13 +643,13 @@ async function testInbox(a: TestUser, b: TestUser): Promise<void> {
     forB.error !== null,
     forB.error?.message,
   );
-  const asSaved = await a.client
+  const withReason = await a.client
     .from("user_postings")
-    .insert({ posting_id: otherPostingId, status: "offer" } as never);
+    .insert({ posting_id: otherPostingId, skip_reason: "other" } as never);
   check(
-    "A can't choose the status on insert (column not granted)",
-    asSaved.error !== null,
-    asSaved.error?.message,
+    "A can't set a skip reason on insert (column not granted)",
+    withReason.error !== null,
+    withReason.error?.message,
   );
 
   const rowId = backfill.data![0].id;
@@ -740,6 +740,235 @@ async function testInbox(a: TestUser, b: TestUser): Promise<void> {
   eq("…and its Inbox rows stay, unattributed", kept?.watch_profile_id, null);
 }
 
+// ---------------------------------------------------------------- tracker (M3)
+
+async function eventsOf(client: Client, rowId: string) {
+  const { data, error } = await client
+    .from("status_events")
+    .select("id, from_status, to_status, at")
+    .eq("user_posting_id", rowId)
+    .order("at");
+  if (error) throw new Error(`status_events: ${error.message}`);
+  return data;
+}
+
+async function testTracker(a: TestUser, b: TestUser): Promise<void> {
+  console.log("\nTracker: manual rows, status_events, triggers");
+
+  // Manual add / import: A's own row, any tracker status, first event dated
+  // at the applied date.
+  const imported = await a.client
+    .from("user_postings")
+    .insert({
+      manual: { company: "Lyft", title: null, url: null, location: null },
+      status: "rejected",
+      applied_at: "2026-09-19",
+      term: "Summer 2027",
+      resume_note: "Resume v1",
+      notes: "First rejection",
+    })
+    .select("id, user_id, posting_id, status")
+    .single();
+  check(
+    "A adds a manual tracker row",
+    imported.error === null,
+    imported.error?.message,
+  );
+  eq("…owned by A", imported.data?.user_id, a.id);
+  eq("…with no posting", imported.data?.posting_id, null);
+  const manualId = imported.data!.id;
+  const first = await eventsOf(a.client, manualId);
+  eq("the insert wrote one event", first.length, 1);
+  eq(
+    "…null → rejected",
+    `${first[0]?.from_status} → ${first[0]?.to_status}`,
+    "null → rejected",
+  );
+  eq(
+    "…dated at the applied date (noon Chicago)",
+    first[0] && new Date(first[0].at).toISOString(),
+    "2026-09-19T17:00:00.000Z",
+  );
+
+  const noCompany = await a.client
+    .from("user_postings")
+    .insert({ manual: { company: "  " }, status: "applied" });
+  check(
+    "a manual row needs a company (check)",
+    noCompany.error !== null,
+    noCompany.error?.message,
+  );
+  const manualInbox = await a.client
+    .from("user_postings")
+    .insert({ manual: { company: "Acme" } });
+  check(
+    "a manual row can't sit in the Inbox (status new)",
+    manualInbox.error !== null,
+    manualInbox.error?.message,
+  );
+
+  // Trigger: a status change writes exactly one event; other edits none.
+  const noteOnly = await a.client
+    .from("user_postings")
+    .update({ notes: "edited", status_unsure: true, referral: true })
+    .eq("id", manualId)
+    .select("id");
+  eq("A edits tracker fields", noteOnly.data?.length, 1);
+  eq(
+    "…and that writes no event",
+    (await eventsOf(a.client, manualId)).length,
+    1,
+  );
+  await a.client
+    .from("user_postings")
+    .update({ status: "oa" })
+    .eq("id", manualId);
+  const afterChange = await eventsOf(a.client, manualId);
+  eq("a status change writes exactly one event", afterChange.length, 2);
+  eq(
+    "…rejected → oa",
+    `${afterChange[1]?.from_status} → ${afterChange[1]?.to_status}`,
+    "rejected → oa",
+  );
+  await a.client
+    .from("user_postings")
+    .update({ status: "oa", notes: "same status" })
+    .eq("id", manualId);
+  eq(
+    "setting the same status again writes none",
+    (await eventsOf(a.client, manualId)).length,
+    2,
+  );
+
+  // Mark applied on a shared posting stamps today's date.
+  const postingId = await seedPosting("RLS Tracker Intern");
+  const linked = await a.client
+    .from("user_postings")
+    .insert({ posting_id: postingId, status: "saved" })
+    .select("id, applied_at")
+    .single();
+  eq("a saved row has no applied date", linked.data?.applied_at, null);
+  const applied = await a.client
+    .from("user_postings")
+    .update({ status: "applied" })
+    .eq("id", linked.data!.id)
+    .select("applied_at")
+    .single();
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Chicago",
+  }).format(new Date());
+  eq("marking applied stamps today (Chicago)", applied.data?.applied_at, today);
+  eq(
+    "…and logs saved → applied",
+    (await eventsOf(a.client, linked.data!.id)).at(-1)?.to_status,
+    "applied",
+  );
+
+  // status_events: read through the row's owner; nobody writes directly.
+  const bReads = await b.client
+    .from("status_events")
+    .select("id")
+    .eq("user_posting_id", manualId);
+  eq("B can't read A's status_events", bReads.data?.length, 0);
+  const bRow = await b.client
+    .from("user_postings")
+    .select("id")
+    .eq("id", manualId);
+  eq("B can't read A's tracker rows", bRow.data?.length, 0);
+  const forged = await a.client.from("status_events").insert({
+    user_posting_id: manualId,
+    from_status: "oa",
+    to_status: "offer",
+  });
+  check(
+    "A can't insert status_events directly",
+    forged.error !== null,
+    forged.error?.message,
+  );
+  const rewrite = await a.client
+    .from("status_events")
+    .update({ to_status: "offer" })
+    .eq("user_posting_id", manualId)
+    .select("id");
+  check(
+    "A can't rewrite status_events",
+    rewrite.error !== null || rewrite.data?.length === 0,
+    rewrite.error?.message,
+  );
+  const erase = await a.client
+    .from("status_events")
+    .delete()
+    .eq("user_posting_id", manualId)
+    .select("id");
+  check(
+    "A can't delete status_events",
+    erase.error !== null || erase.data?.length === 0,
+    erase.error?.message,
+  );
+
+  // Ownership: no writing B's rows, no re-pointing rows.
+  const bManual = await b.client
+    .from("user_postings")
+    .insert({ manual: { company: "B Co" }, status: "applied" })
+    .select("id")
+    .single();
+  const editB = await a.client
+    .from("user_postings")
+    .update({ notes: "hijacked", status: "offer" })
+    .eq("id", bManual.data!.id)
+    .select("id");
+  eq("A's update of B's tracker row touches 0 rows", editB.data?.length, 0);
+  eq(
+    "…and B's timeline is untouched",
+    (await eventsOf(b.client, bManual.data!.id)).length,
+    1,
+  );
+  const forB = await a.client.from("user_postings").insert({
+    manual: { company: "X" },
+    status: "applied",
+    user_id: b.id,
+  } as never);
+  check(
+    "A can't add tracker rows for B (user_id not granted)",
+    forB.error !== null,
+    forB.error?.message,
+  );
+  const repoint = await a.client
+    .from("user_postings")
+    .update({ posting_id: postingId } as never)
+    .eq("id", manualId);
+  check(
+    "A can't attach a manual row to a posting (posting_id not granted)",
+    repoint.error !== null,
+    repoint.error?.message,
+  );
+
+  // Delete: own manual rows only; their events go with them.
+  const deleteB = await a.client
+    .from("user_postings")
+    .delete()
+    .eq("id", bManual.data!.id)
+    .select("id");
+  eq("A can't delete B's manual row", deleteB.data?.length, 0);
+  const deleteLinked = await a.client
+    .from("user_postings")
+    .delete()
+    .eq("id", linked.data!.id)
+    .select("id");
+  eq("A can't delete a row for a shared posting", deleteLinked.data?.length, 0);
+  const deleteOwn = await a.client
+    .from("user_postings")
+    .delete()
+    .eq("id", manualId)
+    .select("id");
+  eq("A can delete their own manual row", deleteOwn.data?.length, 1);
+  const { data: orphans } = await admin
+    .from("status_events")
+    .select("id")
+    .eq("user_posting_id", manualId);
+  eq("…and its status_events are gone", orphans?.length, 0);
+}
+
 // ---------------------------------------------------------------- main
 
 async function main(): Promise<void> {
@@ -765,6 +994,7 @@ async function main(): Promise<void> {
     await testRace(alice);
     await testWatcherTables(alice, a);
     await testInbox(a, b);
+    await testTracker(a, b);
   } finally {
     await deleteSeededPostings();
     await deleteTestUsers();

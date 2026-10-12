@@ -55,3 +55,36 @@ export function dayLabel(key: string, now = Date.now()): string {
   // Noon UTC on that date stays on the same calendar day in US time zones.
   return WEEKDAY.format(new Date(`${key}T12:00:00Z`));
 }
+
+const CALENDAR = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  timeZone: "UTC",
+});
+const CALENDAR_YEAR = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+/**
+ * A calendar date (YYYY-MM-DD, like applied_at) as "Sep 19" or, with the
+ * year, "Sep 19, 2026". Read as UTC so no time zone can shift the day.
+ */
+export function formatCalendarDate(date: string, withYear = false): string {
+  const at = new Date(`${date}T00:00:00Z`);
+  return (withYear ? CALENDAR_YEAR : CALENDAR).format(at);
+}
+
+const LONG = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  timeZone: APP_TIME_ZONE,
+});
+
+/** "Sep 19, 2026" for an instant, in the app time zone (timelines). */
+export function formatLongDate(iso: string): string {
+  return LONG.format(new Date(iso));
+}

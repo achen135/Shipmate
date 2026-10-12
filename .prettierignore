@@ -17,3 +17,4 @@ docs/
 # supabase CLI local state
 supabase/.temp/
 supabase/.branches/
+lib/tracker/__fixtures__/

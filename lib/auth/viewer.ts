@@ -80,3 +80,12 @@ export async function requireAdmin() {
   if (!viewer.isAdmin) notFound();
   return viewer;
 }
+
+/**
+ * For Route Handlers: the member, or null. A JSON endpoint answers 401
+ * instead of redirecting the fetch to a sign-in page.
+ */
+export async function getMember() {
+  const viewer = await getViewer();
+  return viewer && !pendingOnboardingPath(viewer) ? viewer : null;
+}

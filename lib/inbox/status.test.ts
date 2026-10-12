@@ -15,18 +15,24 @@ describe("statusChangeSchema / statusUpdate", () => {
           skipReason: "location",
         }),
       ),
-    ).toEqual({ status: "skipped", skip_reason: "location" });
+    ).toEqual({ status: "skipped", skip_reason: "location", applied_at: null });
     expect(
       statusUpdate(statusChangeSchema.parse({ id: ID, status: "skipped" })),
-    ).toEqual({ status: "skipped", skip_reason: null });
+    ).toEqual({ status: "skipped", skip_reason: null, applied_at: null });
     expect(
       statusUpdate(statusChangeSchema.parse({ id: ID, status: "saved" })),
-    ).toEqual({ status: "saved", skip_reason: null });
+    ).toEqual({ status: "saved", skip_reason: null, applied_at: null });
   });
 
-  it("rejects tracker statuses (M3) and unknown reasons", () => {
+  it("marking applied leaves the date to the database", () => {
     expect(
-      statusChangeSchema.safeParse({ id: ID, status: "applied" }).success,
+      statusUpdate(statusChangeSchema.parse({ id: ID, status: "applied" })),
+    ).toEqual({ status: "applied", skip_reason: null });
+  });
+
+  it("rejects later tracker statuses and unknown reasons", () => {
+    expect(
+      statusChangeSchema.safeParse({ id: ID, status: "offer" }).success,
     ).toBe(false);
     expect(
       statusChangeSchema.safeParse({

@@ -1,6 +1,6 @@
 "use client";
 
-import { Bookmark, ExternalLink, Undo2, X } from "lucide-react";
+import { Bookmark, Check, ExternalLink, Undo2, X } from "lucide-react";
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -32,7 +32,8 @@ type Outcome =
   | { kind: "idle" }
   | { kind: "saved" }
   | { kind: "skipped"; reason: SkipReason | null }
-  | { kind: "unsaved" };
+  | { kind: "unsaved" }
+  | { kind: "applied" };
 
 function locationText(locations: string[]): string {
   if (locations.length === 0) return "Location not listed";
@@ -42,8 +43,9 @@ function locationText(locations: string[]): string {
 
 /**
  * One posting in a list. `inbox`: Save / Skip (with an optional one-tap
- * reason). `to-apply`: Apply link / back to Inbox. Every action shows its
- * result in place with Undo instead of the card vanishing.
+ * reason). `to-apply`: Apply link / Mark applied (into the Tracker) / back to
+ * Inbox. Every action shows its result in place with Undo instead of the card
+ * vanishing.
  */
 export function PostingCard({
   data,
@@ -156,6 +158,17 @@ export function PostingCard({
               variant="outline"
               disabled={pending}
               onClick={() =>
+                run({ id: data.id, status: "applied" }, { kind: "applied" })
+              }
+            >
+              <Check aria-hidden="true" />
+              Mark applied
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={pending}
+              onClick={() =>
                 run({ id: data.id, status: "new" }, { kind: "unsaved" })
               }
             >
@@ -169,6 +182,13 @@ export function PostingCard({
         )}
         {outcome.kind === "unsaved" && (
           <Result text="Moved back to Inbox" onUndo={undo} pending={pending} />
+        )}
+        {outcome.kind === "applied" && (
+          <Result
+            text="Marked applied: it's in your Tracker"
+            onUndo={undo}
+            pending={pending}
+          />
         )}
         {outcome.kind === "skipped" && (
           <div className="flex w-full flex-col gap-2">

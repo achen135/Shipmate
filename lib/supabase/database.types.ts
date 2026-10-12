@@ -433,37 +433,94 @@ export type Database = {
           },
         ];
       };
+      status_events: {
+        Row: {
+          at: string;
+          from_status: string | null;
+          id: string;
+          to_status: string;
+          user_posting_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          at?: string;
+          from_status?: string | null;
+          id?: string;
+          to_status: string;
+          user_posting_id: string;
+        };
+        Update: {
+          at?: string;
+          from_status?: string | null;
+          id?: string;
+          to_status?: string;
+          user_posting_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "status_events_user_posting_id_fkey";
+            columns: ["user_posting_id"];
+            isOneToOne: false;
+            referencedRelation: "user_postings";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       user_postings: {
         Row: {
+          applied_at: string | null;
           created_at: string;
           id: string;
-          posting_id: string;
+          manual: Json | null;
+          notes: string | null;
+          posting_id: string | null;
+          referral: boolean;
+          referrer: string | null;
+          resume_note: string | null;
           seen_at: string | null;
           skip_reason: string | null;
           status: string;
+          status_unsure: boolean;
+          term: string | null;
           updated_at: string;
           user_id: string;
           watch_profile_id: string | null;
         };
         ComputedFields: never;
         Insert: {
+          applied_at?: string | null;
           created_at?: string;
           id?: string;
-          posting_id: string;
+          manual?: Json | null;
+          notes?: string | null;
+          posting_id?: string | null;
+          referral?: boolean;
+          referrer?: string | null;
+          resume_note?: string | null;
           seen_at?: string | null;
           skip_reason?: string | null;
           status?: string;
+          status_unsure?: boolean;
+          term?: string | null;
           updated_at?: string;
           user_id?: string;
           watch_profile_id?: string | null;
         };
         Update: {
+          applied_at?: string | null;
           created_at?: string;
           id?: string;
-          posting_id?: string;
+          manual?: Json | null;
+          notes?: string | null;
+          posting_id?: string | null;
+          referral?: boolean;
+          referrer?: string | null;
+          resume_note?: string | null;
           seen_at?: string | null;
           skip_reason?: string | null;
           status?: string;
+          status_unsure?: boolean;
+          term?: string | null;
           updated_at?: string;
           user_id?: string;
           watch_profile_id?: string | null;

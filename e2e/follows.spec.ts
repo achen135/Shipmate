@@ -29,10 +29,12 @@ test.skip(
 
 const MOCK_ORIGIN = `http://localhost:${process.env.ATS_MOCK_PORT ?? 3101}`;
 const prefix = "Harbor Mock";
+/** This worker's companies only; the other project's test is still running. */
+const createdCompanies: string[] = [];
 
 test.afterAll(async () => {
   await deleteCreatedUsers();
-  await deleteCompaniesNamed(prefix);
+  await deleteCompaniesNamed(createdCompanies.splice(0));
 });
 
 /** One Watch run, as GitHub Actions does it, for just these sources. */
@@ -55,6 +57,7 @@ test("follow a company by its careers page, then its jobs reach the Inbox", asyn
   const tag = `${info.project.name.length}${Date.now().toString(36)}`;
   const slug = `e2e-harbor-${tag}`;
   const company = `${prefix} ${tag}`;
+  createdCompanies.push(company);
 
   const user = await createTestUser("follows");
   await finishOnboarding(user.id);

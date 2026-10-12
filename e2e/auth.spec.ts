@@ -37,6 +37,15 @@ async function createInviteCode(page: Page, note: string): Promise<string> {
   return code!;
 }
 
+/**
+ * The invites list is shared by every admin in the local database (both
+ * Playwright projects, the magic-link test), so find a row by its code,
+ * never by position.
+ */
+function inviteRow(page: Page, code: string) {
+  return page.getByTestId("invite-row").filter({ hasText: code });
+}
+
 async function choose(page: Page, label: string | RegExp, option: string) {
   await page.getByRole("combobox", { name: label }).click();
   await page.getByRole("option", { name: option, exact: true }).click();
@@ -83,18 +92,21 @@ test("admin creates a code; an invited user completes Basics and lands on Inbox"
   const adminPage = await (await browser.newContext()).newPage();
   await signIn(adminPage, admin, "/admin/invites");
   code = await createInviteCode(adminPage, "e2e friend");
-  await expect(adminPage.getByTestId("invite-row").first()).toContainText(
-    "Available",
-  );
+  await expect(inviteRow(adminPage, code)).toContainText("Available");
 
   const friend: TestUser = await createTestUser("friend");
   const page = await (await browser.newContext()).newPage();
   await signIn(page, friend, "/inbox");
   await expect(page).toHaveURL(/\/onboarding\/invite$/);
 
-  await page
-    .getByRole("textbox", { name: "Invite code" })
-    .fill(code.toLowerCase());
+  // The URL is right before the page is interactive: React replaces the
+  // server-rendered form as it takes over, discarding anything typed into it.
+  // Retry until the value sticks rather than guessing at a delay.
+  const codeInput = page.getByRole("textbox", { name: "Invite code" });
+  await expect(async () => {
+    await codeInput.fill(code.toLowerCase());
+    await expect(codeInput).toHaveValue(code.toLowerCase(), { timeout: 1000 });
+  }).toPass();
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page).toHaveURL(/\/onboarding\/basics$/);
 
@@ -155,9 +167,7 @@ test("admin creates a code; an invited user completes Basics and lands on Inbox"
   await expect(page).toHaveURL(/\/sign-in/);
 
   await adminPage.reload();
-  await expect(adminPage.getByTestId("invite-row").first()).toContainText(
-    "Used",
-  );
+  await expect(inviteRow(adminPage, code)).toContainText("Used");
 });
 
 test("the same code fails for a third account", async ({ page }) => {

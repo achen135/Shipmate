@@ -40,6 +40,15 @@ describe("loadWorkerConfig", () => {
     );
   });
 
+  it("passes the workflow's GITHUB_TOKEN through when set", () => {
+    const result = loadWorkerConfig({
+      SUPABASE_URL: "https://abc.supabase.co",
+      SUPABASE_SERVICE_ROLE_KEY: "k",
+      GITHUB_TOKEN: "ghs_x",
+    });
+    expect(result.ok && result.config.githubToken).toBe("ghs_x");
+  });
+
   it("lists every missing secret instead of throwing", () => {
     expect(loadWorkerConfig({})).toEqual({
       ok: false,

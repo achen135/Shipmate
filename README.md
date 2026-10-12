@@ -1,6 +1,6 @@
-# ShipMate
+# Shipmate
 
-Your crewmate for internship season. ShipMate watches job sources every 30 minutes, matches new
+Your crewmate for internship season. Shipmate watches job sources every 30 minutes, matches new
 postings to what you're looking for, can tailor your resume to each one with your own AI key,
 and keeps a built-in application tracker. **It never submits anything for you**: you review,
 then apply.

@@ -30,7 +30,7 @@ export default async function InvitePage({
   return (
     <>
       <StepHeader step={1} title="Enter your invite code">
-        ShipMate is invite-only for now. Ask whoever invited you for a code.
+        Shipmate is invite-only for now. Ask whoever invited you for a code.
       </StepHeader>
       <InviteForm initialError={initialError} />
       <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">

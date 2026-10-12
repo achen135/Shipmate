@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { Suspense } from "react";
 
-import { BottomNav } from "@/components/app/bottom-nav";
+import { BottomNav, NavLinks } from "@/components/app/bottom-nav";
 import { LogoMark } from "@/components/brand/logo";
 
 /**
@@ -12,14 +13,16 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
   return (
     <div className="flex flex-1 flex-col pb-20">
       <header className="mx-auto flex w-full max-w-2xl items-center px-5 pt-4">
-        <Link href="/inbox" aria-label="ShipMate">
+        <Link href="/inbox" aria-label="Shipmate">
           <LogoMark className="size-7" />
         </Link>
       </header>
       <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-5 py-4">
         {children}
       </main>
-      <BottomNav />
+      <Suspense fallback={<NavLinks pathname={null} />}>
+        <BottomNav />
+      </Suspense>
     </div>
   );
 }

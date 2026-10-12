@@ -14,8 +14,15 @@ export const NAV_ITEMS = [
 ] as const;
 
 export function BottomNav() {
-  const pathname = usePathname();
+  return <NavLinks pathname={usePathname()} />;
+}
 
+/**
+ * The nav itself. Also the Suspense fallback with no active tab: on dynamic
+ * routes (/postings/[id]) the pathname isn't known while prerendering the
+ * static shell.
+ */
+export function NavLinks({ pathname }: { pathname: string | null }) {
   return (
     <nav
       aria-label="Main"
@@ -23,7 +30,9 @@ export function BottomNav() {
     >
       <ul className="mx-auto grid max-w-2xl grid-cols-4">
         {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href || pathname.startsWith(`${href}/`);
+          const active =
+            pathname !== null &&
+            (pathname === href || pathname.startsWith(`${href}/`));
           return (
             <li key={href}>
               <Link

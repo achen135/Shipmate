@@ -1,16 +1,20 @@
 name: Watch
 
 # The 30-minute watcher (worker/run.ts). Notes:
-# - Scheduled workflows only run from the default branch (main).
-# - GitHub can start scheduled runs several minutes late; that's fine here.
+# - Primary trigger: Supabase pg_cron calls GitHub's workflow_dispatch API at
+#   :13 and :43 (migration `…_watch_dispatcher.sql`). GitHub's own schedule
+#   only fired every 5-6 hours in practice, so it is the fallback here.
+# - Scheduled workflows only run from the default branch (main), and so does
+#   the dispatch (`"ref": "main"`).
 # - GitHub disables schedules in a public repo after 60 days with no repo
-#   activity. M12 adds a staleness alert on `runs`.
+#   activity. M8 adds a staleness alert on `runs`.
 # - Missing secrets make the worker skip with a warning annotation, not fail.
 
 on:
   schedule:
-    - cron: "*/30 * * * *"
-  workflow_dispatch: # run by hand from the Actions tab
+    # Off the top of the hour, when GitHub drops the most scheduled runs.
+    - cron: "13,43 * * * *"
+  workflow_dispatch: # pg_cron, or by hand from the Actions tab
 
 permissions:
   contents: read
@@ -39,3 +43,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Read-only here (permissions: contents: read). Used for the
+          # aggregator commit-SHA checks so they get the authenticated rate
+          # limit (1,000/h) instead of 60/h per runner IP.
+          GITHUB_TOKEN: ${{ github.token }}

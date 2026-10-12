@@ -9,7 +9,7 @@ describe("HomePage", () => {
     expect(
       screen.getByRole("heading", { level: 1, name: /internship season/i }),
     ).toBeInTheDocument();
-    expect(screen.getByText("ShipMate")).toBeInTheDocument();
+    expect(screen.getByText("Shipmate")).toBeInTheDocument();
     expect(
       screen.getByText(/never submits anything for you/i),
     ).toBeInTheDocument();
@@ -20,6 +20,14 @@ describe("HomePage", () => {
     expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
       "href",
       "/sign-in",
+    );
+  });
+
+  it("links to the privacy page from the footer", () => {
+    render(<HomePage />);
+    expect(screen.getByRole("link", { name: "Privacy" })).toHaveAttribute(
+      "href",
+      "/privacy",
     );
   });
 });

@@ -11,7 +11,11 @@ describe("isGatedPath", () => {
     "/profile",
     "/onboarding",
     "/onboarding/basics",
+    "/onboarding/watch",
+    "/postings/6d1c4a3e-6c39-4f61-9d55-2a9e7c1b0f11",
+    "/profile/watch/new",
     "/admin/invites",
+    "/admin/sources",
   ])("gates %s", (path) => {
     expect(isGatedPath(path)).toBe(true);
   });
@@ -21,6 +25,7 @@ describe("isGatedPath", () => {
     "/sign-in",
     "/auth/callback",
     "/api/health",
+    "/privacy",
     "/inboxes",
     "/administrator",
   ])("leaves %s public", (path) => {

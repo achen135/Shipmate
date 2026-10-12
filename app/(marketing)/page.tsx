@@ -42,7 +42,7 @@ export default function HomePage() {
           Your crewmate for internship season.
         </h1>
         <p className="mt-4 text-lg text-pretty text-muted-foreground">
-          ShipMate finds new postings, gets your application ready, and keeps
+          Shipmate finds new postings, gets your application ready, and keeps
           track of where everything stands. It never submits anything for you:
           you review, then apply.
         </p>
@@ -58,8 +58,11 @@ export default function HomePage() {
         </ul>
       </main>
 
-      <footer className="border-t pt-4 text-sm text-muted-foreground">
-        Invite-only while in development.
+      <footer className="flex flex-wrap justify-between gap-2 border-t pt-4 text-sm text-muted-foreground">
+        <span>Invite-only while in development.</span>
+        <Link href="/privacy" className="underline underline-offset-4">
+          Privacy
+        </Link>
       </footer>
     </div>
   );

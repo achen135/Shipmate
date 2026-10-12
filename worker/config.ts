@@ -11,6 +11,11 @@ export type WorkerConfig = {
   supabaseUrl: string;
   /** Secret key (sb_secret_…) or legacy service_role JWT. Bypasses RLS. */
   serviceRoleKey: string;
+  /**
+   * The workflow's GITHUB_TOKEN, for GitHub API calls (1,000 requests/hour
+   * instead of 60 unauthenticated). Optional: local runs work without it.
+   */
+  githubToken?: string;
 };
 
 export type ConfigResult =
@@ -29,7 +34,14 @@ export function loadWorkerConfig(env: Env): ConfigResult {
   if (!serviceRoleKey) missing.push("SUPABASE_SERVICE_ROLE_KEY");
 
   if (!supabaseUrl || !serviceRoleKey) return { ok: false, missing };
-  return { ok: true, config: { supabaseUrl, serviceRoleKey } };
+  return {
+    ok: true,
+    config: {
+      supabaseUrl,
+      serviceRoleKey,
+      ...(env.GITHUB_TOKEN ? { githubToken: env.GITHUB_TOKEN } : {}),
+    },
+  };
 }
 
 /**

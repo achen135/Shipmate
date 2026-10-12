@@ -1,0 +1,50 @@
+[
+  {
+    "source": "Simplify",
+    "category": "AI/ML/Data",
+    "company_name": "One Brief",
+    "id": "f7cf0ea1-5530-43f1-b77d-aaef1130c643",
+    "title": "Outcome Engineer - Early in Career Professional",
+    "active": true,
+    "date_updated": 1770948846,
+    "date_posted": 1770948846,
+    "url": "https://jobs.ashbyhq.com/onebrief/a88e10d4-66d8-4911-99e3-3d20351e73d9/application",
+    "locations": ["Remote in USA"],
+    "company_url": "https://simplify.jobs/c/One-Brief",
+    "is_visible": true,
+    "sponsorship": "Other",
+    "degrees": []
+  },
+  {
+    "source": "Simplify",
+    "category": "AI/ML/Data",
+    "company_name": "WSP",
+    "id": "fca8c004-76a9-436d-a84c-5cf528bd35c3",
+    "title": "Assistant Consultant / Consultant - Air Quality - Basingstoke",
+    "active": true,
+    "date_updated": 1771254685,
+    "date_posted": 1771254685,
+    "url": "https://emit.fa.ca3.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_2001/job/79046",
+    "locations": ["Basingstoke, UK"],
+    "company_url": "https://simplify.jobs/c/WSP",
+    "is_visible": true,
+    "sponsorship": "Other",
+    "degrees": ["Bachelor's"]
+  },
+  {
+    "source": "Simplify",
+    "category": "Hardware",
+    "company_name": "Astro Mechanica",
+    "id": "e20f6849-08c5-44dc-8dbe-9b211c7e9cc8",
+    "title": "Flight Software Engineer",
+    "active": true,
+    "date_updated": 1771283830,
+    "date_posted": 1771283830,
+    "url": "https://jobs.ashbyhq.com/astro-mechanica/f25cc28c-9932-4e4d-a7e8-53a10a7fbd55/application",
+    "locations": ["SF"],
+    "company_url": "https://simplify.jobs/c/Astro-Mechanica",
+    "is_visible": true,
+    "sponsorship": "Other",
+    "degrees": ["Bachelor's"]
+  }
+]

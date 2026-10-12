@@ -120,8 +120,12 @@ test("admin creates a code; an invited user completes Basics and lands on Inbox"
     .check();
   await page.getByRole("button", { name: "Continue" }).click();
 
+  // Step 3 (Inbox E2E covers it in depth): keep the SWE default.
+  await expect(page).toHaveURL(/\/onboarding\/watch$/);
+  await page.getByRole("button", { name: "Set sail" }).click();
+
   await expect(page).toHaveURL(/\/inbox$/);
-  await expect(page.getByText("Calm seas.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Inbox" })).toBeVisible();
   const nav = page.getByRole("navigation", { name: "Main" });
   for (const tab of ["Inbox", "To Apply", "Tracker", "Profile"]) {
     await expect(nav.getByRole("link", { name: tab })).toBeVisible();

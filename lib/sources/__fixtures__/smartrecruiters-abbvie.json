@@ -1,0 +1,490 @@
+{
+  "offset": 0,
+  "limit": 100,
+  "totalFound": 3,
+  "content": [
+    {
+      "id": "3743990015684626",
+      "name": "2027 Business Technology Solutions Intern - Cloud Engineering (Undergraduate)",
+      "uuid": "c61b7cad-d512-4e31-90fc-9f221bdcede1",
+      "jobAdId": "6432dead-6dd1-40b6-b904-48be7bec2850",
+      "defaultJobAd": false,
+      "refNumber": "R00149342",
+      "company": {
+        "identifier": "AbbVie",
+        "name": "AbbVie"
+      },
+      "releasedDate": "2026-09-25T17:31:32.211Z",
+      "location": {
+        "city": "South San Francisco",
+        "region": "CA",
+        "country": "us",
+        "remote": false,
+        "hybrid": true,
+        "latitude": "37.654656",
+        "longitude": "-122.4077498",
+        "fullLocation": "South San Francisco, CA, United States"
+      },
+      "industry": {
+        "id": "pharmaceuticals",
+        "label": "Pharmaceuticals"
+      },
+      "department": {},
+      "function": {
+        "id": "administrative",
+        "label": "Administrative"
+      },
+      "typeOfEmployment": {
+        "id": "intern",
+        "label": "Intern"
+      },
+      "experienceLevel": {
+        "id": "entry_level",
+        "label": "Entry Level"
+      },
+      "customField": [
+        {
+          "fieldId": "65807663cbfd1911c2f5d15f",
+          "fieldLabel": "Workday Function",
+          "valueId": "FUNCTION_HQIT",
+          "valueLabel": "HQIT Information Technology"
+        },
+        {
+          "fieldId": "657cc8550d0b1f2ef38a3fc9",
+          "fieldLabel": "City",
+          "valueId": "North Chicago",
+          "valueLabel": "North Chicago"
+        },
+        {
+          "fieldId": "657ccabf0d0b1f2ef38a3fce",
+          "fieldLabel": "Segment 5 (Maximum)",
+          "valueId": "37.8",
+          "valueLabel": "37.8"
+        },
+        {
+          "fieldId": "656747e5a29e121ffd619b85",
+          "fieldLabel": "Brands",
+          "valueId": "default",
+          "valueLabel": "AbbVie"
+        },
+        {
+          "fieldId": "657cc9fb0d0b1f2ef38a3fcb",
+          "fieldLabel": "Campus Program",
+          "valueId": "90c35ec1-b562-4550-b605-ee21c44c9f87",
+          "valueLabel": "AbbVie Intern Program"
+        },
+        {
+          "fieldId": "COUNTRY",
+          "fieldLabel": "Country/Region",
+          "valueId": "us",
+          "valueLabel": "United States"
+        },
+        {
+          "fieldId": "657cca530d0b1f2ef38a3fcc",
+          "fieldLabel": "Segment 1 (Minimum)",
+          "valueId": "21",
+          "valueLabel": "21"
+        },
+        {
+          "fieldId": "657ccc1c0d0b1f2ef38a3fda",
+          "fieldLabel": "Workday Job Family",
+          "valueId": "Job_Family_Administrative_Services",
+          "valueLabel": "Administrative Services"
+        },
+        {
+          "fieldId": "657ccc483fd51d6d84c0bc3c",
+          "fieldLabel": "Posting Grade",
+          "valueId": "COMPENSATIONGRADE_06",
+          "valueLabel": "06"
+        },
+        {
+          "fieldId": "65806674cbfd1911c2f5d15b",
+          "fieldLabel": "Hiring Manager",
+          "valueId": "15230315",
+          "valueLabel": "Crystal Fruit (15230315)"
+        },
+        {
+          "fieldId": "657cca333fd51d6d84c0bc33",
+          "fieldLabel": "Class Cycle",
+          "valueId": "a549056d-4855-46e7-9673-2682adf66fbc",
+          "valueLabel": "2027"
+        },
+        {
+          "fieldId": "657ccbce3fd51d6d84c0bc3a",
+          "fieldLabel": "Workday Global Grade",
+          "valueId": "COMPENSATIONGRADE_06",
+          "valueLabel": "06"
+        },
+        {
+          "fieldId": "6580668ecbfd1911c2f5d15c",
+          "fieldLabel": "Hiring Manager Title",
+          "valueId": "Manager Early Talent Programs",
+          "valueLabel": "Manager Early Talent Programs"
+        },
+        {
+          "fieldId": "657cc8c03fd51d6d84c0bc30",
+          "fieldLabel": "Campus Sub Function",
+          "valueId": "d8ff21df-067c-4bb0-b198-b50ff77fb3e0",
+          "valueLabel": "BTS (Business Technology Solutions)"
+        },
+        {
+          "fieldId": "6580763744b74c1731e95352",
+          "fieldLabel": "Parent Function",
+          "valueId": "FUNCTION_HQTR",
+          "valueLabel": "HQTR Headquarters"
+        },
+        {
+          "fieldId": "657ccad53fd51d6d84c0bc37",
+          "fieldLabel": "Salary Min",
+          "valueId": "21",
+          "valueLabel": "21"
+        },
+        {
+          "fieldId": "657ccae70d0b1f2ef38a3fcf",
+          "fieldLabel": "Salary Max",
+          "valueId": "37.8",
+          "valueLabel": "37.8"
+        },
+        {
+          "fieldId": "657ccc330d0b1f2ef38a3fdb",
+          "fieldLabel": "Salary/Hourly Pay Indicator",
+          "valueId": "Hourly",
+          "valueLabel": "Hourly"
+        },
+        {
+          "fieldId": "657cc8220d0b1f2ef38a3fc8",
+          "fieldLabel": "Workday Country",
+          "valueId": "US",
+          "valueLabel": "United States of America"
+        },
+        {
+          "fieldId": "658076b3cbfd1911c2f5d161",
+          "fieldLabel": "Travel",
+          "valueId": "b3e42683-3aea-4945-91f5-e50b5dcacd78",
+          "valueLabel": "Yes, 5% of the Time"
+        }
+      ],
+      "visibility": "PUBLIC",
+      "ref": "https://api.smartrecruiters.com/v1/companies/AbbVie/postings/3743990015684626",
+      "language": {
+        "code": "en",
+        "label": "English",
+        "labelNative": "English (US)"
+      }
+    },
+    {
+      "id": "3743990015636496",
+      "name": "2027 Global Supply Chain Intern (Undergraduate)",
+      "uuid": "b40ecda9-a4ef-4e64-8423-2de23e393bde",
+      "jobAdId": "64e55296-ef68-41d6-b084-333db44c4a14",
+      "defaultJobAd": true,
+      "refNumber": "R00151172",
+      "company": {
+        "identifier": "AbbVie",
+        "name": "AbbVie"
+      },
+      "releasedDate": "2026-09-24T12:30:22.718Z",
+      "location": {
+        "city": "North Chicago",
+        "region": "IL",
+        "country": "us",
+        "remote": false,
+        "hybrid": true,
+        "latitude": "42.325578",
+        "longitude": "-87.8411818",
+        "fullLocation": "North Chicago, IL, United States"
+      },
+      "industry": {
+        "id": "pharmaceuticals",
+        "label": "Pharmaceuticals"
+      },
+      "department": {},
+      "function": {
+        "id": "supply_chain",
+        "label": "Supply Chain"
+      },
+      "typeOfEmployment": {
+        "id": "intern",
+        "label": "Intern"
+      },
+      "experienceLevel": {
+        "id": "internship",
+        "label": "Internship"
+      },
+      "customField": [
+        {
+          "fieldId": "65807663cbfd1911c2f5d15f",
+          "fieldLabel": "Workday Function",
+          "valueId": "FUNCTION_OPSC",
+          "valueLabel": "OPSC Supply Chain"
+        },
+        {
+          "fieldId": "657cc8550d0b1f2ef38a3fc9",
+          "fieldLabel": "City",
+          "valueId": "North Chicago",
+          "valueLabel": "North Chicago"
+        },
+        {
+          "fieldId": "657ccabf0d0b1f2ef38a3fce",
+          "fieldLabel": "Segment 5 (Maximum)",
+          "valueId": "37.8",
+          "valueLabel": "37.8"
+        },
+        {
+          "fieldId": "656747e5a29e121ffd619b85",
+          "fieldLabel": "Brands",
+          "valueId": "default",
+          "valueLabel": "AbbVie"
+        },
+        {
+          "fieldId": "657cc9fb0d0b1f2ef38a3fcb",
+          "fieldLabel": "Campus Program",
+          "valueId": "90c35ec1-b562-4550-b605-ee21c44c9f87",
+          "valueLabel": "AbbVie Intern Program"
+        },
+        {
+          "fieldId": "COUNTRY",
+          "fieldLabel": "Country/Region",
+          "valueId": "us",
+          "valueLabel": "United States"
+        },
+        {
+          "fieldId": "657cca530d0b1f2ef38a3fcc",
+          "fieldLabel": "Segment 1 (Minimum)",
+          "valueId": "21",
+          "valueLabel": "21"
+        },
+        {
+          "fieldId": "657ccc1c0d0b1f2ef38a3fda",
+          "fieldLabel": "Workday Job Family",
+          "valueId": "Job_Family_Administrative_Services",
+          "valueLabel": "Administrative Services"
+        },
+        {
+          "fieldId": "657ccc483fd51d6d84c0bc3c",
+          "fieldLabel": "Posting Grade",
+          "valueId": "COMPENSATIONGRADE_06",
+          "valueLabel": "06"
+        },
+        {
+          "fieldId": "65806674cbfd1911c2f5d15b",
+          "fieldLabel": "Hiring Manager",
+          "valueId": "15212627",
+          "valueLabel": "Sonia Starks (15212627)"
+        },
+        {
+          "fieldId": "657cca333fd51d6d84c0bc33",
+          "fieldLabel": "Class Cycle",
+          "valueId": "a549056d-4855-46e7-9673-2682adf66fbc",
+          "valueLabel": "2027"
+        },
+        {
+          "fieldId": "657ccbce3fd51d6d84c0bc3a",
+          "fieldLabel": "Workday Global Grade",
+          "valueId": "COMPENSATIONGRADE_06",
+          "valueLabel": "06"
+        },
+        {
+          "fieldId": "6580668ecbfd1911c2f5d15c",
+          "fieldLabel": "Hiring Manager Title",
+          "valueId": "Manager Early Talent Pipeline - Operations",
+          "valueLabel": "Manager Early Talent Pipeline - Operations"
+        },
+        {
+          "fieldId": "657cc8c03fd51d6d84c0bc30",
+          "fieldLabel": "Campus Sub Function",
+          "valueId": "5b434267-f5cb-4543-b6ba-6c8a27db998a",
+          "valueLabel": "Supply Chain"
+        },
+        {
+          "fieldId": "6580763744b74c1731e95352",
+          "fieldLabel": "Parent Function",
+          "valueId": "FUNCTION_OPER",
+          "valueLabel": "OPER Operations"
+        },
+        {
+          "fieldId": "657ccad53fd51d6d84c0bc37",
+          "fieldLabel": "Salary Min",
+          "valueId": "21",
+          "valueLabel": "21"
+        },
+        {
+          "fieldId": "657ccae70d0b1f2ef38a3fcf",
+          "fieldLabel": "Salary Max",
+          "valueId": "37.8",
+          "valueLabel": "37.8"
+        },
+        {
+          "fieldId": "657ccc330d0b1f2ef38a3fdb",
+          "fieldLabel": "Salary/Hourly Pay Indicator",
+          "valueId": "Hourly",
+          "valueLabel": "Hourly"
+        },
+        {
+          "fieldId": "657cc8220d0b1f2ef38a3fc8",
+          "fieldLabel": "Workday Country",
+          "valueId": "US",
+          "valueLabel": "United States of America"
+        }
+      ],
+      "visibility": "PUBLIC",
+      "ref": "https://api.smartrecruiters.com/v1/companies/AbbVie/postings/3743990015636496",
+      "language": {
+        "code": "en",
+        "label": "English",
+        "labelNative": "English (US)"
+      }
+    },
+    {
+      "id": "3743990015748796",
+      "name": "Domain Architect, Applications and Integration",
+      "uuid": "3c302790-9c64-442a-ac8e-5ec9930e94cd",
+      "jobAdId": "5c9f5d51-f6e1-4b53-9ea3-b91a6bc1d79f",
+      "defaultJobAd": true,
+      "refNumber": "R00151275",
+      "company": {
+        "identifier": "AbbVie",
+        "name": "AbbVie"
+      },
+      "releasedDate": "2026-09-28T21:16:41.343Z",
+      "location": {
+        "city": "North Chicago",
+        "region": "IL",
+        "country": "us",
+        "remote": false,
+        "hybrid": true,
+        "latitude": "42.325578",
+        "longitude": "-87.8411818",
+        "fullLocation": "North Chicago, IL, United States"
+      },
+      "industry": {
+        "id": "pharmaceuticals",
+        "label": "Pharmaceuticals"
+      },
+      "department": {},
+      "function": {
+        "id": "other",
+        "label": "Other"
+      },
+      "typeOfEmployment": {
+        "id": "permanent",
+        "label": "Full-time"
+      },
+      "experienceLevel": {
+        "id": "mid_senior_level",
+        "label": "Mid-Senior Level"
+      },
+      "customField": [
+        {
+          "fieldId": "65807663cbfd1911c2f5d15f",
+          "fieldLabel": "Workday Function",
+          "valueId": "FUNCTION_HQIT",
+          "valueLabel": "HQIT Information Technology"
+        },
+        {
+          "fieldId": "657cc8550d0b1f2ef38a3fc9",
+          "fieldLabel": "City",
+          "valueId": "North Chicago",
+          "valueLabel": "North Chicago"
+        },
+        {
+          "fieldId": "657ccabf0d0b1f2ef38a3fce",
+          "fieldLabel": "Segment 5 (Maximum)",
+          "valueId": "268500",
+          "valueLabel": "268500"
+        },
+        {
+          "fieldId": "656747e5a29e121ffd619b85",
+          "fieldLabel": "Brands",
+          "valueId": "default",
+          "valueLabel": "AbbVie"
+        },
+        {
+          "fieldId": "COUNTRY",
+          "fieldLabel": "Country/Region",
+          "valueId": "us",
+          "valueLabel": "United States"
+        },
+        {
+          "fieldId": "657cca530d0b1f2ef38a3fcc",
+          "fieldLabel": "Segment 1 (Minimum)",
+          "valueId": "141500",
+          "valueLabel": "141500"
+        },
+        {
+          "fieldId": "657ccc1c0d0b1f2ef38a3fda",
+          "fieldLabel": "Workday Job Family",
+          "valueId": "Job_Family_Group_Data_and_Analytics_ABBV",
+          "valueLabel": "Data and Analytics_ABBV"
+        },
+        {
+          "fieldId": "657ccc483fd51d6d84c0bc3c",
+          "fieldLabel": "Posting Grade",
+          "valueId": "COMPENSATIONGRADE_18",
+          "valueLabel": "18"
+        },
+        {
+          "fieldId": "65806674cbfd1911c2f5d15b",
+          "fieldLabel": "Hiring Manager",
+          "valueId": "15087524",
+          "valueLabel": "Micah Topping (15087524)"
+        },
+        {
+          "fieldId": "657ccbce3fd51d6d84c0bc3a",
+          "fieldLabel": "Workday Global Grade",
+          "valueId": "COMPENSATIONGRADE_18",
+          "valueLabel": "18"
+        },
+        {
+          "fieldId": "6580668ecbfd1911c2f5d15c",
+          "fieldLabel": "Hiring Manager Title",
+          "valueId": "Director Commercial BTS Architecture and Partnerships",
+          "valueLabel": "Director Commercial BTS Architecture and Partnerships"
+        },
+        {
+          "fieldId": "6580763744b74c1731e95352",
+          "fieldLabel": "Parent Function",
+          "valueId": "FUNCTION_HQTR",
+          "valueLabel": "HQTR Headquarters"
+        },
+        {
+          "fieldId": "657ccad53fd51d6d84c0bc37",
+          "fieldLabel": "Salary Min",
+          "valueId": "141500",
+          "valueLabel": "141500"
+        },
+        {
+          "fieldId": "657ccae70d0b1f2ef38a3fcf",
+          "fieldLabel": "Salary Max",
+          "valueId": "268500",
+          "valueLabel": "268500"
+        },
+        {
+          "fieldId": "657ccc330d0b1f2ef38a3fdb",
+          "fieldLabel": "Salary/Hourly Pay Indicator",
+          "valueId": "Salaried",
+          "valueLabel": "Salaried"
+        },
+        {
+          "fieldId": "657cc8220d0b1f2ef38a3fc8",
+          "fieldLabel": "Workday Country",
+          "valueId": "US",
+          "valueLabel": "United States of America"
+        },
+        {
+          "fieldId": "657ccbae0d0b1f2ef38a3fd6",
+          "fieldLabel": "Contractor Portal Career Site Posting",
+          "valueId": "a33ae6a2-c601-483f-b279-1d6b970f17ff",
+          "valueLabel": "Yes"
+        }
+      ],
+      "visibility": "PUBLIC",
+      "ref": "https://api.smartrecruiters.com/v1/companies/AbbVie/postings/3743990015748796",
+      "language": {
+        "code": "en",
+        "label": "English",
+        "labelNative": "English (US)"
+      }
+    }
+  ]
+}

@@ -132,7 +132,7 @@ export const PRESETS: readonly Preset[] = [
       "buyer",
     ],
     excludeKeywords: [],
-    note: "The internship feeds Shipmate reads today are mostly tech roles, so this finds little for now. More sources (company job boards) are coming.",
+    note: "The internship feeds Shipmate reads today are mostly tech roles, so this finds little from the shared lists. Follow supply chain companies (Profile → Companies) to watch their own careers pages.",
   },
   {
     id: "custom",

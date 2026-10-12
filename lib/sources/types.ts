@@ -72,7 +72,21 @@ export type FetchContext = {
   fetch: typeof fetch;
   /** Workflow GITHUB_TOKEN; optional locally (unauthenticated API = 60 req/h). */
   githubToken?: string;
+  /** Something worth a line in the run log that isn't a failure. */
+  warn?: (message: string) => void;
 };
+
+/**
+ * A check of a best-effort source (Workday's undocumented API) that didn't
+ * work. Unlike an ordinary error it is not a source-health alert and not a
+ * snapshot: the last snapshot simply stays as it was.
+ */
+export class BestEffortFailure extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "BestEffortFailure";
+  }
+}
 
 export type SourceAdapter = {
   kind: SourceKind;

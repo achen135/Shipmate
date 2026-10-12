@@ -1,0 +1,21 @@
+{
+  "total": 1080,
+  "jobPostings": [
+    {
+      "title": "Custom SOC Intern - 2027",
+      "externalPath": "/job/China-Shanghai/Custom-SOC-Intern---2027_JR2024692",
+      "locationsText": "China, Shanghai",
+      "postedOn": "Posted 26 Days Ago",
+      "bulletFields": ["JR2024692"]
+    },
+    {
+      "title": "Director, International Tax Planning",
+      "externalPath": "/job/US-CA-Santa-Clara/Director--International-Tax-Planning_JR2026240",
+      "locationsText": "US, CA, Santa Clara",
+      "postedOn": "Posted 14 Days Ago",
+      "bulletFields": ["JR2026240"]
+    }
+  ],
+  "facets": [],
+  "userAuthenticated": false
+}

@@ -25,6 +25,7 @@ const BADGES: Record<
   },
   healthy: { label: "Healthy", variant: "secondary" },
   unchecked: { label: "Not checked yet", variant: "outline" },
+  best_effort: { label: "Best effort", variant: "outline" },
 };
 
 type RunStats = {
@@ -66,15 +67,18 @@ export default async function SourcesPage() {
           Source health
         </h1>
         <p className="mt-2 text-muted-foreground">
-          Red means the last check failed or the job count fell by more than
-          half. Stale means no successful check in 3 hours (usually the Watch
-          trigger, not the source).
+          Red means the last check failed or an aggregator&apos;s job count fell
+          by more than half. Stale means no successful check in 3 hours (usually
+          the Watch trigger, not the source). Company boards are never red for
+          having few or no internships. Best effort is Workday, which may not
+          work and is only noted.
         </p>
       </div>
 
       <ul aria-label="Sources" className="divide-y rounded-xl border bg-card">
         {sources.map((source) => {
           const status = sourceStatus(source, now);
+          const bestEffort = status === "best_effort";
           const badge = BADGES[status];
           return (
             <li key={source.id} data-testid="source-row" className="p-4">
@@ -109,9 +113,19 @@ export default async function SourcesPage() {
                   {source.last_alert}
                 </p>
               )}
+              {bestEffort && (
+                <p className="mt-3 text-sm text-muted-foreground">
+                  Workday has no public API, so this source works when it works.
+                  It last worked{" "}
+                  {source.last_success_at
+                    ? formatRelative(source.last_success_at, now)
+                    : "never"}
+                  ; nothing is closed or alerted while it doesn&apos;t.
+                </p>
+              )}
               {source.last_error && source.last_error !== source.last_alert && (
                 <p className="mt-2 text-sm break-words text-muted-foreground">
-                  Last error: {source.last_error}
+                  Last {bestEffort ? "problem" : "error"}: {source.last_error}
                 </p>
               )}
             </li>

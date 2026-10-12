@@ -79,9 +79,7 @@ test("pick a preset, triage the backfilled Inbox", async ({ page }, info) => {
 
   // Supply chain explains why it finds little; then pick SWE.
   await page.getByText("Supply chain/Ops", { exact: true }).click();
-  await expect(
-    page.getByText(/more sources \(company job boards\) are coming/i),
-  ).toBeVisible();
+  await expect(page.getByText(/follow supply chain companies/i)).toBeVisible();
   await page.getByText("SWE", { exact: true }).click();
   await expect(page.getByRole("textbox", { name: "Name" })).toHaveValue("SWE");
   await expect(page.getByRole("checkbox", { name: "Software" })).toBeChecked();

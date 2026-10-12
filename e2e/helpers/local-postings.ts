@@ -97,6 +97,38 @@ export async function finishOnboarding(userId: string): Promise<void> {
   if (error) throw new Error(`finish onboarding: ${error.message}`);
 }
 
+/** A "software" watch profile, as if picked in onboarding. */
+export async function addSoftwareWatchProfile(userId: string): Promise<void> {
+  const { error } = await admin()
+    .from("watch_profiles")
+    .insert({
+      user_id: userId,
+      name: "SWE",
+      preset: "swe",
+      categories: ["Software"],
+      include_keywords: ["software"],
+      terms: ["Summer 2027"],
+    });
+  if (error) throw new Error(`watch profile: ${error.message}`);
+}
+
+/**
+ * Delete the companies a test created by following (name starts with
+ * `prefix`): their postings first, then the company, which takes its sources
+ * and follows with it.
+ */
+export async function deleteCompaniesNamed(prefix: string): Promise<void> {
+  const db = admin();
+  const { data } = await db
+    .from("companies")
+    .select("id")
+    .like("name", `${prefix}%`);
+  for (const { id } of data ?? []) {
+    await db.from("postings").delete().eq("company_id", id);
+    await db.from("companies").delete().eq("id", id);
+  }
+}
+
 /** Put a posting in a user's Inbox, as the worker's matching would. */
 export async function addToInbox(
   userId: string,

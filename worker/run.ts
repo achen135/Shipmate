@@ -2,14 +2,18 @@
  * The 30-minute watcher run (GitHub Actions `watch.yml`, dispatched by
  * Supabase pg_cron with GitHub's schedule as a fallback).
  *
- * Run order (CLAUDE.md "Worker run order"), as far as M2 goes:
- *   1. aggregators: each source checks its upstream version and, if it
- *      changed, downloads a fresh snapshot
+ * Run order (CLAUDE.md "Worker run order"), as far as M4 goes:
+ *   1. every enabled source, aggregators then the company boards users
+ *      follow: each checks its upstream and returns a snapshot (or, for an
+ *      aggregator whose commit is unchanged, nothing new)
  *   2. normalize + dedupe + upsert, and close stale postings (per source,
  *      via lib/postings/plan.ts), writing source health with alerts
  *   3. match newly listed postings to watch profiles → Inbox rows
  *   4. write the `runs` row
- * Later milestones add hot boards, tailoring, and notifications.
+ * Later milestones add the cold tier, tailoring, and notifications.
+ *
+ * WATCH_SOURCES=greenhouse:stripe,lever:palantir limits a run to those
+ * source keys (a hand run for one company, and the E2E tests).
  */
 
 import { createClient } from "@supabase/supabase-js";
@@ -20,14 +24,19 @@ import {
   type Snapshot,
   planSource,
 } from "@/lib/postings/plan";
-import { ADAPTERS } from "@/lib/sources";
-import type { FetchResult, SourceKind } from "@/lib/sources/types";
+import { ADAPTERS, isBoardKind } from "@/lib/sources";
+import {
+  BestEffortFailure,
+  type FetchResult,
+  type SourceKind,
+} from "@/lib/sources/types";
 import type { Database, Json } from "@/lib/supabase/database.types";
 
 import { formatWarning, loadWorkerConfig } from "./config";
 import { type Db, applyPlan, loadIngestState } from "./db";
 import { type CheckOutcome, formatAlert, nextHealth } from "./health";
 import { matchNewPostings } from "./match";
+import { withE2eOrigin } from "./e2e-origin";
 
 type SourceRunStats = {
   outcome: CheckOutcome["kind"];
@@ -129,17 +138,27 @@ async function watchSources(
   stats: Record<string, SourceRunStats>,
   errors: string[],
 ): Promise<{ isSeed: boolean; newPostings: PostingRow[] }> {
-  const { data: sources, error } = await db
+  const only = (process.env.WATCH_SOURCES ?? "")
+    .split(",")
+    .map((key) => key.trim())
+    .filter(Boolean);
+  let query = db
     .from("sources")
     .select(
-      "id, kind, name, config, last_sha_or_etag, last_success_at, last_count, last_error, last_alert",
+      "id, key, kind, name, config, last_sha_or_etag, last_success_at, last_count, last_error, last_alert",
     )
-    .eq("enabled", true)
-    .order("created_at");
+    .eq("enabled", true);
+  if (only.length > 0) query = query.in("key", only);
+  const { data: sources, error } = await query.order("created_at");
   if (error) throw new Error(`load sources: ${error.message}`);
+  if (only.length > 0) {
+    console.log(
+      `[worker] limited to ${only.join(", ")}: ${sources.length} found`,
+    );
+  }
 
   const state = await loadIngestState(db, sources);
-  const http = createPoliteFetch();
+  const http = withE2eOrigin(createPoliteFetch(), process.env);
   let isSeed = false;
   const candidates = new Map<string, PostingRow>();
 
@@ -150,6 +169,7 @@ async function watchSources(
 
     let fetched: FetchResult | null = null;
     let failure: string | null = null;
+    let bestEffort: string | null = null;
     try {
       fetched = await adapter.fetch(
         {
@@ -159,10 +179,22 @@ async function watchSources(
           config: source.config,
           lastVersion: source.last_sha_or_etag,
         },
-        { fetch: http, githubToken },
+        {
+          fetch: http,
+          githubToken,
+          warn: (message) => console.log(formatWarning(message, process.env)),
+        },
       );
     } catch (err) {
-      failure = errorMessage(err);
+      // A best-effort source (Workday) not working is noted, not a failure.
+      if (err instanceof BestEffortFailure) {
+        bestEffort = err.message;
+        console.log(
+          formatWarning(`${source.name}: ${bestEffort}`, process.env),
+        );
+      } else {
+        failure = errorMessage(err);
+      }
     }
 
     const snapshot: Snapshot = !fetched
@@ -174,17 +206,28 @@ async function watchSources(
     // A database error here stops the run (state and DB would disagree).
     await applyPlan(db, plan);
 
-    const seed = fetched?.kind === "fresh" && source.last_success_at === null;
+    // An aggregator's first snapshot is thousands of old jobs, so it only
+    // seeds. A company board is small and was added because someone follows
+    // it, so its first snapshot reaches inboxes (jobs we already had from an
+    // aggregator merge into those postings and don't count as new).
+    const seed =
+      fetched?.kind === "fresh" &&
+      source.last_success_at === null &&
+      !isBoardKind(source.kind);
     if (seed) isSeed = true;
     else for (const row of plan.insertPostings) candidates.set(row.id, row);
 
-    const outcome: CheckOutcome = failure
-      ? { kind: "failed", error: failure }
-      : fetched!.kind === "fresh"
-        ? { kind: "fresh", count: plan.stats.active }
-        : { kind: "unchanged" };
+    const outcome: CheckOutcome = bestEffort
+      ? { kind: "best_effort_failed", error: bestEffort }
+      : failure
+        ? { kind: "failed", error: failure }
+        : fetched!.kind === "fresh"
+          ? { kind: "fresh", count: plan.stats.active }
+          : { kind: "unchanged" };
     const now = new Date().toISOString();
-    const health = nextHealth(source, outcome, now);
+    const health = nextHealth(source, outcome, now, {
+      board: isBoardKind(source.kind),
+    });
     const { error: healthError } = await db
       .from("sources")
       .update({

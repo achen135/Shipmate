@@ -30,4 +30,58 @@ describe("sourceStatus", () => {
       "unchecked",
     );
   });
+
+  it("a Workday source whose last check failed is best effort, not an alert", () => {
+    expect(
+      sourceStatus(
+        {
+          kind: "workday",
+          last_error: "Workday x: HTTP 403",
+          last_alert: null,
+          last_success_at: hoursAgo(30),
+        },
+        NOW,
+      ),
+    ).toBe("best_effort");
+    // ...also when it has never worked.
+    expect(
+      sourceStatus(
+        {
+          kind: "workday",
+          last_error: "Workday x: HTTP 403",
+          last_alert: null,
+          last_success_at: null,
+        },
+        NOW,
+      ),
+    ).toBe("best_effort");
+  });
+
+  it("a Workday source that last worked is judged like any other", () => {
+    expect(
+      sourceStatus(
+        {
+          kind: "workday",
+          last_error: null,
+          last_alert: null,
+          last_success_at: hoursAgo(1),
+        },
+        NOW,
+      ),
+    ).toBe("healthy");
+  });
+
+  it("other kinds with an error but no alert are not best effort", () => {
+    expect(
+      sourceStatus(
+        {
+          kind: "greenhouse",
+          last_error: "x",
+          last_alert: null,
+          last_success_at: hoursAgo(1),
+        },
+        NOW,
+      ),
+    ).toBe("healthy");
+  });
 });

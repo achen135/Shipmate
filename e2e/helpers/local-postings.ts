@@ -113,16 +113,16 @@ export async function addSoftwareWatchProfile(userId: string): Promise<void> {
 }
 
 /**
- * Delete the companies a test created by following (name starts with
- * `prefix`): their postings first, then the company, which takes its sources
- * and follows with it.
+ * Delete the companies a test created by following, by exact name: their
+ * postings first, then the company, which takes its sources and follows with
+ * it. Exact names, not a prefix: the mobile and desktop projects run the same
+ * spec in parallel, and a prefix match would delete the other project's
+ * company in the middle of its test.
  */
-export async function deleteCompaniesNamed(prefix: string): Promise<void> {
+export async function deleteCompaniesNamed(names: string[]): Promise<void> {
+  if (names.length === 0) return;
   const db = admin();
-  const { data } = await db
-    .from("companies")
-    .select("id")
-    .like("name", `${prefix}%`);
+  const { data } = await db.from("companies").select("id").in("name", names);
   for (const { id } of data ?? []) {
     await db.from("postings").delete().eq("company_id", id);
     await db.from("companies").delete().eq("id", id);

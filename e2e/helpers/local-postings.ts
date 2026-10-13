@@ -27,6 +27,11 @@ export type SeedPosting = {
   status?: "open" | "closed";
   terms?: string[];
   locations?: string[];
+  /** Defaults to a unique example.com link. */
+  url?: string;
+  description?: string;
+  sponsorship?: "unknown" | "offers" | "no_sponsorship" | "citizens_only";
+  degrees?: string[];
 };
 
 const companyIds: string[] = [];
@@ -47,7 +52,7 @@ export async function seedPostings(
 
   const rows = postings.map((p, i) => {
     const slug = `${company}-${i}`.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-    const link = `https://example.com/jobs/${slug}`;
+    const link = p.url ?? `https://example.com/jobs/${slug}`;
     return {
       company_id: row.id,
       title: p.title,
@@ -60,6 +65,9 @@ export async function seedPostings(
       source_names: ["E2E fixture"],
       content_hash: slug,
       status: p.status ?? "open",
+      description: p.description ?? null,
+      sponsorship: p.sponsorship ?? "unknown",
+      degrees: p.degrees ?? [],
     };
   });
   const { data: inserted, error: postingsError } = await db
@@ -113,6 +121,30 @@ export async function addSoftwareWatchProfile(userId: string): Promise<void> {
 }
 
 /**
+ * A software watch profile that only matches jobs in `place`. The mock
+ * Greenhouse board puts its slug in its jobs' location, so a profile for that
+ * slug matches that board's jobs and nothing another test's worker creates.
+ */
+export async function addWatchProfileForPlace(
+  userId: string,
+  place: string,
+): Promise<void> {
+  const { error } = await admin()
+    .from("watch_profiles")
+    .insert({
+      user_id: userId,
+      name: "SWE here",
+      preset: "swe",
+      categories: ["Software"],
+      include_keywords: ["software"],
+      terms: ["Summer 2027"],
+      locations: [place],
+      remote_ok: false,
+    });
+  if (error) throw new Error(`watch profile: ${error.message}`);
+}
+
+/**
  * Delete the companies a test created by following, by exact name: their
  * postings first, then the company, which takes its sources and follows with
  * it. Exact names, not a prefix: the mobile and desktop projects run the same
@@ -127,6 +159,42 @@ export async function deleteCompaniesNamed(names: string[]): Promise<void> {
     await db.from("postings").delete().eq("company_id", id);
     await db.from("companies").delete().eq("id", id);
   }
+}
+
+/** Fill in the profile fields the review page's warnings read. */
+export async function setProfile(
+  userId: string,
+  fields: {
+    school?: string;
+    degree?: "associate" | "bachelors" | "masters" | "phd" | "other";
+    major?: string;
+    grad_month?: number;
+    grad_year?: number;
+    needs_sponsorship?: boolean;
+    work_authorized?: boolean;
+  },
+): Promise<void> {
+  const { error } = await admin()
+    .from("profiles")
+    .update(fields)
+    .eq("user_id", userId);
+  if (error) throw new Error(`set profile: ${error.message}`);
+}
+
+/** An application already in a user's Tracker (a row for a seeded posting). */
+export async function addApplied(
+  userId: string,
+  postingId: string,
+  appliedAt: string,
+  status: "applied" | "rejected" = "applied",
+): Promise<void> {
+  const { error } = await admin().from("user_postings").insert({
+    user_id: userId,
+    posting_id: postingId,
+    status,
+    applied_at: appliedAt,
+  });
+  if (error) throw new Error(`tracker row: ${error.message}`);
 }
 
 /** Put a posting in a user's Inbox, as the worker's matching would. */
@@ -147,4 +215,72 @@ export async function deleteSeededPostings(): Promise<void> {
     await db.from("postings").delete().eq("company_id", id);
     await db.from("companies").delete().eq("id", id);
   }
+}
+
+/**
+ * Follow a company's Greenhouse board as if the user had pasted its careers
+ * link (company + hot-tier source + follow), without the UI. Returns the
+ * source key the worker takes in WATCH_SOURCES.
+ */
+export async function addBoardFollow(
+  userId: string,
+  slug: string,
+  company: string,
+  priority = false,
+): Promise<string> {
+  const db = admin();
+  const { data: row, error } = await db
+    .from("companies")
+    .insert({ name: company, normalized_name: company.toLowerCase() })
+    .select("id")
+    .single();
+  if (error) throw new Error(`board company: ${error.message}`);
+  companyIds.push(row.id);
+  const key = `greenhouse:${slug}`;
+  const { error: sourceError } = await db.from("sources").insert({
+    key,
+    kind: "greenhouse",
+    name: `${company} (Greenhouse)`,
+    config: { slug, company },
+    company_id: row.id,
+    tier: "hot",
+  });
+  if (sourceError) throw new Error(`board source: ${sourceError.message}`);
+  const { error: followError } = await db.from("follows").insert({
+    user_id: userId,
+    company_id: row.id,
+    board_kind: "greenhouse",
+    board_ref: slug,
+    priority,
+  });
+  if (followError) throw new Error(`follow: ${followError.message}`);
+  return key;
+}
+
+/** Say when the user joined (the email fallback waits a day after this). */
+export async function setMemberSince(
+  userId: string,
+  when: Date,
+): Promise<void> {
+  const { error } = await admin()
+    .from("profiles")
+    .update({ invited_at: when.toISOString() })
+    .eq("user_id", userId);
+  if (error) throw new Error(`member since: ${error.message}`);
+}
+
+/** A device's push subscription, as the browser would have registered it. */
+export async function addPushSubscription(
+  userId: string,
+  endpoint: string,
+): Promise<void> {
+  const { error } = await admin()
+    .from("push_subscriptions")
+    .insert({
+      user_id: userId,
+      endpoint,
+      keys: { p256dh: "e2e-p256dh", auth: "e2e-auth" },
+      user_agent: "e2e",
+    });
+  if (error) throw new Error(`push subscription: ${error.message}`);
 }

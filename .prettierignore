@@ -18,3 +18,4 @@ docs/
 supabase/.temp/
 supabase/.branches/
 lib/tracker/__fixtures__/
+lib/questions/__fixtures__/*.html

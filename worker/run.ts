@@ -9,8 +9,10 @@
  *   2. normalize + dedupe + upsert, and close stale postings (per source,
  *      via lib/postings/plan.ts), writing source health with alerts
  *   3. match newly listed postings to watch profiles → Inbox rows
- *   4. write the `runs` row
- * Later milestones add the cold tier, tailoring, and notifications.
+ *   4. one notification per user for the rows just created (push, with an
+ *      email fallback; worker/notify.ts)
+ *   5. write the `runs` row
+ * Later milestones add the cold tier and tailoring.
  *
  * WATCH_SOURCES=greenhouse:stripe,lever:palantir limits a run to those
  * source keys (a hand run for one company, and the E2E tests).
@@ -35,8 +37,9 @@ import type { Database, Json } from "@/lib/supabase/database.types";
 import { formatWarning, loadWorkerConfig } from "./config";
 import { type Db, applyPlan, loadIngestState } from "./db";
 import { type CheckOutcome, formatAlert, nextHealth } from "./health";
-import { matchNewPostings } from "./match";
-import { withE2eOrigin } from "./e2e-origin";
+import { type MatchResult, matchNewPostings } from "./match";
+import { type NotifyStats, notifyUsers } from "./notify";
+import { withE2eOrigin } from "@/lib/e2e-origin";
 
 type SourceRunStats = {
   outcome: CheckOutcome["kind"];
@@ -94,14 +97,23 @@ async function main(): Promise<number> {
   const stats: Record<string, SourceRunStats> = {};
   const errors: string[] = [];
   let isSeed = false;
-  let matching: Awaited<ReturnType<typeof matchNewPostings>> | null = null;
+  let matching: Omit<MatchResult, "newRows"> | null = null;
+  let notifications: NotifyStats | null = null;
   let crashed: unknown = null;
 
   try {
     const watched = await watchSources(db, githubToken, stats, errors);
     isSeed = watched.isSeed;
-    matching = await matchNewPostings(db, watched.newPostings);
+    const matched = await matchNewPostings(db, watched.newPostings);
+    const { newRows, ...matchStats } = matched;
+    matching = matchStats;
     console.log(`[worker] matching: ${JSON.stringify(matching)}`);
+    // One digest per user for the Inbox rows created just now. A failure here
+    // is logged and never fails the run (lib: worker/notify.ts).
+    notifications = await notifyUsers(db, run.id, newRows);
+    if (notifications) {
+      console.log(`[worker] notifications: ${JSON.stringify(notifications)}`);
+    }
   } catch (error) {
     crashed = error;
     errors.push(`run: ${errorMessage(error)}`);
@@ -113,7 +125,11 @@ async function main(): Promise<number> {
       finished_at: new Date().toISOString(),
       ok: crashed === null,
       is_seed: isSeed,
-      stats: { sources: stats, matching } as unknown as NonNullable<Json>,
+      stats: {
+        sources: stats,
+        matching,
+        notifications,
+      } as unknown as NonNullable<Json>,
       errors,
     })
     .eq("id", run.id);

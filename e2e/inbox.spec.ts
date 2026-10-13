@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 
+import { andWaitForAction } from "./helpers/actions";
 import {
   createTestUser,
   deleteCreatedUsers,
@@ -104,17 +105,23 @@ test("pick a preset, triage the backfilled Inbox", async ({ page }, info) => {
   }
 
   // Save → To Apply.
-  await card("Software Engineer Intern")
-    .getByRole("button", { name: "Save" })
-    .click();
+  await andWaitForAction(page, () =>
+    card("Software Engineer Intern")
+      .getByRole("button", { name: "Save" })
+      .click(),
+  );
   await expect(card("Software Engineer Intern").getByRole("status")).toHaveText(
     /Saved to To Apply/,
   );
 
   // Skip with a reason → gone from the Inbox.
   const backend = card("Backend Developer Intern");
-  await backend.getByRole("button", { name: "Skip" }).click();
-  await backend.getByRole("button", { name: "Location" }).click();
+  await andWaitForAction(page, () =>
+    backend.getByRole("button", { name: "Skip" }).click(),
+  );
+  await andWaitForAction(page, () =>
+    backend.getByRole("button", { name: "Location" }).click(),
+  );
   await expect(backend.getByRole("status")).toHaveText(/Skipped: Location/);
 
   await page.reload();
@@ -133,7 +140,7 @@ test("pick a preset, triage the backfilled Inbox", async ({ page }, info) => {
     "_blank",
   );
 
-  // Posting detail: fields + apply link.
+  // Posting detail: fields + the Apply link in the sticky actions.
   await saved
     .getByRole("link", { name: title("Software Engineer Intern") })
     .click();
@@ -143,7 +150,7 @@ test("pick a preset, triage the backfilled Inbox", async ({ page }, info) => {
   ).toBeVisible();
   await expect(page.getByText("Saved to To Apply")).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "Apply on the company site" }),
+    page.getByRole("link", { name: "Apply", exact: true }),
   ).toHaveAttribute("href", /^https:\/\/example\.com\/jobs\//);
 
   // The search shows up in Profile.

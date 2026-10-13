@@ -1,0 +1,252 @@
+{
+  "data": {
+    "jobPosting": {
+      "id": "4e64ab86-4e30-403b-b1b9-41dc052570ce",
+      "title": "Software Engineer, Frontend",
+      "applicationForm": {
+        "sections": [
+          {
+            "title": null,
+            "descriptionHtml": null,
+            "fieldEntries": [
+              {
+                "id": "8ee87995-57d5-4793-9c8e-2580126f244b__systemfield_name",
+                "field": {
+                  "id": "738e593c-d038-46e0-b898-eac9d4abfbdf",
+                  "path": "_systemfield_name",
+                  "humanReadablePath": "Name",
+                  "title": "Legal Name",
+                  "isNullable": false,
+                  "isPrivate": false,
+                  "isDeactivated": false,
+                  "isMany": false,
+                  "metadata": {},
+                  "type": "String",
+                  "__autoSerializationID": "StringField"
+                },
+                "isRequired": true,
+                "descriptionHtml": null
+              },
+              {
+                "id": "8ee87995-57d5-4793-9c8e-2580126f244b__systemfield_email",
+                "field": {
+                  "id": "0aca0663-e72b-4b8c-bae4-a4d25bc71e5b",
+                  "path": "_systemfield_email",
+                  "humanReadablePath": "Email",
+                  "title": "Email",
+                  "isNullable": false,
+                  "isPrivate": false,
+                  "isDeactivated": false,
+                  "isMany": false,
+                  "metadata": {},
+                  "type": "Email",
+                  "__autoSerializationID": "EmailField"
+                },
+                "isRequired": true,
+                "descriptionHtml": null
+              },
+              {
+                "id": "8ee87995-57d5-4793-9c8e-2580126f244b_a58ce2a4-c4a9-4e34-ba2c-39299192982d",
+                "field": {
+                  "id": "a152f302-45f0-49f6-b925-3ed21a0225d7",
+                  "path": "a58ce2a4-c4a9-4e34-ba2c-39299192982d",
+                  "humanReadablePath": "Phone",
+                  "title": "Phone",
+                  "isNullable": false,
+                  "isPrivate": false,
+                  "isDeactivated": false,
+                  "isMany": false,
+                  "metadata": {},
+                  "type": "Phone",
+                  "__autoSerializationID": "PhoneField"
+                },
+                "isRequired": true,
+                "descriptionHtml": null
+              },
+              {
+                "id": "8ee87995-57d5-4793-9c8e-2580126f244b__systemfield_resume",
+                "field": {
+                  "id": "06f6799b-0d02-47e0-9773-8096cb459bbc",
+                  "path": "_systemfield_resume",
+                  "humanReadablePath": "Resume",
+                  "title": "Resume",
+                  "isNullable": false,
+                  "isPrivate": false,
+                  "isDeactivated": false,
+                  "isMany": false,
+                  "metadata": {},
+                  "type": "File",
+                  "__autoSerializationID": "FileField"
+                },
+                "isRequired": true,
+                "descriptionHtml": null
+              },
+              {
+                "id": "8ee87995-57d5-4793-9c8e-2580126f244b_question_22812575002",
+                "field": {
+                  "id": "7d9b3248-66ce-4a8f-b983-111f6ccaa15c",
+                  "path": "question_22812575002",
+                  "humanReadablePath": "LinkedIn Profile",
+                  "title": "LinkedIn Profile",
+                  "isNullable": false,
+                  "isPrivate": false,
+                  "isDeactivated": false,
+                  "isMany": false,
+                  "metadata": {},
+                  "type": "String",
+                  "__autoSerializationID": "StringField"
+                },
+                "isRequired": false,
+                "descriptionHtml": null
+              },
+              {
+                "id": "8ee87995-57d5-4793-9c8e-2580126f244b_question_22838854002",
+                "field": {
+                  "id": "ab7c0ce3-556d-447b-bf10-c2c2db8a18b2",
+                  "path": "question_22838854002",
+                  "humanReadablePath": "Github",
+                  "title": "Github / Website",
+                  "isNullable": false,
+                  "isPrivate": false,
+                  "isDeactivated": false,
+                  "isMany": false,
+                  "metadata": {},
+                  "type": "String",
+                  "__autoSerializationID": "StringField"
+                },
+                "isRequired": false,
+                "descriptionHtml": null
+              },
+              {
+                "id": "8ee87995-57d5-4793-9c8e-2580126f244b_cover_letter",
+                "field": {
+                  "id": "73382c54-3184-449d-8331-23cf05fcea2e",
+                  "path": "cover_letter",
+                  "humanReadablePath": "Cover Letter",
+                  "title": "Cover Letter",
+                  "isNullable": false,
+                  "isPrivate": false,
+                  "isDeactivated": false,
+                  "isMany": false,
+                  "metadata": {},
+                  "type": "File",
+                  "__autoSerializationID": "FileField"
+                },
+                "isRequired": false,
+                "descriptionHtml": null
+              },
+              {
+                "id": "8ee87995-57d5-4793-9c8e-2580126f244b_05186312-a133-4c6b-9859-5a359975a53b",
+                "field": {
+                  "id": "91e79503-8a5b-4799-90a2-18eb0436b273",
+                  "path": "05186312-a133-4c6b-9859-5a359975a53b",
+                  "humanReadablePath": "Do you have proficiency in JavaScript and React? Please describe.",
+                  "title": "Do you have proficiency in JavaScript and React? Please describe.",
+                  "isNullable": false,
+                  "isPrivate": false,
+                  "isDeactivated": false,
+                  "isMany": false,
+                  "metadata": {},
+                  "type": "String",
+                  "__autoSerializationID": "StringField"
+                },
+                "isRequired": true,
+                "descriptionHtml": null
+              },
+              {
+                "id": "8ee87995-57d5-4793-9c8e-2580126f244b_2143a185-34d7-46b3-97cd-eb849e81a0a2",
+                "field": {
+                  "id": "ea126031-993f-45a9-a6ea-3b79d255e1ad",
+                  "path": "2143a185-34d7-46b3-97cd-eb849e81a0a2",
+                  "humanReadablePath": "",
+                  "title": "We believe exceptional performance in one area is a good indication of performance in other areas. Do you have any examples of exceptional performance you want to highlight?",
+                  "isNullable": false,
+                  "isPrivate": false,
+                  "isDeactivated": false,
+                  "isMany": false,
+                  "metadata": {},
+                  "type": "String",
+                  "__autoSerializationID": "StringField"
+                },
+                "isRequired": true,
+                "descriptionHtml": null
+              },
+              {
+                "id": "8ee87995-57d5-4793-9c8e-2580126f244b_9c5b0358-1bae-4437-b3e6-e3541fdcf473",
+                "field": {
+                  "id": "49bbcdb1-f7a7-4bd9-b496-7c240ff11d67",
+                  "path": "9c5b0358-1bae-4437-b3e6-e3541fdcf473",
+                  "humanReadablePath": "",
+                  "title": "Are you currently based in the U.S., Canada, LATAM, and/or currently authorized to work in one of these locations?",
+                  "isNullable": false,
+                  "isPrivate": false,
+                  "isDeactivated": false,
+                  "isMany": false,
+                  "metadata": {},
+                  "type": "Boolean",
+                  "__autoSerializationID": "BooleanField"
+                },
+                "isRequired": true,
+                "descriptionHtml": null
+              },
+              {
+                "id": "8ee87995-57d5-4793-9c8e-2580126f244b_307c94b5-e8a1-491d-b89a-2c7c8e5b1c7d",
+                "field": {
+                  "id": "9be0798c-6949-447d-9766-35f984f8bd0a",
+                  "path": "307c94b5-e8a1-491d-b89a-2c7c8e5b1c7d",
+                  "humanReadablePath": "",
+                  "title": "Have you built and deployed production-level applications using React, TypeScript (or JavaScript), and other modern front-end technologies?",
+                  "isNullable": false,
+                  "isPrivate": false,
+                  "isDeactivated": false,
+                  "isMany": false,
+                  "metadata": {},
+                  "type": "Boolean",
+                  "__autoSerializationID": "BooleanField"
+                },
+                "isRequired": true,
+                "descriptionHtml": null
+              },
+              {
+                "id": "8ee87995-57d5-4793-9c8e-2580126f244b_bd294cea-24ad-4d51-b626-a0ceed8541f9",
+                "field": {
+                  "id": "3e828b33-83c1-456a-9ebd-d833d798fb46",
+                  "path": "bd294cea-24ad-4d51-b626-a0ceed8541f9",
+                  "humanReadablePath": "",
+                  "title": "Do you have at least 1 year of professional frontend engineering experience in the U.S., Canada, or LATAM?",
+                  "isNullable": false,
+                  "isPrivate": false,
+                  "isDeactivated": false,
+                  "isMany": false,
+                  "metadata": {},
+                  "type": "Boolean",
+                  "__autoSerializationID": "BooleanField"
+                },
+                "isRequired": true,
+                "descriptionHtml": null
+              },
+              {
+                "id": "8ee87995-57d5-4793-9c8e-2580126f244b_dc1720d1-f410-411c-83a5-9040cb1f059e",
+                "field": {
+                  "id": "27deb93e-a38b-448a-852c-cfaa182901b6",
+                  "path": "dc1720d1-f410-411c-83a5-9040cb1f059e",
+                  "humanReadablePath": "",
+                  "title": "Are you comfortable completing a frontend take-home assessment? You\u2019ll receive an email from CodeSignal with the challenge details.",
+                  "isNullable": false,
+                  "isPrivate": false,
+                  "isDeactivated": false,
+                  "isMany": false,
+                  "metadata": {},
+                  "type": "Boolean",
+                  "__autoSerializationID": "BooleanField"
+                },
+                "isRequired": true,
+                "descriptionHtml": null
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

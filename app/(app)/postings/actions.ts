@@ -9,6 +9,7 @@ import {
   statusChangeSchema,
   statusUpdate,
 } from "@/lib/inbox/status";
+import type { Json } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -45,4 +46,59 @@ export async function markSeen(id: string): Promise<void> {
     .update({ seen_at: new Date().toISOString() })
     .eq("id", id)
     .is("seen_at", null);
+}
+
+const PASTED_MAX = 20000;
+
+/**
+ * Keep the questions a user pasted for an application Shipmate can't read.
+ * Stored in their own row's answer_sheet (RLS: theirs only), merged so keys
+ * later milestones add there aren't lost.
+ */
+export async function savePastedQuestions(
+  userPostingId: string,
+  text: string,
+): Promise<ActionResult> {
+  await requireMember();
+  if (!z.uuid().safeParse(userPostingId).success || text.length > PASTED_MAX) {
+    return { ok: false, message: "Something went wrong." };
+  }
+
+  const supabase = await createClient();
+  const { data: row, error: readError } = await supabase
+    .from("user_postings")
+    .select("answer_sheet")
+    .eq("id", userPostingId)
+    .maybeSingle();
+  if (readError || !row) {
+    console.error(
+      "[review] paste read failed:",
+      readError?.message ?? "no row",
+    );
+    return { ok: false, message: "Couldn't save. Try again." };
+  }
+
+  const current =
+    row.answer_sheet &&
+    typeof row.answer_sheet === "object" &&
+    !Array.isArray(row.answer_sheet)
+      ? row.answer_sheet
+      : {};
+  const rest = { ...current } as Record<string, unknown>;
+  delete rest.pastedQuestions;
+  const trimmed = text.trim();
+  const { data, error } = await supabase
+    .from("user_postings")
+    .update({
+      answer_sheet: (trimmed
+        ? { ...rest, pastedQuestions: trimmed }
+        : rest) as Json,
+    })
+    .eq("id", userPostingId)
+    .select("id");
+  if (error || data.length === 0) {
+    console.error("[review] paste save failed:", error?.message ?? "no row");
+    return { ok: false, message: "Couldn't save. Try again." };
+  }
+  return { ok: true };
 }

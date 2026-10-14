@@ -45,3 +45,22 @@ export function withE2ePush(sender: PushSender, env: Env): PushSender {
       : { ok: false, gone: false, error: `mock push ${response.status}` };
   };
 }
+
+/**
+ * E2E only: with E2E_AI_ORIGIN set AND a local Supabase stack, AI provider
+ * calls go to that origin (e2e/helpers/ats-mock-server.mjs answers like the
+ * Anthropic and OpenAI APIs) instead of the real ones, so tests never spend
+ * money or need a real key. Undefined everywhere else, which means the
+ * SDK's own default URL.
+ */
+export function e2eAiBaseUrl(
+  provider: "anthropic" | "openai",
+  env: Env,
+): string | undefined {
+  const origin = env.E2E_AI_ORIGIN;
+  const supabaseUrl = env.SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL || "";
+  if (!origin || !LOCAL.test(supabaseUrl)) return undefined;
+  return provider === "anthropic"
+    ? new URL("/anthropic", origin).toString()
+    : new URL("/openai/v1", origin).toString();
+}

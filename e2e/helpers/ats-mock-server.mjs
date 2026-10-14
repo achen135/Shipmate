@@ -14,6 +14,13 @@
  * an application form (the real Greenhouse shape, see lib/questions/
  * __fixtures__): standard questions, two written ones, and an anti-bot
  * puzzle.
+ *
+ * AI E2E (M6): POST /anthropic/v1/… and /openai/v1/… answer like the
+ * Anthropic and OpenAI APIs (the app sends AI calls here when
+ * E2E_AI_ORIGIN is set; lib/e2e-origin.ts). A key containing "e2e-valid"
+ * is accepted; any other gets each API's real 401 body. Structured-output
+ * requests get a faithful conversion built from the resume text itself:
+ * Title Case / ALL CAPS lines become sections, as a careful model would.
  */
 
 const field = (name, type, values = []) => ({ name, type, values });
@@ -89,6 +96,15 @@ createServer((request, response) => {
       .end(JSON.stringify(received));
     return;
   }
+  if (
+    url.pathname.startsWith("/anthropic/") ||
+    url.pathname.startsWith("/openai/")
+  ) {
+    let body = "";
+    request.on("data", (chunk) => (body += chunk));
+    request.on("end", () => answerAi(url, request, body, response));
+    return;
+  }
   const job = url.pathname.match(/^\/v1\/boards\/e2e-harbor\/jobs\/(\d+)$/);
   const board = url.pathname.match(/^\/v1\/boards\/(e2e-harbor[\w-]*)\/jobs$/);
   if (url.pathname === "/") {
@@ -141,3 +157,162 @@ createServer((request, response) => {
     response.writeHead(404, { "content-type": "application/json" }).end("{}");
   }
 }).listen(port, () => console.log(`ATS mock on :${port}`));
+
+// ---------------------------------------------------------------- AI mock
+
+const send = (response, status, body) =>
+  response
+    .writeHead(status, {
+      "content-type": "application/json",
+      "request-id": "req_e2e",
+    })
+    .end(JSON.stringify(body));
+
+function headingLike(line) {
+  const t = line.trim();
+  const parts = t.split(/\s+/);
+  if (parts.length > 4 || /[@|,.:;/()]|\d/.test(t)) return false;
+  const letters = t.replace(/[^A-Za-z]/g, "");
+  if (letters.length < 4) return false;
+  if (letters === letters.toUpperCase()) return true;
+  return parts.every(
+    (w) => /^(and|of|in|for|the|&)$/i.test(w) || /^[A-Z]/.test(w),
+  );
+}
+
+/** A faithful structured resume from plain resume text. */
+function convert(text) {
+  const lines = text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const [name = "", ...rest] = lines;
+  const email =
+    rest.find((l) => /@/.test(l))?.match(/[\w.+-]+@[\w.-]+/)?.[0] ?? "";
+  const sections = [];
+  for (const line of rest) {
+    if (headingLike(line)) {
+      sections.push({
+        title: line,
+        layout: "entries",
+        entries: [],
+        lists: [],
+        text: "",
+      });
+      continue;
+    }
+    const section = sections.at(-1);
+    if (!section) continue;
+    if (
+      (line.includes(",") &&
+        !/^[-•]/.test(line) &&
+        section.entries.length === 0) ||
+      /\d{4}$/.test(line)
+    ) {
+      const [heading, subheading = "", ...more] = line
+        .split(",")
+        .map((p) => p.trim());
+      section.entries.push({
+        heading,
+        subheading,
+        dates: more.join(", "),
+        location: "",
+        bullets: [],
+      });
+    } else if (section.entries.length) {
+      section.entries.at(-1).bullets.push(line.replace(/^[-•]\s*/, ""));
+    }
+  }
+  return { header: { name, email, phone: "", links: [] }, sections };
+}
+
+function answerAi(url, request, raw, response) {
+  let body = {};
+  try {
+    body = JSON.parse(raw || "{}");
+  } catch {
+    return send(response, 400, { error: { message: "bad json" } });
+  }
+  const anthropic = url.pathname.startsWith("/anthropic/");
+  const key = anthropic
+    ? (request.headers["x-api-key"] ?? "")
+    : (request.headers.authorization ?? "").replace(/^Bearer /, "");
+  if (!String(key).includes("e2e-valid")) {
+    return anthropic
+      ? send(response, 401, {
+          type: "error",
+          error: { type: "authentication_error", message: "invalid x-api-key" },
+        })
+      : send(response, 401, {
+          error: {
+            message: `Incorrect API key provided: ${key}. You can find your API key at https://platform.openai.com/account/api-keys.`,
+            type: "invalid_request_error",
+            param: null,
+            code: "invalid_api_key",
+          },
+        });
+  }
+
+  const input = anthropic
+    ? String(body.messages?.[0]?.content ?? "")
+    : String(body.input ?? "");
+  const instructions = anthropic
+    ? String(body.system ?? "")
+    : String(body.instructions ?? "");
+  const answer = () => {
+    if (/true facts/.test(instructions)) {
+      return { facts: [{ kind: "skill", text: "Figma", detail: "" }] };
+    }
+    const text = input.replace(/<\/?resume_text>/g, "");
+    return convert(text);
+  };
+
+  if (url.pathname === "/anthropic/v1/messages/count_tokens") {
+    return send(response, 200, { input_tokens: 12 });
+  }
+  if (url.pathname === "/anthropic/v1/messages") {
+    return send(response, 200, {
+      id: "msg_e2e",
+      type: "message",
+      role: "assistant",
+      model: body.model,
+      content: [{ type: "text", text: JSON.stringify(answer()) }],
+      stop_reason: "end_turn",
+      stop_sequence: null,
+      stop_details: null,
+      usage: { input_tokens: 800, output_tokens: 600 },
+    });
+  }
+  if (url.pathname === "/openai/v1/responses/input_tokens") {
+    return send(response, 200, {
+      object: "response.input_tokens",
+      input_tokens: 12,
+    });
+  }
+  if (url.pathname === "/openai/v1/responses") {
+    return send(response, 200, {
+      id: "resp_e2e",
+      object: "response",
+      created_at: Math.floor(Date.now() / 1000),
+      status: "completed",
+      model: body.model,
+      output: [
+        {
+          type: "message",
+          id: "msg_e2e",
+          role: "assistant",
+          status: "completed",
+          content: [
+            {
+              type: "output_text",
+              text: JSON.stringify(answer()),
+              annotations: [],
+            },
+          ],
+        },
+      ],
+      usage: { input_tokens: 800, output_tokens: 600, total_tokens: 1400 },
+    });
+  }
+  return send(response, 404, { error: { message: "not found" } });
+}

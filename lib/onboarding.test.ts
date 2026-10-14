@@ -28,13 +28,31 @@ describe("pendingOnboardingPath", () => {
     ).toBe("/onboarding/basics");
   });
 
-  it("skips unbuilt steps 3-4 to 'What to watch'", () => {
-    // Users who finished Basics before M2 are on step 3.
-    for (const step of [3, 4, 5]) {
+  it("sends users who finished Basics to the resume step", () => {
+    expect(
+      pendingOnboardingPath({ invitedAt: INVITED, onboardingStep: 3 }),
+    ).toBe("/onboarding/resume");
+  });
+
+  it("only AI-mode users get the fact-bank step", () => {
+    expect(
+      pendingOnboardingPath({
+        invitedAt: INVITED,
+        onboardingStep: 4,
+        mode: "ai",
+      }),
+    ).toBe("/onboarding/facts");
+    for (const mode of [undefined, "simple"]) {
       expect(
-        pendingOnboardingPath({ invitedAt: INVITED, onboardingStep: step }),
+        pendingOnboardingPath({ invitedAt: INVITED, onboardingStep: 4, mode }),
       ).toBe("/onboarding/watch");
     }
+  });
+
+  it("then 'What to watch'", () => {
+    expect(
+      pendingOnboardingPath({ invitedAt: INVITED, onboardingStep: 5 }),
+    ).toBe("/onboarding/watch");
   });
 
   it("lets users past the last built step into the app", () => {
@@ -45,14 +63,19 @@ describe("pendingOnboardingPath", () => {
 });
 
 describe("step numbers", () => {
-  it("finds the next built step", () => {
-    expect(nextBuiltStep(3)).toBe(5);
+  it("finds the next step this user takes", () => {
+    expect(nextBuiltStep(3)).toBe(3);
+    expect(nextBuiltStep(4)).toBe(5);
+    expect(nextBuiltStep(4, "ai")).toBe(4);
     expect(nextBuiltStep(6)).toBeNull();
   });
 
-  it("shows built steps as 1, 2, 3", () => {
+  it("numbers the steps the user actually sees", () => {
     expect(displayStepNumber(1)).toBe(1);
     expect(displayStepNumber(2)).toBe(2);
-    expect(displayStepNumber(5)).toBe(3);
+    expect(displayStepNumber(3)).toBe(3);
+    expect(displayStepNumber(5)).toBe(4);
+    expect(displayStepNumber(4, "ai")).toBe(4);
+    expect(displayStepNumber(5, "ai")).toBe(5);
   });
 });

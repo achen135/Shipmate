@@ -52,6 +52,62 @@ export function planMatches(
   return rows;
 }
 
+/** Postgres foreign_key_violation. */
+const FK_VIOLATION = "23503";
+
+/**
+ * Insert one batch of Inbox rows, returning the rows actually created. The
+ * rows were planned from a snapshot of users and watch profiles taken a moment
+ * earlier; if a user deleted their account (or a watch profile) since, the
+ * insert fails a foreign key. One person's deletion must not fail everyone's
+ * run, so on that error the rows whose user or profile is gone are dropped
+ * and the batch is retried once. Any other error, or a second failure, throws.
+ */
+export async function insertInboxRows(
+  db: Db,
+  batch: InboxRow[],
+): Promise<{ user_id: string; posting_id: string | null }[]> {
+  const insert = (rows: InboxRow[]) =>
+    db
+      .from("user_postings")
+      .upsert(rows, {
+        onConflict: "user_id,posting_id",
+        ignoreDuplicates: true,
+      })
+      .select("user_id, posting_id");
+
+  const first = await insert(batch);
+  if (!first.error) return first.data;
+  if (first.error.code !== FK_VIOLATION) {
+    throw new Error(`insert user_postings: ${first.error.message}`);
+  }
+
+  const userIds = [...new Set(batch.map((r) => r.user_id))];
+  const profileIds = [...new Set(batch.map((r) => r.watch_profile_id))];
+  const [users, profiles] = await Promise.all([
+    db.from("profiles").select("user_id").in("user_id", userIds),
+    db.from("watch_profiles").select("id").in("id", profileIds),
+  ]);
+  if (users.error) throw new Error(`recheck users: ${users.error.message}`);
+  if (profiles.error) {
+    throw new Error(`recheck watch profiles: ${profiles.error.message}`);
+  }
+  const liveUsers = new Set(users.data.map((u) => u.user_id));
+  const liveProfiles = new Set(profiles.data.map((p) => p.id));
+  const kept = batch.filter(
+    (r) => liveUsers.has(r.user_id) && liveProfiles.has(r.watch_profile_id),
+  );
+  console.warn(
+    `[worker] matching: ${batch.length - kept.length} row(s) dropped for deleted users or watch profiles; retrying`,
+  );
+  if (kept.length === 0) return [];
+
+  const retry = await insert(kept);
+  if (retry.error)
+    throw new Error(`insert user_postings: ${retry.error.message}`);
+  return retry.data;
+}
+
 export type MatchResult = {
   postings: number;
   users: number;
@@ -99,15 +155,7 @@ export async function matchNewPostings(
 
   const newRows: MatchResult["newRows"] = [];
   for (const batch of chunks(rows)) {
-    const { data, error } = await db
-      .from("user_postings")
-      .upsert(batch, {
-        onConflict: "user_id,posting_id",
-        ignoreDuplicates: true,
-      })
-      .select("user_id, posting_id");
-    if (error) throw new Error(`insert user_postings: ${error.message}`);
-    for (const row of data) {
+    for (const row of await insertInboxRows(db, batch)) {
       // Manual Tracker rows have no posting, and are never inserted here.
       if (row.posting_id) {
         newRows.push({ userId: row.user_id, postingId: row.posting_id });

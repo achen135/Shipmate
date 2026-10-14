@@ -71,12 +71,15 @@ test("pick a preset, triage the backfilled Inbox", async ({ page }, info) => {
   await finishBasics(user.id);
   await signIn(page, user, "/inbox");
 
-  // Basics done before M2 → straight to the new step.
+  // Basics done → the resume step, which can wait for Profile.
+  await expect(page).toHaveURL(/\/onboarding\/resume$/);
+  await page.getByRole("button", { name: "Skip for now" }).click();
   await expect(page).toHaveURL(/\/onboarding\/watch$/);
   await expect(
     page.getByRole("heading", { name: "What to watch" }),
   ).toBeVisible();
-  await expect(page.getByText("Step 3")).toBeVisible();
+  // Simple mode has no fact-bank step, so this is step 4 of 4.
+  await expect(page.getByText("Step 4")).toBeVisible();
 
   // Supply chain explains why it finds little; then pick SWE.
   await page.getByText("Supply chain/Ops", { exact: true }).click();

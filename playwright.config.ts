@@ -38,6 +38,16 @@ export default defineConfig({
       env: {
         ...(process.env as Record<string, string>),
         E2E_ATS_ORIGIN: `http://localhost:${ATS_MOCK_PORT}`,
+        // AI calls go to the same mock (lib/e2e-origin.ts), and keys are
+        // sealed with a fixed test master key. Neither is a real secret.
+        E2E_AI_ORIGIN: `http://localhost:${ATS_MOCK_PORT}`,
+        API_KEY_ENCRYPTION_KEY:
+          process.env.API_KEY_ENCRYPTION_KEY ??
+          "ZTJlLW9ubHktbWFzdGVyLWtleS1ub3QtYS1zZWNyZXQ=",
+        // Matches supabase/seed.sql (local Vault).
+        API_KEY_SERVER_SECRET:
+          process.env.API_KEY_SERVER_SECRET ??
+          "local-only-api-key-server-secret-not-for-production",
       },
     },
     {

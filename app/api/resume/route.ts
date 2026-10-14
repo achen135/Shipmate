@@ -1,4 +1,4 @@
-import { getMember } from "@/lib/auth/viewer";
+import { getInvited } from "@/lib/auth/viewer";
 import { MAX_RESUME_BYTES, readResumePdf } from "@/lib/resume/pdf";
 import { createClient } from "@/lib/supabase/server";
 
@@ -22,7 +22,7 @@ const json = (body: unknown, status = 200) =>
   });
 
 export async function POST(request: Request) {
-  const member = await getMember();
+  const member = await getInvited();
   if (!member) return json({ message: "Sign in first." }, 401);
 
   // Refuse before buffering a huge body; the form data adds a little overhead.
@@ -53,9 +53,14 @@ export async function POST(request: Request) {
   }
 
   const fileName = (file.name || "resume.pdf").slice(0, 200);
+  // The row may already hold a structured resume (AI mode): keep its kind.
+  const { data: existing } = await supabase
+    .from("resumes")
+    .select("content")
+    .maybeSingle();
   const { error } = await supabase.from("resumes").upsert(
     {
-      kind: "uploaded_pdf",
+      kind: existing?.content ? "structured" : "uploaded_pdf",
       file_path: path,
       file_name: fileName,
       text_content: checked.text,
@@ -74,7 +79,7 @@ export async function POST(request: Request) {
 }
 
 export async function GET() {
-  const member = await getMember();
+  const member = await getInvited();
   if (!member) return new Response("Sign in first.", { status: 401 });
 
   const supabase = await createClient();
@@ -97,20 +102,28 @@ export async function GET() {
 }
 
 export async function DELETE() {
-  const member = await getMember();
+  const member = await getInvited();
   if (!member) return json({ message: "Sign in first." }, 401);
 
   const supabase = await createClient();
   const { data: row } = await supabase
     .from("resumes")
-    .select("file_path")
+    .select("file_path, content")
     .maybeSingle();
   if (row?.file_path)
     await supabase.storage.from(BUCKET).remove([row.file_path]);
-  const { error } = await supabase
-    .from("resumes")
-    .delete()
-    .eq("user_id", member.id);
+  // A structured resume shares the row: keep it, drop only the file.
+  const { error } = row?.content
+    ? await supabase
+        .from("resumes")
+        .update({
+          kind: "structured",
+          file_path: null,
+          file_name: null,
+          text_content: null,
+        })
+        .eq("user_id", member.id)
+    : await supabase.from("resumes").delete().eq("user_id", member.id);
   if (error) {
     console.error("[resume] delete failed:", error.message);
     return json({ message: "Couldn't remove it. Try again." }, 500);

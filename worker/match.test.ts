@@ -1,7 +1,8 @@
 // @vitest-environment node
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { planMatches } from "./match";
+import type { Db } from "./db";
+import { type InboxRow, insertInboxRows, planMatches } from "./match";
 
 function profile(id: string, userId: string, categories: string[]) {
   return {
@@ -52,5 +53,143 @@ describe("planMatches", () => {
 
   it("no profiles, no rows", () => {
     expect(planMatches([swePosting], [])).toEqual([]);
+  });
+});
+
+/**
+ * Stand-in for the service-role client: the upsert answers from `results` in
+ * order (and records what it was sent); the two re-check selects return
+ * whichever users and watch profiles still exist.
+ */
+function fakeDb(
+  results: { code: string; message: string }[],
+  live: { users: string[]; profiles: string[] },
+) {
+  const sent: InboxRow[][] = [];
+  const db = {
+    from(table: string) {
+      return {
+        upsert: (rows: InboxRow[]) => ({
+          select: async () => {
+            sent.push(rows);
+            const error = results[sent.length - 1] ?? null;
+            return error
+              ? { data: null, error }
+              : {
+                  data: rows.map((r) => ({
+                    user_id: r.user_id,
+                    posting_id: r.posting_id,
+                  })),
+                  error: null,
+                };
+          },
+        }),
+        select: () => ({
+          in: async (_col: string, ids: string[]) => ({
+            data:
+              table === "profiles"
+                ? ids
+                    .filter((id) => live.users.includes(id))
+                    .map((user_id) => ({ user_id }))
+                : ids
+                    .filter((id) => live.profiles.includes(id))
+                    .map((id) => ({ id })),
+            error: null,
+          }),
+        }),
+      };
+    },
+  };
+  return { db: db as unknown as Db, sent };
+}
+
+const fkError = {
+  code: "23503",
+  message:
+    'insert or update on table "user_postings" violates foreign key constraint "user_postings_user_id_fkey"',
+};
+const row = (user: string, posting: string, profile = `${user}-swe`) => ({
+  user_id: user,
+  posting_id: posting,
+  watch_profile_id: profile,
+});
+
+describe("insertInboxRows", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("inserts the batch as is when nothing went missing", async () => {
+    const { db, sent } = fakeDb([], { users: [], profiles: [] });
+    const rows = await insertInboxRows(db, [row("alex", "p1")]);
+    expect(rows).toEqual([{ user_id: "alex", posting_id: "p1" }]);
+    expect(sent).toHaveLength(1);
+  });
+
+  it("drops a deleted user's rows and retries, so everyone else still gets theirs", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { db, sent } = fakeDb([fkError], {
+      users: ["alex"],
+      profiles: ["alex-swe", "gone-swe"],
+    });
+    const rows = await insertInboxRows(db, [
+      row("alex", "p1"),
+      row("gone", "p1"),
+      row("alex", "p2"),
+    ]);
+    expect(rows).toEqual([
+      { user_id: "alex", posting_id: "p1" },
+      { user_id: "alex", posting_id: "p2" },
+    ]);
+    expect(sent[1]).toEqual([row("alex", "p1"), row("alex", "p2")]);
+  });
+
+  it("drops rows credited to a watch profile deleted mid-run", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { db, sent } = fakeDb([fkError], {
+      users: ["alex", "sam"],
+      profiles: ["alex-swe"],
+    });
+    const rows = await insertInboxRows(db, [
+      row("alex", "p1"),
+      row("sam", "p1"),
+    ]);
+    expect(rows).toEqual([{ user_id: "alex", posting_id: "p1" }]);
+    expect(sent).toHaveLength(2);
+  });
+
+  it("doesn't retry when every row's user is gone", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { db, sent } = fakeDb([fkError], { users: [], profiles: [] });
+    expect(await insertInboxRows(db, [row("gone", "p1")])).toEqual([]);
+    expect(sent).toHaveLength(1);
+  });
+
+  it("still throws any other error, without retrying", async () => {
+    const { db, sent } = fakeDb(
+      [
+        {
+          code: "57014",
+          message: "canceling statement due to statement timeout",
+        },
+      ],
+      { users: ["alex"], profiles: ["alex-swe"] },
+    );
+    await expect(insertInboxRows(db, [row("alex", "p1")])).rejects.toThrow(
+      "insert user_postings: canceling statement due to statement timeout",
+    );
+    expect(sent).toHaveLength(1);
+  });
+
+  it("retries only once: a second failure throws", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { db, sent } = fakeDb([fkError, fkError], {
+      users: ["alex"],
+      profiles: ["alex-swe"],
+    });
+    await expect(insertInboxRows(db, [row("alex", "p1")])).rejects.toThrow(
+      "insert user_postings: insert or update",
+    );
+    expect(sent).toHaveLength(2);
   });
 });

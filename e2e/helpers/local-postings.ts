@@ -78,7 +78,10 @@ export async function seedPostings(
   return inserted.map((p) => p.id as string);
 }
 
-/** Mark a user invited with Basics done, as if steps 1-2 already happened. */
+/**
+ * Mark a user invited with Basics done, as if steps 1-2 already happened.
+ * They land on step 3 (resume and mode).
+ */
 export async function finishBasics(
   userId: string,
   needsSponsorship = false,

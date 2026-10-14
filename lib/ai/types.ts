@@ -1,17 +1,18 @@
 /**
- * The one interface both AI providers implement (Spec "Tailoring pipeline":
+ * The one interface every AI provider implements (Spec "Tailoring pipeline":
  * provider abstraction). Callers ask for JSON matching a zod schema and get
  * it parsed, plus the tokens it cost, without knowing which provider ran.
  */
 
 import type { z } from "zod";
 
-export const PROVIDERS = ["anthropic", "openai"] as const;
+export const PROVIDERS = ["anthropic", "openai", "google"] as const;
 export type ProviderName = (typeof PROVIDERS)[number];
 
 export const PROVIDER_LABELS: Record<ProviderName, string> = {
   anthropic: "Anthropic",
   openai: "OpenAI",
+  google: "Google Gemini",
 };
 
 /**
@@ -43,9 +44,14 @@ export type StructuredRequest<T> = {
 
 export interface AiProvider {
   readonly name: ProviderName;
+  /**
+   * True for Shipmate's shared free Gemini key (no personal key saved):
+   * free, rate-limited, and never the user's to manage.
+   */
+  readonly shared: boolean;
   /** The cheapest call that proves the key works (token counting: free). */
   testKey(): Promise<void>;
-  /** Native structured output on both providers, parsed and validated. */
+  /** Native structured output on every provider, parsed and validated. */
   generateStructured<T>(
     request: StructuredRequest<T>,
   ): Promise<{ data: T; usage: AiUsage }>;

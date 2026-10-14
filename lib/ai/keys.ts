@@ -9,19 +9,21 @@ import {
   AiError,
   createProvider,
   getProvider,
+  type KeySources,
   PROVIDERS,
-  type SealedKeySource,
 } from "./index";
 
 /**
  * App-side key handling: save (test, then seal, then store) and load for a
- * request. Both go through the signed-in user's own client and two database
- * functions that also require the server secret (`API_KEY_SERVER_SECRET`,
- * server env only), so the web app never needs the service-role key and a
- * browser holding the user's session still can't read the ciphertext.
+ * request. All of it goes through the signed-in user's own client and
+ * database functions that also require the server secret
+ * (`API_KEY_SERVER_SECRET`, server env only), so the web app never needs the
+ * service-role key and a browser holding the user's session still can't read
+ * the ciphertext or the shared key.
  *
  * Logging rule: only the provider name and an error code or status, never a
- * key, a ciphertext, the server secret, or an SDK error object.
+ * key, a ciphertext, the shared key, the server secret, or an SDK error
+ * object.
  */
 
 export const SERVER_SECRET_ENV = "API_KEY_SERVER_SECRET";
@@ -50,6 +52,25 @@ export const apiKeyInputSchema = z
       .regex(/^\S+$/, "An API key has no spaces in it."),
   })
   .superRefine((value, ctx) => {
+    const looksGoogle = value.apiKey.startsWith("AIza");
+    if (value.provider === "google") {
+      if (!looksGoogle) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["apiKey"],
+          message: "Gemini API keys start with AIza.",
+        });
+      }
+      return;
+    }
+    if (looksGoogle) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["apiKey"],
+        message: "That's a Google key. Pick Google Gemini above.",
+      });
+      return;
+    }
     const looksAnthropic = value.apiKey.startsWith("sk-ant-");
     if (value.provider === "anthropic" && !looksAnthropic) {
       ctx.addIssue({
@@ -148,24 +169,37 @@ export async function saveApiKey(
   return { ok: true, last4: sealed.last4 };
 }
 
-/** The signed-in user's own sealed key, through sealed_api_key(). */
-async function appKeySource(): Promise<SealedKeySource> {
+/**
+ * The signed-in user's own sealed key, through sealed_api_key(), and the
+ * shared Gemini key, through shared_ai_key() (invited members only).
+ */
+async function appKeySources(): Promise<KeySources> {
   const supabase = await createClient();
   const secret = serverSecret();
-  return async () => {
-    const { data, error } = await supabase.rpc("sealed_api_key", {
-      p_secret: secret,
-    });
-    if (error) throw new Error(`load api key: ${error.code}`);
-    return data?.[0] ?? null;
+  return {
+    sealed: async () => {
+      const { data, error } = await supabase.rpc("sealed_api_key", {
+        p_secret: secret,
+      });
+      if (error) throw new Error(`load api key: ${error.code}`);
+      return data?.[0] ?? null;
+    },
+    shared: async () => {
+      const { data, error } = await supabase.rpc("shared_ai_key", {
+        p_secret: secret,
+      });
+      if (error) throw new Error(`load shared key: ${error.code}`);
+      return data?.trim() || null;
+    },
   };
 }
 
 /**
- * A ready provider for the signed-in user's saved key (decrypted inside
- * getProvider). `userId` must be the signed-in user: the database returns
- * only the caller's own row, and the key is bound to that id.
+ * A ready provider for the signed-in user: their saved key (decrypted
+ * inside getProvider), or the shared free Gemini key if they have none.
+ * `userId` must be the signed-in user: the database returns only the
+ * caller's own row, and the key is bound to that id.
  */
 export async function providerFor(userId: string) {
-  return getProvider(await appKeySource(), userId);
+  return getProvider(await appKeySources(), userId);
 }

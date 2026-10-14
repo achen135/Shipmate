@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { KeyRound } from "lucide-react";
+import { KeyRound, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useId, useState, useTransition } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
@@ -59,55 +59,143 @@ const KEY_PAGES: Record<ProviderName, { href: string; where: string }> = {
     href: "https://platform.openai.com/api-keys",
     where: "the OpenAI dashboard, under API keys",
   },
+  google: {
+    href: "https://aistudio.google.com/app/apikey",
+    where: "Google AI Studio, under Get API key",
+  },
+};
+
+const PLACEHOLDERS: Record<ProviderName, string> = {
+  anthropic: "sk-ant-…",
+  openai: "sk-…",
+  google: "AIza…",
 };
 
 /**
- * Profile → AI. Without a key: what AI mode costs and sends, then the key
- * form (tested before it's saved). With one: which key, the mode switch,
- * and the daily cap.
+ * Profile → AI. AI mode works for everyone on Shipmate's shared free Gemini
+ * key; a key of your own is optional (your own quota, or a paid model).
+ * Shows: the mode and which key is in use, the daily cap, then your own key
+ * (its status, or what one costs and the form to add it).
  */
 export function AiSettings({
   savedKey,
   mode,
   dailyCap,
   autoTailor,
+  usedToday,
   actions,
 }: {
   savedKey: SavedKey | null;
   mode: "simple" | "ai";
   dailyCap: number;
   autoTailor: boolean;
+  usedToday: { count: number; cost: number };
   actions: AiActions;
 }) {
   const [provider, setProvider] = useState<ProviderName>(
-    savedKey?.provider ?? "anthropic",
+    savedKey?.provider ?? "google",
   );
-
-  if (!savedKey) {
-    return (
-      <div className="flex flex-col gap-6">
-        <CostExplainer
-          provider={provider}
-          onProviderChange={setProvider}
-          dailyCap={dailyCap}
-        />
-        <KeyForm provider={provider} saveKey={actions.saveKey} />
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col gap-6">
-      <KeyStatus savedKey={savedKey} mode={mode} actions={actions} />
+      <ModeStatus savedKey={savedKey} mode={mode} setMode={actions.setMode} />
       <CapForm
         dailyCap={dailyCap}
         autoTailor={autoTailor}
-        provider={savedKey.provider}
+        provider={savedKey?.provider ?? null}
         save={actions.saveAiSettings}
       />
-      <p className="text-sm text-muted-foreground">
-        Spent today: $0.00. Tailoring starts in the next update.
-      </p>
+      {mode === "ai" && (
+        <p className="text-sm text-muted-foreground" data-testid="used-today">
+          Today: {usedToday.count} of {dailyCap} tailored
+          {usedToday.cost > 0 ? `, about ${formatUsd(usedToday.cost)}` : ""}.
+          The count resets at midnight Eastern.
+        </p>
+      )}
+      <section
+        aria-labelledby="own-key-heading"
+        className="flex flex-col gap-4"
+      >
+        <h3 id="own-key-heading" className="font-medium">
+          Your own key{" "}
+          <span className="font-normal text-muted-foreground">(optional)</span>
+        </h3>
+        {savedKey ? (
+          <KeyStatus savedKey={savedKey} removeKey={actions.removeKey} />
+        ) : (
+          <>
+            <p className="text-sm text-muted-foreground">
+              The shared key is free but busy at times, and it&apos;s shared by
+              everyone. Your own key gives you your own limits, and with
+              Anthropic or OpenAI, a paid model.
+            </p>
+            <CostExplainer
+              provider={provider}
+              onProviderChange={setProvider}
+              dailyCap={dailyCap}
+            />
+            <KeyForm provider={provider} saveKey={actions.saveKey} />
+          </>
+        )}
+      </section>
+      <WhatGetsSent provider={savedKey?.provider ?? null} />
+    </div>
+  );
+}
+
+function ModeStatus({
+  savedKey,
+  mode,
+  setMode,
+}: {
+  savedKey: SavedKey | null;
+  mode: "simple" | "ai";
+  setMode: AiActions["setMode"];
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const using = savedKey
+    ? `your ${PROVIDER_LABELS[savedKey.provider]} key ending ${savedKey.last4}`
+    : "Shipmate's shared free AI (Google Gemini). Nothing to set up";
+
+  function toggle() {
+    const next = mode === "ai" ? "simple" : "ai";
+    startTransition(async () => {
+      const result = await setMode(next);
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+      toast.success(
+        next === "ai" ? "AI mode is on." : "Switched to Simple mode.",
+      );
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border bg-card p-4">
+      <div className="flex items-start gap-3">
+        <Sparkles
+          aria-hidden="true"
+          className="mt-0.5 size-5 shrink-0 text-muted-foreground"
+        />
+        <div className="min-w-0 flex-1">
+          <p className="font-medium" data-testid="ai-mode">
+            {mode === "ai" ? "AI mode is on" : "AI mode is off"}
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {mode === "ai"
+              ? `Using ${using}.`
+              : "Simple mode: Shipmate uses your PDF as it is and doesn't tailor it."}
+          </p>
+        </div>
+      </div>
+      <div>
+        <Button size="sm" variant="outline" disabled={pending} onClick={toggle}>
+          {mode === "ai" ? "Switch to Simple" : "Use AI mode"}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -126,6 +214,9 @@ function CostExplainer({
   const importCost = estimateStep(provider, "import");
   const tailorCost = estimateStep(provider, "tailor");
   const models = MODELS[provider];
+  const oneModel = models.fast.id === models.strong.id;
+  const price = (tier: "fast" | "strong") =>
+    `${formatUsd(costUsd(provider, tier, 1_000_000, 0))} per million tokens in, ${formatUsd(costUsd(provider, tier, 0, 1_000_000))} out`;
 
   return (
     <div className="flex flex-col gap-4">
@@ -149,17 +240,18 @@ function CostExplainer({
       </FieldSet>
 
       <div className="rounded-xl border bg-card p-4 text-sm">
-        <h3 className="font-medium">What it costs</h3>
+        <h4 className="font-medium">What it costs</h4>
         <p className="mt-1 text-muted-foreground">
-          You pay {label} directly with your own key. Shipmate never bills you.
-          Rough prices (checked {PRICES_CHECKED}):
+          {provider === "google"
+            ? "Free if billing is off on your Google project (you get Google's free limits to yourself). With billing on, you pay Google directly, roughly:"
+            : `You pay ${label} directly with your own key. Shipmate never bills you. Rough prices (checked ${PRICES_CHECKED}):`}
         </p>
         <dl className="mt-3 grid grid-cols-[1fr_auto] gap-x-4 gap-y-2">
           <dt>Reading your resume into Shipmate (once)</dt>
           <dd className="text-right tabular-nums">
             {formatUsd(importCost.low)}–{formatUsd(importCost.high)}
           </dd>
-          <dt>Tailoring one posting (starts in the next update)</dt>
+          <dt>Tailoring one posting</dt>
           <dd className="text-right tabular-nums">
             {formatUsd(tailorCost.low)}–{formatUsd(tailorCost.high)}
           </dd>
@@ -169,25 +261,34 @@ function CostExplainer({
           </dd>
         </dl>
         <p className="mt-3 text-xs text-muted-foreground">
-          Models: {models.fast.label} for reading and scoring (
-          {formatUsd(costUsd(provider, "fast", 1_000_000, 0))} per million
-          tokens in, {formatUsd(costUsd(provider, "fast", 0, 1_000_000))} out),{" "}
-          {models.strong.label} for editing (
-          {formatUsd(costUsd(provider, "strong", 1_000_000, 0))} in,{" "}
-          {formatUsd(costUsd(provider, "strong", 0, 1_000_000))} out). A long
-          posting or a two-page resume costs more.
+          {oneModel
+            ? `Model: ${models.fast.label} (${price("fast")}).`
+            : `Models: ${models.fast.label} for reading and scoring (${price("fast")}), ${models.strong.label} for editing (${price("strong")}).`}{" "}
+          A long posting or a two-page resume costs more.
         </p>
       </div>
+    </div>
+  );
+}
 
-      <div className="rounded-xl border bg-card p-4 text-sm">
-        <h3 className="font-medium">What gets sent to {label}</h3>
-        <p className="mt-1 text-muted-foreground">
-          The text of your resume (including the contact details on it) when you
-          import it. Later, for each posting you tailor: your resume, your
-          &ldquo;not on my resume&rdquo; entries, and the posting&apos;s text.
-          Nothing else: not your answers, your Tracker, or your notes.
+function WhatGetsSent({ provider }: { provider: ProviderName | null }) {
+  const label = provider ? PROVIDER_LABELS[provider] : "Google";
+  return (
+    <div className="rounded-xl border bg-card p-4 text-sm">
+      <h3 className="font-medium">What gets sent to {label}</h3>
+      <p className="mt-1 text-muted-foreground">
+        The text of your resume (including the contact details on it) when you
+        import it. For each posting you tailor: your resume, your &ldquo;not on
+        my resume&rdquo; entries, and the posting&apos;s text. Nothing else: not
+        your answers, your Tracker, or your notes.
+      </p>
+      {(provider === null || provider === "google") && (
+        <p className="mt-2 text-muted-foreground">
+          {provider === null
+            ? "The shared key is on Google's free tier, and Google says it may use what's sent on the free tier to improve its products. If you'd rather it didn't, add your own paid key, or use Simple mode."
+            : "On Google's free tier (billing off), Google says it may use what's sent to improve its products. With billing on, it says it doesn't."}
         </p>
-      </div>
+      )}
     </div>
   );
 }
@@ -217,7 +318,7 @@ function KeyForm({
         return;
       }
       setApiKey("");
-      toast.success(`Key works. AI mode is on.`);
+      toast.success("Key works. AI mode is on, with your key.");
       router.refresh();
     });
   }
@@ -235,7 +336,7 @@ function KeyForm({
             value={apiKey}
             onChange={(event) => setApiKey(event.target.value)}
             aria-invalid={!!error}
-            placeholder={provider === "anthropic" ? "sk-ant-…" : "sk-…"}
+            placeholder={PLACEHOLDERS[provider]}
           />
           <FieldDescription>
             Make one in{" "}
@@ -265,25 +366,23 @@ function KeyForm({
 
 function KeyStatus({
   savedKey,
-  mode,
-  actions,
+  removeKey,
 }: {
   savedKey: SavedKey;
-  mode: "simple" | "ai";
-  actions: AiActions;
+  removeKey: AiActions["removeKey"];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const label = PROVIDER_LABELS[savedKey.provider];
 
-  function run(action: () => Promise<ActionResult>, done: string) {
+  function remove() {
     startTransition(async () => {
-      const result = await action();
+      const result = await removeKey();
       if (!result.ok) {
         toast.error(result.message);
         return;
       }
-      toast.success(done);
+      toast.success("Key removed. Back on the shared free AI.");
       router.refresh();
     });
   }
@@ -300,41 +399,13 @@ function KeyStatus({
             {label} key ending {savedKey.last4}
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Added {savedKey.addedOn}.{" "}
-            {mode === "ai"
-              ? "AI mode is on."
-              : "AI mode is off: Shipmate uses your PDF as it is."}
+            Added {savedKey.addedOn}. Remove it and Shipmate goes back to the
+            shared free AI.
           </p>
         </div>
       </div>
-      <div className="flex flex-wrap gap-2">
-        {mode === "ai" ? (
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={pending}
-            onClick={() =>
-              run(() => actions.setMode("simple"), "Switched to Simple mode.")
-            }
-          >
-            Switch to Simple
-          </Button>
-        ) : (
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={pending}
-            onClick={() => run(() => actions.setMode("ai"), "AI mode is on.")}
-          >
-            Use AI mode
-          </Button>
-        )}
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={pending}
-          onClick={() => run(actions.removeKey, "Key removed.")}
-        >
+      <div>
+        <Button size="sm" variant="ghost" disabled={pending} onClick={remove}>
           Remove key
         </Button>
       </div>
@@ -350,7 +421,8 @@ function CapForm({
 }: {
   dailyCap: number;
   autoTailor: boolean;
-  provider: ProviderName;
+  /** Their own key's provider, or null on the shared free key. */
+  provider: ProviderName | null;
   save: AiActions["saveAiSettings"];
 }) {
   const id = useId();
@@ -361,7 +433,7 @@ function CapForm({
   const { errors, isSubmitting } = form.formState;
   const cap =
     Number(useWatch({ control: form.control, name: "dailyCap" })) || 0;
-  const worstDay = estimateStep(provider, "tailor").high * cap;
+  const worstDay = provider ? estimateStep(provider, "tailor").high * cap : 0;
 
   async function onSubmit(values: AiSettingsInput) {
     const result = await save(values);
@@ -389,7 +461,12 @@ function CapForm({
           />
           <FieldDescription>
             At most this many tailored postings a day
-            {cap > 0 ? `, about ${formatUsd(worstDay)} at most` : ""}.
+            {cap > 0 && provider
+              ? `, about ${formatUsd(worstDay)} at most`
+              : cap > 0
+                ? ", $0 on the shared free AI"
+                : ""}
+            .
           </FieldDescription>
           <FieldError errors={[errors.dailyCap]} />
         </Field>
@@ -409,7 +486,7 @@ function CapForm({
                 </FieldLabel>
                 <FieldDescription>
                   Off: you press &ldquo;Tailor this&rdquo; on the postings you
-                  want. Starts in the next update.
+                  want.
                 </FieldDescription>
               </div>
             </Field>

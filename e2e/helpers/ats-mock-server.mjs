@@ -15,10 +15,15 @@
  * __fixtures__): standard questions, two written ones, and an anti-bot
  * puzzle.
  *
- * AI E2E (M6): POST /anthropic/v1/… and /openai/v1/… answer like the
- * Anthropic and OpenAI APIs (the app sends AI calls here when
- * E2E_AI_ORIGIN is set; lib/e2e-origin.ts). A key containing "e2e-valid"
- * is accepted; any other gets each API's real 401 body. Structured-output
+ * AI E2E (M6, M7): POST /anthropic/v1/…, /openai/v1/… and /google/v1beta/…
+ * answer like the Anthropic, OpenAI and Gemini APIs (the app and the worker
+ * send AI calls here when E2E_AI_ORIGIN is set; lib/e2e-origin.ts). A key
+ * containing "e2e-valid" is accepted (the local shared Gemini key in
+ * supabase/seed.sql is one); any other gets each API's real error body.
+ * Tailoring (M7) gets a plausible model: the posting's tech words as
+ * keywords, and edits that put the resume's matching skills first, bring in
+ * a skill from the fact bank, and try to add one that's MISSING (which
+ * Shipmate's checks must drop). Structured-output
  * requests get a faithful conversion built from the resume text itself:
  * Title Case / ALL CAPS lines become sections, as a careful model would.
  */
@@ -98,7 +103,8 @@ createServer((request, response) => {
   }
   if (
     url.pathname.startsWith("/anthropic/") ||
-    url.pathname.startsWith("/openai/")
+    url.pathname.startsWith("/openai/") ||
+    url.pathname.startsWith("/google/")
   ) {
     let body = "";
     request.on("data", (chunk) => (body += chunk));
@@ -226,6 +232,74 @@ function convert(text) {
   return { header: { name, email, phone: "", links: [] }, sections };
 }
 
+const TECH = [
+  "Python",
+  "SQL",
+  "Git",
+  "REST APIs",
+  "Redis",
+  "Kafka",
+  "Docker",
+  "Kubernetes",
+  "AWS",
+  "PostgreSQL",
+  "TypeScript",
+  "React",
+];
+
+/** The tech words the posting mentions, required first. */
+function postingKeywords(input) {
+  return TECH.filter((term) =>
+    new RegExp(
+      `\\b${term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`,
+      "i",
+    ).test(input),
+  ).map((term, i) => ({
+    term,
+    importance: i < 4 ? "required" : "preferred",
+    kind: "tool",
+    variants: [],
+  }));
+}
+
+/** Honest edits, plus one that adds a MISSING skill (must be dropped). */
+function tailoringEdits(input) {
+  const edit = (op, target, extra = {}) => ({
+    op,
+    target,
+    text: "",
+    order: [],
+    fact: "",
+    keyword: "",
+    ...extra,
+  });
+  const status = {};
+  for (const m of input.matchAll(
+    /^- (.+?)(?: \(also: .*\))? — .*: (ON RESUME|IN FACTS (f\d+)|MISSING)$/gm,
+  )) {
+    status[m[1]] = m[2].startsWith("IN FACTS")
+      ? "facts"
+      : m[2] === "MISSING"
+        ? "missing"
+        : "resume";
+  }
+  const list = input.match(/^ {2}\[(s\d+\.l\d+)\] (?:[^:\n]*: )?(.*)$/m);
+  if (!list) return [];
+  const [, id, valuesText] = list;
+  const values = valuesText.split(", ");
+  const edits = [];
+  const onResume = values.filter((v) => status[v] === "resume");
+  if (onResume.length) {
+    edits.push(edit("order_list_values", id, { order: onResume }));
+  }
+  for (const [term, where] of Object.entries(status)) {
+    if (where === "facts" || where === "missing") {
+      edits.push(edit("add_list_value", id, { text: term, keyword: term }));
+    }
+  }
+  return edits;
+}
+
 function answerAi(url, request, raw, response) {
   let body = {};
   try {
@@ -234,10 +308,23 @@ function answerAi(url, request, raw, response) {
     return send(response, 400, { error: { message: "bad json" } });
   }
   const anthropic = url.pathname.startsWith("/anthropic/");
+  const google = url.pathname.startsWith("/google/");
   const key = anthropic
     ? (request.headers["x-api-key"] ?? "")
-    : (request.headers.authorization ?? "").replace(/^Bearer /, "");
+    : google
+      ? (request.headers["x-goog-api-key"] ?? "")
+      : (request.headers.authorization ?? "").replace(/^Bearer /, "");
   if (!String(key).includes("e2e-valid")) {
+    if (google) {
+      return send(response, 400, {
+        error: {
+          code: 400,
+          message: "API key not valid. Please pass a valid API key.",
+          status: "INVALID_ARGUMENT",
+          details: [{ reason: "API_KEY_INVALID" }],
+        },
+      });
+    }
     return anthropic
       ? send(response, 401, {
           type: "error",
@@ -255,11 +342,25 @@ function answerAi(url, request, raw, response) {
 
   const input = anthropic
     ? String(body.messages?.[0]?.content ?? "")
-    : String(body.input ?? "");
+    : google
+      ? String(body.contents?.[0]?.parts?.[0]?.text ?? "")
+      : String(body.input ?? "");
   const instructions = anthropic
     ? String(body.system ?? "")
-    : String(body.instructions ?? "");
+    : google
+      ? String(body.systemInstruction?.parts?.[0]?.text ?? "")
+      : String(body.instructions ?? "");
   const answer = () => {
+    if (/keywords an Applicant Tracking System/.test(instructions)) {
+      return { keywords: postingKeywords(input) };
+    }
+    if (/You tailor one person's resume/.test(instructions)) {
+      return { edits: tailoringEdits(input) };
+    }
+    if (/runs past one page/.test(instructions)) return { edits: [] };
+    if (/summarise what a company says/.test(instructions)) {
+      return { summary: "", values: [], tech: [] };
+    }
     if (/true facts/.test(instructions)) {
       return { facts: [{ kind: "skill", text: "Figma", detail: "" }] };
     }
@@ -267,6 +368,33 @@ function answerAi(url, request, raw, response) {
     return convert(text);
   };
 
+  const gemini = url.pathname.match(
+    /^\/google\/v1beta\/models\/([\w.-]+):(countTokens|generateContent)$/,
+  );
+  if (gemini?.[2] === "countTokens") {
+    return send(response, 200, { totalTokens: 12 });
+  }
+  if (gemini?.[2] === "generateContent") {
+    return send(response, 200, {
+      candidates: [
+        {
+          content: {
+            role: "model",
+            parts: [{ text: JSON.stringify(answer()) }],
+          },
+          finishReason: "STOP",
+          index: 0,
+        },
+      ],
+      usageMetadata: {
+        promptTokenCount: 800,
+        candidatesTokenCount: 500,
+        thoughtsTokenCount: 100,
+        totalTokenCount: 1400,
+      },
+      modelVersion: gemini[1],
+    });
+  }
   if (url.pathname === "/anthropic/v1/messages/count_tokens") {
     return send(response, 200, { input_tokens: 12 });
   }

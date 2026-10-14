@@ -1,0 +1,60 @@
+name: Tailor
+
+# On-demand tailoring (worker/tailor-main.ts): drains the tailoring queue one
+# row at a time, and prints edited copies' PDFs again. Notes:
+# - Started by the database (dispatch_tailor(), migration `…_tailoring.sql`)
+#   through the workflow_dispatch API the moment someone presses "Tailor
+#   this" or saves an edited copy, with the same Vault token as the Watch
+#   dispatcher. Only runs from main (`"ref": "main"`).
+# - The 30-minute Watch run drains the same queue, so a lost dispatch only
+#   means waiting for the next one. Two runs never take the same row
+#   (claim_tailoring() uses SKIP LOCKED).
+# - At most one run plus one pending: a burst of requests is one run.
+# - Missing secrets make the worker skip with a warning annotation.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tailor
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      # Chromium prints the PDFs. CMU Serif is the resume template's
+      # Computer Modern face (lib/resume/template.ts).
+      - name: Install Chromium and the resume font
+        run: |
+          npx playwright install --with-deps chromium
+          sudo apt-get install -y --no-install-recommends fonts-cmu
+
+      - name: Tailor
+        run: npm run worker:tailor
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Decrypts users' own AI keys (the same value as Vercel's). The
+          # shared Gemini key needs no secret here: the worker reads it from
+          # Supabase Vault with the service role.
+          API_KEY_ENCRYPTION_KEY: ${{ secrets.API_KEY_ENCRYPTION_KEY }}

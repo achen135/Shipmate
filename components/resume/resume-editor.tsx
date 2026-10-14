@@ -51,11 +51,13 @@ export function ResumeEditor({
   notes,
   save,
   clearNotes,
+  saveLabel = "Save resume",
 }: {
   initial: ResumeContent;
   notes: Note[];
   save: (content: ResumeContent) => Promise<ActionResult>;
   clearNotes: () => Promise<ActionResult>;
+  saveLabel?: string;
 }) {
   const router = useRouter();
   const [state, setState] = useState<EditorState>(() => toEditor(initial));
@@ -150,7 +152,7 @@ export function ResumeEditor({
 
       <div className="sticky bottom-20 z-10 flex items-center gap-3 rounded-xl border bg-background/95 p-3 shadow-sm backdrop-blur md:bottom-4">
         <Button onClick={submit} disabled={pending || !dirty}>
-          {pending ? "Saving…" : "Save resume"}
+          {pending ? "Saving…" : saveLabel}
         </Button>
         <span className="text-sm text-muted-foreground" aria-live="polite">
           {dirty ? "Unsaved changes" : "All changes saved"}

@@ -1,5 +1,10 @@
 import { KeyDecryptError, MasterKeyError } from "@/lib/ai/crypto";
-import { AiError, NoKeyError } from "@/lib/ai";
+import {
+  type AiProvider,
+  AiError,
+  NoKeyError,
+  SHARED_BUSY_MESSAGE,
+} from "@/lib/ai";
 import { providerFor } from "@/lib/ai/keys";
 import { getInvited } from "@/lib/auth/viewer";
 import { readResumeFile } from "@/lib/resume/file";
@@ -15,7 +20,7 @@ import { createClient } from "@/lib/supabase/server";
  * stays as it is.
  *
  * Runs as the signed-in user for the database write; only the key lookup
- * (inside providerFor → getProvider) uses the service role.
+ * (inside providerFor → getProvider) needs the server secret.
  */
 
 // A two-page resume takes the model around a minute; Hobby allows 300 s.
@@ -44,15 +49,24 @@ export async function POST(request: Request) {
   if (!read.ok) return json({ message: read.message }, 400);
 
   let result;
+  let provider: AiProvider | null = null;
   try {
-    const provider = await providerFor(viewer.id);
+    provider = await providerFor(viewer.id);
     result = await importResume(provider, read.text);
   } catch (error) {
     if (error instanceof NoKeyError) {
-      return json({ message: "Add an API key in Profile → AI first." }, 400);
+      return json({ message: error.message }, 503);
     }
     if (error instanceof KeyDecryptError) {
       return json({ message: error.message }, 409);
+    }
+    if (
+      error instanceof AiError &&
+      error.code === "rate_limited" &&
+      provider?.shared
+    ) {
+      console.warn(`[resume] shared key rate-limited`);
+      return json({ message: SHARED_BUSY_MESSAGE }, 503);
     }
     if (error instanceof AiError) {
       console.warn(

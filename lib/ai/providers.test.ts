@@ -6,14 +6,16 @@ import { z } from "zod";
 
 import { createAnthropicProvider } from "./anthropic";
 import { sealApiKey } from "./crypto";
-import { NoKeyError, getProvider, serviceRoleKeySource } from "./index";
+import { createGoogleProvider, geminiSchema } from "./google";
+import { NoKeyError, getProvider, serviceRoleKeySources } from "./index";
 import { createOpenAIProvider } from "./openai";
 import { AiError } from "./types";
 
 /**
  * The providers against a fake `fetch`: no network, no real key. Response
  * bodies follow each API's documented shapes (Anthropic Messages + count
- * tokens; OpenAI Responses + input token counting), including their error
+ * tokens; OpenAI Responses + input token counting; Gemini generateContent +
+ * countTokens), including their error
  * bodies, so the SDKs parse them exactly as they would the real thing.
  */
 
@@ -42,6 +44,7 @@ function fakeFetch(
 
 const ANTHROPIC_KEY = "sk-ant-api03-FAKEfakeFAKEfakeFAKEfake-7f3a";
 const OPENAI_KEY = "sk-proj-FAKEfakeFAKEfakeFAKEfake-9c1e";
+const GOOGLE_KEY = "AIzaFAKEfakeFAKEfakeFAKEfakeFAKEfake4d2b";
 
 const Answer = z.object({ title: z.string(), count: z.number() });
 const request = {
@@ -359,6 +362,159 @@ describe("OpenAI provider", () => {
   });
 });
 
+function geminiResponse(text: string, finishReason = "STOP") {
+  return {
+    candidates: [
+      {
+        content: { role: "model", parts: [{ text }] },
+        finishReason,
+        index: 0,
+      },
+    ],
+    usageMetadata: {
+      promptTokenCount: 140,
+      candidatesTokenCount: 40,
+      thoughtsTokenCount: 25,
+      totalTokenCount: 205,
+    },
+    modelVersion: "gemini-3.8-flash",
+  };
+}
+
+describe("Google Gemini provider", () => {
+  it("tests a key with the free token count, sending the key only as x-goog-api-key", async () => {
+    const { impl, calls } = fakeFetch(() => ({ body: { totalTokens: 4 } }));
+    await createGoogleProvider({ apiKey: GOOGLE_KEY, fetch: impl }).testKey();
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toContain("/models/gemini-3.8-flash:countTokens");
+    expect(calls[0].headers.get("x-goog-api-key")).toBe(GOOGLE_KEY);
+    expect(calls[0].url).not.toContain(GOOGLE_KEY);
+  });
+
+  it("asks for JSON against the schema and returns it parsed, with thinking counted as output", async () => {
+    const { impl, calls } = fakeFetch(() => ({
+      body: geminiResponse(JSON.stringify({ title: "Hi", count: 2 })),
+    }));
+    const provider = createGoogleProvider({
+      apiKey: GOOGLE_KEY,
+      fetch: impl,
+      shared: true,
+    });
+    const { data, usage } = await provider.generateStructured(request);
+    expect(data).toEqual({ title: "Hi", count: 2 });
+    expect(provider.shared).toBe(true);
+    expect(usage).toEqual({
+      provider: "google",
+      model: "gemini-3.8-flash",
+      inputTokens: 140,
+      outputTokens: 65,
+    });
+    const body = calls[0].body as {
+      systemInstruction: { parts: { text: string }[] };
+      generationConfig: {
+        responseMimeType: string;
+        responseJsonSchema: Record<string, unknown>;
+        thinkingConfig: { thinkingLevel: string };
+      };
+    };
+    expect(calls[0].url).toContain("/models/gemini-3.8-flash:generateContent");
+    expect(body.systemInstruction.parts[0].text).toBe("Return the answer.");
+    expect(body.generationConfig.responseMimeType).toBe("application/json");
+    expect(body.generationConfig.responseJsonSchema).toMatchObject({
+      type: "object",
+      required: ["title", "count"],
+    });
+    expect(body.generationConfig.thinkingConfig.thinkingLevel).toBe("MEDIUM");
+  });
+
+  it("strips JSON Schema keywords Gemini doesn't accept, but not field names", () => {
+    const schema = geminiSchema(
+      z.object({
+        maxLength: z.string().max(5),
+        items: z.array(z.number().int()).max(3),
+      }),
+    );
+    const text = JSON.stringify(schema);
+    expect(text).not.toContain("$schema");
+    expect(text).not.toContain('"maxLength":5');
+    expect(text).not.toContain("9007199254740991");
+    expect(schema).toMatchObject({
+      properties: {
+        maxLength: { type: "string" },
+        items: { type: "array", maxItems: 3, items: { type: "integer" } },
+      },
+    });
+  });
+
+  it("an answer that doesn't fit the schema, a cut-off, or a block is an AiError", async () => {
+    for (const [body, code] of [
+      [geminiResponse(JSON.stringify({ title: "Hi" })), "bad_output"],
+      [geminiResponse("not json"), "bad_output"],
+      [geminiResponse('{"title":', "MAX_TOKENS"), "too_long"],
+      [geminiResponse("", "SAFETY"), "refused"],
+    ] as const) {
+      const { impl } = fakeFetch(() => ({ body }));
+      const error = await createGoogleProvider({
+        apiKey: GOOGLE_KEY,
+        fetch: impl,
+      })
+        .generateStructured(request)
+        .catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(AiError);
+      expect((error as AiError).code).toBe(code);
+    }
+  });
+
+  it("a 429 is rate_limited, comes back after one retry, and never shows the key", async () => {
+    const { impl, calls } = fakeFetch(() => ({
+      status: 429,
+      body: {
+        error: {
+          code: 429,
+          message: `Quota exceeded for quota metric 'Generate Content API requests per minute' (key ${GOOGLE_KEY}).`,
+          status: "RESOURCE_EXHAUSTED",
+        },
+      },
+    }));
+    const error = await createGoogleProvider({
+      apiKey: GOOGLE_KEY,
+      fetch: impl,
+      maxRetries: 0,
+    })
+      .generateStructured(request)
+      .catch((e: unknown) => e);
+    expect((error as AiError).code).toBe("rate_limited");
+    expect((error as AiError).status).toBe(429);
+    expect((error as AiError).message).toContain("Quota exceeded");
+    expect((error as AiError).message).not.toContain(GOOGLE_KEY);
+    expect(calls).toHaveLength(1);
+    expect(logged.join("\n")).not.toContain(GOOGLE_KEY);
+  });
+
+  it("Google's 400 for a bad key reads as a rejected key", async () => {
+    const { impl } = fakeFetch(() => ({
+      status: 400,
+      body: {
+        error: {
+          code: 400,
+          message: "API key not valid. Please pass a valid API key.",
+          status: "INVALID_ARGUMENT",
+          details: [{ reason: "API_KEY_INVALID" }],
+        },
+      },
+    }));
+    const error = await createGoogleProvider({
+      apiKey: GOOGLE_KEY,
+      fetch: impl,
+      maxRetries: 0,
+    })
+      .testKey()
+      .catch((e: unknown) => e);
+    expect((error as AiError).code).toBe("invalid_key");
+    expect((error as AiError).message).toContain("Google Gemini didn't accept");
+  });
+});
+
 describe("getProvider", () => {
   const master = randomBytes(32);
   const env = {
@@ -366,16 +522,17 @@ describe("getProvider", () => {
   };
   const userId = "11111111-1111-4111-8111-111111111111";
 
-  function fakeDb(row: unknown) {
+  function fakeDb(row: unknown, shared: string | null = GOOGLE_KEY) {
     const chain = {
       select: () => chain,
       eq: () => chain,
       maybeSingle: async () => ({ data: row, error: null }),
     };
-    return { from: () => chain } as never;
+    const rpc = vi.fn(async () => ({ data: shared, error: null }));
+    return { db: { from: () => chain, rpc } as never, rpc };
   }
 
-  it("decrypts the stored key and hands back a working client", async () => {
+  it("decrypts the user's own key and hands back a working client, without touching the shared key", async () => {
     const sealed = sealApiKey(
       OPENAI_KEY,
       { userId, provider: "openai" },
@@ -384,32 +541,78 @@ describe("getProvider", () => {
     const { impl, calls } = fakeFetch(() => ({
       body: { object: "response.input_tokens", input_tokens: 5 },
     }));
-    const provider = await getProvider(
-      serviceRoleKeySource(fakeDb({ provider: "openai", ...sealed })),
-      userId,
-      { env, fetch: impl },
-    );
+    const { db, rpc } = fakeDb({ provider: "openai", ...sealed });
+    const provider = await getProvider(serviceRoleKeySources(db), userId, {
+      env,
+      fetch: impl,
+    });
     expect(provider.name).toBe("openai");
+    expect(provider.shared).toBe(false);
     await provider.testKey();
     expect(calls[0].headers.get("authorization")).toBe(`Bearer ${OPENAI_KEY}`);
+    expect(rpc).not.toHaveBeenCalled();
   });
 
-  it("no saved key is a NoKeyError", async () => {
+  it("a user's own Gemini key is theirs, not the shared one", async () => {
+    const own = "AIzaOWNownOWNownOWNownOWNownOWNown0001";
+    const sealed = sealApiKey(own, { userId, provider: "google" }, master);
+    const { impl, calls } = fakeFetch(() => ({ body: { totalTokens: 3 } }));
+    const { db } = fakeDb({ provider: "google", ...sealed });
+    const provider = await getProvider(serviceRoleKeySources(db), userId, {
+      env,
+      fetch: impl,
+    });
+    expect(provider.shared).toBe(false);
+    await provider.testKey();
+    expect(calls[0].headers.get("x-goog-api-key")).toBe(own);
+  });
+
+  it("no saved key falls back to the shared Gemini key", async () => {
+    const { impl, calls } = fakeFetch(() => ({ body: { totalTokens: 3 } }));
+    const { db, rpc } = fakeDb(null);
+    const provider = await getProvider(serviceRoleKeySources(db), userId, {
+      env,
+      fetch: impl,
+    });
+    expect(provider.name).toBe("google");
+    expect(provider.shared).toBe(true);
+    expect(rpc).toHaveBeenCalledWith("worker_shared_ai_key");
+    await provider.testKey();
+    expect(calls[0].headers.get("x-goog-api-key")).toBe(GOOGLE_KEY);
+  });
+
+  it("the worker reads the shared key once per process", async () => {
+    const { db, rpc } = fakeDb(null);
+    const sources = serviceRoleKeySources(db);
+    await getProvider(sources, userId, { env });
+    await getProvider(sources, userId, { env });
+    expect(rpc).toHaveBeenCalledTimes(1);
+  });
+
+  it("neither key is a NoKeyError", async () => {
     await expect(
-      getProvider(async () => null, userId, { env }),
+      getProvider(
+        { sealed: async () => null, shared: async () => null },
+        userId,
+        { env },
+      ),
     ).rejects.toThrow(NoKeyError);
   });
 
-  it("a key sealed for someone else won't open", async () => {
+  it("a key sealed for someone else won't open (and doesn't fall back)", async () => {
     const sealed = sealApiKey(
       OPENAI_KEY,
       { userId: "22222222-2222-4222-8222-222222222222", provider: "openai" },
       master,
     );
+    const shared = vi.fn(async () => GOOGLE_KEY);
     await expect(
-      getProvider(async () => ({ provider: "openai", ...sealed }), userId, {
-        env,
-      }),
+      getProvider(
+        { sealed: async () => ({ provider: "openai", ...sealed }), shared },
+        userId,
+        { env },
+      ),
     ).rejects.toThrow("can't be decrypted");
+    expect(shared).not.toHaveBeenCalled();
   });
 });

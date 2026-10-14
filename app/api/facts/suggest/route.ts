@@ -1,5 +1,10 @@
 import { KeyDecryptError, MasterKeyError } from "@/lib/ai/crypto";
-import { AiError, NoKeyError } from "@/lib/ai";
+import {
+  type AiProvider,
+  AiError,
+  NoKeyError,
+  SHARED_BUSY_MESSAGE,
+} from "@/lib/ai";
 import { providerFor } from "@/lib/ai/keys";
 import { getInvited } from "@/lib/auth/viewer";
 import { suggestFacts } from "@/lib/facts/extract";
@@ -49,8 +54,9 @@ export async function POST(request: Request) {
     ? resumeToText(structured)
     : (resume?.text_content ?? "");
 
+  let provider: AiProvider | null = null;
   try {
-    const provider = await providerFor(viewer.id);
+    provider = await providerFor(viewer.id);
     const { suggestions, usage } = await suggestFacts(
       provider,
       resumeText,
@@ -62,10 +68,18 @@ export async function POST(request: Request) {
     return json({ suggestions });
   } catch (error) {
     if (error instanceof NoKeyError) {
-      return json({ message: "Add an API key in Profile → AI first." }, 400);
+      return json({ message: error.message }, 503);
     }
     if (error instanceof KeyDecryptError) {
       return json({ message: error.message }, 409);
+    }
+    if (
+      error instanceof AiError &&
+      error.code === "rate_limited" &&
+      provider?.shared
+    ) {
+      console.warn(`[facts] shared key rate-limited`);
+      return json({ message: SHARED_BUSY_MESSAGE }, 503);
     }
     if (error instanceof AiError) {
       console.warn(

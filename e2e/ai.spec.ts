@@ -15,13 +15,17 @@ import { finishBasics, finishOnboarding } from "./helpers/local-postings";
 /*
  * AI foundation against local Supabase, with the AI providers mocked
  * (helpers/ats-mock-server.mjs; no real key, no real calls):
+ * - a new account is in AI mode on the shared free key, with no key of its
+ *   own (M7);
  * - add a key → the test call passes → "Anthropic key ending ####" → remove
- *   it → gone (and the database never held the key in the clear);
+ *   it → gone, still in AI mode on the shared key (and the database never
+ *   held the key in the clear);
  * - a rejected key shows the provider's error and isn't saved, and an
  *   OpenAI error that echoes the key shows it redacted;
- * - import a Word resume in AI mode → the editor has the same section names
- *   as the file, and the preview prints them;
- * - onboarding: resume step → AI key → fact bank step → What to watch.
+ * - import a Word resume with no key of your own (the shared Gemini key) →
+ *   the editor has the same section names as the file, and the preview
+ *   prints them;
+ * - onboarding: resume step → fact bank step → What to watch.
  */
 test.skip(
   !localSupabaseAvailable,
@@ -44,6 +48,7 @@ test.afterAll(async () => {
 });
 
 async function addKey(page: Page, key: string) {
+  await page.getByRole("radio", { name: "Anthropic" }).click();
   const field = page.getByLabel("Anthropic API key");
   await field.fill(key);
   await andWaitForAction(page, () =>
@@ -59,8 +64,13 @@ test("add an Anthropic key, see it as 'ending ####', remove it", async ({
   await signIn(page, user, "/profile/ai");
 
   await expect(page.getByRole("heading", { name: "AI" })).toBeVisible();
+  await expect(page.getByTestId("ai-mode")).toHaveText("AI mode is on");
+  await expect(
+    page.getByText(/Using Shipmate's shared free AI \(Google Gemini\)/),
+  ).toBeVisible();
   await expect(page.getByText("What it costs")).toBeVisible();
-  await expect(page.getByText(/What gets sent to Anthropic/)).toBeVisible();
+  await expect(page.getByText(/What gets sent to Google/)).toBeVisible();
+  await expect(page.getByText(/improve its products/)).toBeVisible();
 
   // A key the provider rejects: its error, and nothing saved.
   await addKey(page, BAD_KEY);
@@ -78,7 +88,9 @@ test("add an Anthropic key, see it as 'ending ####', remove it", async ({
   await expect(page.getByTestId("saved-key")).toHaveText(
     "Anthropic key ending 7f3a",
   );
-  await expect(page.getByText(/^Added .*\. AI mode is on\.$/)).toBeVisible();
+  await expect(
+    page.getByText(/Using your Anthropic key ending 7f3a\./),
+  ).toBeVisible();
   expect(await page.content()).not.toContain(GOOD_KEY);
 
   const stored = await db()
@@ -122,7 +134,8 @@ test("add an Anthropic key, see it as 'ending ####', remove it", async ({
     .select("mode")
     .eq("user_id", user.id)
     .single();
-  expect(after.data?.mode).toBe("simple");
+  expect(after.data?.mode).toBe("ai");
+  await expect(page.getByText(/Using Shipmate's shared free AI/)).toBeVisible();
 });
 
 test("an OpenAI error that echoes the key shows it redacted", async ({
@@ -146,16 +159,12 @@ test("an OpenAI error that echoes the key shows it redacted", async ({
   await expect(page.getByText(/sk-proj/)).toHaveCount(0);
 });
 
-test("import a Word resume in AI mode: same section names as the file", async ({
+test("import a Word resume with no key of your own (shared Gemini): same section names as the file", async ({
   page,
 }) => {
   const user = await createTestUser("ai-import");
   await finishOnboarding(user.id);
-  await signIn(page, user, "/profile/ai");
-  await addKey(page, GOOD_KEY);
-  await expect(page.getByTestId("saved-key")).toBeVisible();
-
-  await page.goto("/profile/resume");
+  await signIn(page, user, "/profile/resume");
   await expect(
     page.getByRole("heading", { name: "Structured resume" }),
   ).toBeVisible();
@@ -214,7 +223,7 @@ test("import a Word resume in AI mode: same section names as the file", async ({
   ).toBe("Selected Projects");
 });
 
-test("onboarding: resume step with an AI key, then the fact bank, then What to watch", async ({
+test("onboarding: resume step in AI mode, then the fact bank, then What to watch", async ({
   page,
 }) => {
   const user = await createTestUser("ai-onboard");
@@ -223,8 +232,15 @@ test("onboarding: resume step with an AI key, then the fact bank, then What to w
 
   await expect(page).toHaveURL(/\/onboarding\/resume$/);
   await expect(page.getByText("Step 3")).toBeVisible();
-  await addKey(page, GOOD_KEY);
-  await expect(page.getByTestId("saved-key")).toBeVisible();
+  await expect(page.getByTestId("ai-mode")).toHaveText("AI mode is on");
+  const picker = page.locator('input[type="file"]').last();
+  await expect(async () => {
+    await picker.setInputFiles([]);
+    await picker.setInputFiles(DOCX);
+    await expect(page.getByText(/Read 2 sections/)).toBeVisible({
+      timeout: 5000,
+    });
+  }).toPass({ timeout: 30_000 });
   await page.getByRole("button", { name: "Continue" }).click();
 
   await expect(page).toHaveURL(/\/onboarding\/facts$/);

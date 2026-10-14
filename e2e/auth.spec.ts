@@ -136,6 +136,10 @@ test("admin creates a code; an invited user completes Basics and lands on Inbox"
   await expect(page).toHaveURL(/\/onboarding\/resume$/);
   await page.getByRole("button", { name: "Skip for now" }).click();
 
+  // New accounts start in AI mode (M7), so the fact bank comes next.
+  await expect(page).toHaveURL(/\/onboarding\/facts$/);
+  await page.getByRole("button", { name: "Skip for now" }).click();
+
   // What to watch (Inbox E2E covers it in depth): keep the SWE default.
   await expect(page).toHaveURL(/\/onboarding\/watch$/);
   await page.getByRole("button", { name: "Set sail" }).click();

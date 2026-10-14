@@ -45,6 +45,8 @@ function runWorker(sourceKeys: string[]): string {
       ...process.env,
       WATCH_SOURCES: sourceKeys.join(","),
       E2E_ATS_ORIGIN: MOCK_ORIGIN,
+      // The run also drains the tailoring queue: AI calls go to the mock.
+      E2E_AI_ORIGIN: MOCK_ORIGIN,
     },
     encoding: "utf8",
     timeout: 60_000,

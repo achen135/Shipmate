@@ -43,6 +43,7 @@ export function createAnthropicProvider(options: ClientOptions): AiProvider {
 
   return {
     name: "anthropic",
+    shared: false,
 
     async testKey() {
       try {

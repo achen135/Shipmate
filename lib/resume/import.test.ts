@@ -121,6 +121,7 @@ describe("importResume", () => {
     const requests: StructuredRequest<unknown>[] = [];
     const provider: AiProvider = {
       name: "anthropic",
+      shared: false,
       testKey: async () => {},
       async generateStructured<T>(request: StructuredRequest<T>) {
         requests.push(request as StructuredRequest<unknown>);

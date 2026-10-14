@@ -5,12 +5,23 @@
  * - OpenAI: developers.openai.com/api/docs/pricing and /models ("If you're
  *   not sure where to start, use GPT-6 Astra"; GPT-6.1 Sol "balances
  *   intelligence and cost").
+ * - Google: ai.google.dev/gemini-api/docs/pricing and /models (checked
+ *   2026-10-14). gemini-2.5-flash, the handoff's pick, is now limited to
+ *   projects that used it before, so a new key can't call it; Google's
+ *   current Flash is gemini-3.8-flash. Paid prices below run through
+ *   2026-12-31 and double on 2027-01-01. Without billing on the Google
+ *   project there's a free tier instead (rate-limited, $0).
  * Update PRICES_CHECKED when these change; the cost explainer reads them.
+ *
+ * `strong` (edits) uses the same models and effort as `fast` for now (Alex,
+ * 2026-10-14): every user pays for tailoring with their own key, so the
+ * default is the cheaper model. The two tiers stay separate so a later
+ * "stronger model for edits" option has somewhere to attach.
  */
 
 import type { ProviderName, Tier } from "./types";
 
-export const PRICES_CHECKED = "2026-10-13";
+export const PRICES_CHECKED = "2026-10-14";
 
 type Model = {
   id: string;
@@ -29,10 +40,10 @@ export const MODELS: Record<ProviderName, Record<Tier, Model>> = {
       outputPerM: 10,
     },
     strong: {
-      id: "claude-opus-5-5",
-      label: "Claude Opus 5.5",
-      inputPerM: 4,
-      outputPerM: 20,
+      id: "claude-sonnet-5-5",
+      label: "Claude Sonnet 5.5",
+      inputPerM: 2,
+      outputPerM: 10,
     },
   },
   openai: {
@@ -43,10 +54,24 @@ export const MODELS: Record<ProviderName, Record<Tier, Model>> = {
       outputPerM: 10,
     },
     strong: {
-      id: "gpt-6-astra",
-      label: "GPT-6 Astra",
-      inputPerM: 10,
-      outputPerM: 50,
+      id: "gpt-6.1-sol",
+      label: "GPT-6.1 Sol",
+      inputPerM: 2,
+      outputPerM: 10,
+    },
+  },
+  google: {
+    fast: {
+      id: "gemini-3.8-flash",
+      label: "Gemini 3.8 Flash",
+      inputPerM: 0.75,
+      outputPerM: 3.75,
+    },
+    strong: {
+      id: "gemini-3.8-flash",
+      label: "Gemini 3.8 Flash",
+      inputPerM: 0.75,
+      outputPerM: 3.75,
     },
   },
 };
@@ -58,7 +83,7 @@ export const MODELS: Record<ProviderName, Record<Tier, Model>> = {
  */
 export const EFFORT: Record<Tier, "medium" | "high"> = {
   fast: "medium",
-  strong: "high",
+  strong: "medium",
 };
 
 export function costUsd(
@@ -112,8 +137,23 @@ export function estimateStep(
   return { low: typical, high: typical * 2 };
 }
 
+/**
+ * What a call actually cost: nothing on the shared free key (Google's free
+ * tier), list price otherwise. A user's own Gemini key may be on the free
+ * tier too, but Shipmate can't tell, so it's counted at the paid price.
+ */
+export function callCostUsd(
+  usage: { provider: ProviderName; inputTokens: number; outputTokens: number },
+  tier: Tier,
+  shared: boolean,
+): number {
+  if (shared) return 0;
+  return costUsd(usage.provider, tier, usage.inputTokens, usage.outputTokens);
+}
+
 /** "$0.05" / "$0.16"; under a cent shows as "<$0.01". */
 export function formatUsd(amount: number): string {
+  if (amount === 0) return "$0.00";
   if (amount < 0.01) return "<$0.01";
   return `$${amount.toFixed(2)}`;
 }

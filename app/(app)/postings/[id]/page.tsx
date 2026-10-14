@@ -7,12 +7,18 @@ import { z } from "zod";
 
 import { AnswerSheetSection } from "@/components/review/answer-sheet";
 import { ReviewActions } from "@/components/review/review-actions";
+import {
+  PdfRefresh,
+  TailorButton,
+  TailoringProgress,
+} from "@/components/review/tailoring";
 import { requireMember } from "@/lib/auth/viewer";
 import { formatRelative, formatShortDate } from "@/lib/format/time";
 import { parseContent, resumeToText } from "@/lib/resume/structured";
 import { keywordMatch } from "@/lib/review/keywords";
 import { getReview } from "@/lib/review/queries";
 import { describePrevious, reviewWarnings } from "@/lib/review/warnings";
+import { type TailoringView, getLatestTailoring } from "@/lib/tailor/queries";
 
 export const metadata: Metadata = { title: "Posting" };
 
@@ -25,7 +31,11 @@ const SPONSORSHIP: Record<string, string | null> = {
 
 async function loadReview(id: string) {
   const review = await getReview(id);
-  return { review, now: Date.now() };
+  const tailoring =
+    review?.profile?.mode === "ai" && review.item
+      ? await getLatestTailoring(review.item.id)
+      : null;
+  return { review, tailoring, now: Date.now() };
 }
 
 function Section({
@@ -47,13 +57,164 @@ function Section({
   );
 }
 
+function FitScore({ tailoring }: { tailoring: TailoringView }) {
+  return (
+    <div className="flex flex-col gap-3">
+      <p>
+        <span className="text-2xl font-semibold" data-testid="fit-score">
+          {tailoring.scoreBefore}% → {tailoring.scoreAfter}%
+        </span>{" "}
+        <span className="text-sm text-muted-foreground">
+          of what the posting asks for, before → after tailoring
+        </span>
+      </p>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+        <dt className="text-muted-foreground">On your resume</dt>
+        <dd className="break-words">
+          {tailoring.matched.join(", ") || "None"}
+        </dd>
+        <dt className="text-muted-foreground">
+          Not on your resume or in your facts
+        </dt>
+        <dd className="break-words">
+          {tailoring.missing.join(", ") || "None"}
+        </dd>
+      </dl>
+      <p className="text-xs text-muted-foreground">
+        Required skills count twice. Shipmate never adds what you don&apos;t
+        have: if one of the missing ones is true,{" "}
+        <Link href="/profile/facts" className="underline underline-offset-2">
+          add it to your profile facts
+        </Link>{" "}
+        and tailor again.
+      </p>
+    </div>
+  );
+}
+
+function TailoredResume({
+  postingId,
+  inInbox,
+  hasStructured,
+  tailoring,
+}: {
+  postingId: string;
+  inInbox: boolean;
+  hasStructured: boolean;
+  tailoring: TailoringView | null;
+}) {
+  if (!hasStructured) {
+    return (
+      <p className="rounded-xl border bg-card p-4 text-sm">
+        To tailor it,{" "}
+        <Link href="/profile/resume" className="underline underline-offset-2">
+          import your resume into Shipmate&apos;s layout
+        </Link>{" "}
+        first.
+      </p>
+    );
+  }
+  if (!inInbox) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Only postings in your Inbox can be tailored.
+      </p>
+    );
+  }
+  if (tailoring?.state === "queued" || tailoring?.state === "running") {
+    return (
+      <TailoringProgress
+        state={tailoring.state}
+        waitingForQuota={
+          tailoring.state === "queued" && tailoring.rateLimitedAt !== null
+        }
+      />
+    );
+  }
+  if (tailoring?.state !== "done") {
+    return (
+      <div className="flex flex-col gap-3 rounded-xl border bg-card p-4">
+        <p className="text-sm">
+          {tailoring?.state === "failed"
+            ? `Tailoring didn't finish: ${tailoring.error ?? "something went wrong."}`
+            : "Shipmate can tailor your master resume to this posting: it rewords, reorders and brings in only what's already on your resume or in your profile facts, and keeps it to one page."}
+        </p>
+        <div>
+          <TailorButton
+            postingId={postingId}
+            again={tailoring?.state === "failed"}
+          />
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-start gap-3 rounded-xl border bg-card p-4">
+        <FileText
+          aria-hidden="true"
+          className="mt-0.5 size-5 shrink-0 text-muted-foreground"
+        />
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          <p className="font-medium">
+            Tailored for this posting
+            {tailoring.edited ? " (edited by you)" : ""}
+          </p>
+          {tailoring.pdfPending ? (
+            <PdfRefresh />
+          ) : (
+            tailoring.hasPdf && (
+              <a
+                href={`/api/tailorings/${tailoring.id}/pdf`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-sm underline underline-offset-2"
+              >
+                Open PDF
+                <ExternalLink aria-hidden="true" className="size-3.5" />
+              </a>
+            )
+          )}
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              href={`/postings/${postingId}/resume`}
+              className="text-sm underline underline-offset-2"
+            >
+              Edit this copy
+            </Link>
+            <TailorButton postingId={postingId} again />
+          </div>
+        </div>
+      </div>
+      {tailoring.notes.map((note) => (
+        <p key={note} className="text-sm text-muted-foreground">
+          {note}
+        </p>
+      ))}
+      {tailoring.changes.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <h3 className="font-medium">What changed</h3>
+          <ul className="flex flex-col gap-3 text-sm" data-testid="changes">
+            {tailoring.changes.map((change, i) => (
+              <li key={i}>
+                <p>{change.what}</p>
+                <p className="text-muted-foreground">Why: {change.why}.</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default async function PostingPage({
   params,
 }: PageProps<"/postings/[id]">) {
   await requireMember();
   const { id } = await params;
   if (!z.uuid().safeParse(id).success) notFound();
-  const { review, now } = await loadReview(id);
+  const { review, tailoring, now } = await loadReview(id);
   if (!review) notFound();
 
   const { posting, item, profile, resume, previous } = review;
@@ -74,7 +235,8 @@ export default async function PostingPage({
     ["Source", posting.source_names.join(", ") || "Unknown"],
   ];
 
-  const warnings = reviewWarnings({
+  const done = tailoring?.state === "done" ? tailoring : null;
+  const ruleWarnings = reviewWarnings({
     posting: {
       title: posting.title,
       terms: posting.terms,
@@ -90,6 +252,13 @@ export default async function PostingPage({
     },
     previous,
   });
+  // The rules above run live; the tailoring adds what only it knows.
+  const warnings = [
+    ...ruleWarnings,
+    ...(done?.warnings.filter(
+      (w) => w.kind === "skills_gap" || w.kind === "low_score",
+    ) ?? []),
+  ];
 
   // AI mode compares against the structured resume (what tailoring starts
   // from); Simple mode against the uploaded PDF's text.
@@ -175,73 +344,66 @@ export default async function PostingPage({
         </Section>
       )}
 
-      <Section id="match-heading" title="Keyword match">
-        {!resume ? (
-          <p className="text-sm text-muted-foreground">
-            <Link
-              href="/profile/application"
-              className="underline underline-offset-2"
-            >
-              Upload your resume
-            </Link>{" "}
-            to see how many of this posting&apos;s words it shares.
-          </p>
-        ) : !resumeText ? (
-          <p className="text-sm text-muted-foreground">
-            No text could be read from your resume PDF, so there&apos;s nothing
-            to compare.
-          </p>
-        ) : match.score === null ? (
-          <p className="text-sm text-muted-foreground">
-            This posting doesn&apos;t include enough text to compare.
-          </p>
-        ) : (
-          <div className="flex flex-col gap-3">
-            <p>
-              <span className="text-2xl font-semibold">{match.score}%</span>{" "}
-              <span className="text-sm text-muted-foreground">
-                of this posting&apos;s words are in your resume
-              </span>
+      {done && done.scoreAfter !== null ? (
+        <Section id="match-heading" title="Fit">
+          <FitScore tailoring={done} />
+        </Section>
+      ) : (
+        <Section id="match-heading" title="Keyword match">
+          {!resume ? (
+            <p className="text-sm text-muted-foreground">
+              <Link
+                href="/profile/application"
+                className="underline underline-offset-2"
+              >
+                Upload your resume
+              </Link>{" "}
+              to see how many of this posting&apos;s words it shares.
             </p>
-            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
-              <dt className="text-muted-foreground">In both</dt>
-              <dd className="break-words">
-                {match.matched.join(", ") || "None"}
-              </dd>
-              <dt className="text-muted-foreground">Not in your resume</dt>
-              <dd className="break-words">
-                {match.missing.join(", ") || "None"}
-              </dd>
-            </dl>
-            <p className="text-xs text-muted-foreground">
-              A rough word count, not a judgment of your fit. Many words that
-              matter here won&apos;t appear in either text.
+          ) : !resumeText ? (
+            <p className="text-sm text-muted-foreground">
+              No text could be read from your resume PDF, so there&apos;s
+              nothing to compare.
             </p>
-          </div>
-        )}
-      </Section>
+          ) : match.score === null ? (
+            <p className="text-sm text-muted-foreground">
+              This posting doesn&apos;t include enough text to compare.
+            </p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              <p>
+                <span className="text-2xl font-semibold">{match.score}%</span>{" "}
+                <span className="text-sm text-muted-foreground">
+                  of this posting&apos;s words are in your resume
+                </span>
+              </p>
+              <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+                <dt className="text-muted-foreground">In both</dt>
+                <dd className="break-words">
+                  {match.matched.join(", ") || "None"}
+                </dd>
+                <dt className="text-muted-foreground">Not in your resume</dt>
+                <dd className="break-words">
+                  {match.missing.join(", ") || "None"}
+                </dd>
+              </dl>
+              <p className="text-xs text-muted-foreground">
+                A rough word count, not a judgment of your fit. Many words that
+                matter here won&apos;t appear in either text.
+              </p>
+            </div>
+          )}
+        </Section>
+      )}
 
       <Section id="resume-heading" title="Resume">
-        {structured && (
-          <div className="flex items-start gap-3 rounded-xl border bg-card p-4">
-            <FileText
-              aria-hidden="true"
-              className="mt-0.5 size-5 shrink-0 text-muted-foreground"
-            />
-            <div className="min-w-0 flex-1">
-              <p className="font-medium">Your structured resume</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                AI mode. A version tailored to this posting arrives in the next
-                update.
-              </p>
-              <Link
-                href="/profile/resume"
-                className="mt-2 inline-block text-sm underline underline-offset-2"
-              >
-                Edit resume
-              </Link>
-            </div>
-          </div>
+        {profile?.mode === "ai" && (
+          <TailoredResume
+            postingId={posting.id}
+            inInbox={item !== null}
+            hasStructured={structured !== null}
+            tailoring={tailoring}
+          />
         )}
         {structured && !resume?.file_path ? null : resume?.file_path ? (
           <div className="flex items-start gap-3 rounded-xl border bg-card p-4">

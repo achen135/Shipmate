@@ -2,7 +2,7 @@
  * The 30-minute watcher run (GitHub Actions `watch.yml`, dispatched by
  * Supabase pg_cron with GitHub's schedule as a fallback).
  *
- * Run order (CLAUDE.md "Worker run order"), as far as M4 goes:
+ * Run order (CLAUDE.md "Worker run order"), as far as M7 goes:
  *   1. every enabled source, aggregators then the company boards users
  *      follow: each checks its upstream and returns a snapshot (or, for an
  *      aggregator whose commit is unchanged, nothing new)
@@ -10,9 +10,13 @@
  *      via lib/postings/plan.ts), writing source health with alerts
  *   3. match newly listed postings to watch profiles → Inbox rows
  *   4. one notification per user for the rows just created (push, with an
- *      email fallback; worker/notify.ts)
- *   5. write the `runs` row
- * Later milestones add the cold tier and tailoring.
+ *      email fallback; worker/notify.ts). Sent before tailoring: the
+ *      review page shows "tailoring…" until it's ready.
+ *   5. queue auto-tailoring for those rows (users who turned it on, within
+ *      their daily cap), then drain the tailoring queue, one row at a time,
+ *      within a time budget (worker/tailor.ts; tailor.yml drains it too)
+ *   6. write the `runs` row
+ * M9 adds the cold tier.
  *
  * WATCH_SOURCES=greenhouse:stripe,lever:palantir limits a run to those
  * source keys (a hand run for one company, and the E2E tests).
@@ -39,7 +43,13 @@ import { type Db, applyPlan, loadIngestState } from "./db";
 import { type CheckOutcome, formatAlert, nextHealth } from "./health";
 import { type MatchResult, matchNewPostings } from "./match";
 import { type NotifyStats, notifyUsers } from "./notify";
+import { createPrinter } from "./pdf";
+import { type TailorStats, drainTailorings, queueAutoTailor } from "./tailor";
+import { serviceRoleKeySources } from "@/lib/ai";
 import { withE2eOrigin } from "@/lib/e2e-origin";
+
+/** watch.yml's timeout is 20 minutes; tailoring stops claiming after this. */
+const TAILOR_DEADLINE_MS = 14 * 60 * 1000;
 
 type SourceRunStats = {
   outcome: CheckOutcome["kind"];
@@ -74,6 +84,7 @@ async function main(): Promise<number> {
     return 0;
   }
 
+  const started = Date.now();
   const { supabaseUrl, serviceRoleKey, githubToken } = result.config;
   const db: Db = createClient<Database>(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -99,6 +110,8 @@ async function main(): Promise<number> {
   let isSeed = false;
   let matching: Omit<MatchResult, "newRows"> | null = null;
   let notifications: NotifyStats | null = null;
+  let tailoring:
+    (TailorStats & { autoQueued: number; autoCapped: number }) | null = null;
   let crashed: unknown = null;
 
   try {
@@ -114,6 +127,8 @@ async function main(): Promise<number> {
     if (notifications) {
       console.log(`[worker] notifications: ${JSON.stringify(notifications)}`);
     }
+    tailoring = await runTailoring(db, newRows, started);
+    console.log(`[worker] tailoring: ${JSON.stringify(tailoring)}`);
   } catch (error) {
     crashed = error;
     errors.push(`run: ${errorMessage(error)}`);
@@ -129,6 +144,7 @@ async function main(): Promise<number> {
         sources: stats,
         matching,
         notifications,
+        tailoring,
       } as unknown as NonNullable<Json>,
       errors,
     })
@@ -141,6 +157,34 @@ async function main(): Promise<number> {
   }
   console.log(`[worker] done${isSeed ? " (seed run)" : ""}`);
   return 0;
+}
+
+/** Step 5. A failure here is logged and never fails the watch run. */
+async function runTailoring(
+  db: Db,
+  newRows: { userId: string; postingId: string }[],
+  started: number,
+) {
+  const printer = createPrinter();
+  try {
+    const auto = await queueAutoTailor(db, newRows);
+    const stats = await drainTailorings(db, {
+      keys: serviceRoleKeySources(db),
+      printer,
+      fetch: withE2eOrigin(createPoliteFetch(), process.env),
+      deadline: started + TAILOR_DEADLINE_MS,
+      warn: (message) => console.log(formatWarning(message, process.env)),
+    });
+    return { ...stats, autoQueued: auto.queued, autoCapped: auto.capped };
+  } catch (error) {
+    console.error(
+      "[worker] tailoring failed:",
+      error instanceof Error ? error.message : "unknown",
+    );
+    return null;
+  } finally {
+    await printer.close();
+  }
 }
 
 /**

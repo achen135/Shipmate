@@ -37,7 +37,18 @@ export type PreviousApplication = {
 };
 
 export type Warning = {
-  kind: "grad_year" | "term" | "degree" | "sponsorship" | "previous";
+  /**
+   * The first five are M5's rules; skills_gap and low_score come from an
+   * AI-mode tailoring (lib/tailor/pipeline.ts) and are stored with it.
+   */
+  kind:
+    | "grad_year"
+    | "term"
+    | "degree"
+    | "sponsorship"
+    | "previous"
+    | "skills_gap"
+    | "low_score";
   message: string;
   previous?: PreviousApplication[];
 };

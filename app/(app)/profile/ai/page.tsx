@@ -18,16 +18,16 @@ export default async function AiPage() {
     <div className="flex flex-col gap-8">
       <PageHeader title="AI" />
       <p className="text-sm text-muted-foreground">
-        Optional. With your own Anthropic or OpenAI key, Shipmate reads your
-        resume into an editable layout, and (from the next update) tailors it to
-        each posting. Without one, everything else works the same and your PDF
-        is used as it is.
+        In AI mode, Shipmate reads your resume into an editable layout and
+        tailors it to each posting, using only what&apos;s true on your resume
+        and in your profile. It runs on a shared free AI unless you add a key of
+        your own. In Simple mode your PDF is used as it is.
       </p>
       <AiSettings
         {...settings}
         actions={{ saveKey, removeKey, setMode, saveAiSettings }}
       />
-      {settings.savedKey && (
+      {settings.mode === "ai" && (
         <p className="text-sm">
           Next:{" "}
           <Link href="/profile/resume" className="underline underline-offset-2">

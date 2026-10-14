@@ -35,7 +35,7 @@ type RunStats = {
 /** Data for the page, plus the clock it's rendered against. */
 async function loadHealth() {
   const supabase = await createClient();
-  const [sources, runs] = await Promise.all([
+  const [sources, runs, sharedAi] = await Promise.all([
     supabase
       .from("sources")
       .select(
@@ -49,15 +49,30 @@ async function loadHealth() {
       )
       .order("started_at", { ascending: false })
       .limit(12),
+    supabase.rpc("shared_ai_health"),
   ]);
   if (sources.error) throw new Error(`sources: ${sources.error.message}`);
   if (runs.error) throw new Error(`runs: ${runs.error.message}`);
-  return { sources: sources.data, runs: runs.data, now: Date.now() };
+  if (sharedAi.error) throw new Error(`shared ai: ${sharedAi.error.message}`);
+  return {
+    sources: sources.data,
+    runs: runs.data,
+    sharedAi: sharedAi.data?.[0] ?? null,
+    now: Date.now(),
+  };
 }
 
 export default async function SourcesPage() {
   await requireAdmin();
-  const { sources, runs, now } = await loadHealth();
+  const { sources, runs, sharedAi, now } = await loadHealth();
+  // Red when the shared key keeps saying 429: someone has waited over two
+  // hours (four runs), or it was turned away five times in a day.
+  const waitingSince = sharedAi?.oldest_waiting ?? null;
+  const sharedAlert =
+    sharedAi !== null &&
+    ((waitingSince !== null &&
+      now - new Date(waitingSince).getTime() > 2 * 60 * 60 * 1000) ||
+      sharedAi.hits_24h >= 5);
 
   return (
     <>
@@ -132,6 +147,46 @@ export default async function SourcesPage() {
           );
         })}
       </ul>
+
+      <section
+        aria-labelledby="shared-ai-heading"
+        className="flex flex-col gap-3"
+      >
+        <h2 id="shared-ai-heading" className="text-lg font-medium">
+          Shared AI key
+        </h2>
+        <div className="rounded-xl border bg-card p-4 text-sm">
+          <p className="flex flex-wrap items-center gap-2">
+            <span className="font-medium">Gemini (shared, free tier)</span>
+            <Badge variant={sharedAlert ? "destructive" : "secondary"}>
+              {sharedAlert ? "Rate-limited" : "Healthy"}
+            </Badge>
+          </p>
+          <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+            <dt className="text-muted-foreground">Tailored, last 24 hours</dt>
+            <dd>{sharedAi?.done_24h ?? 0}</dd>
+            <dt className="text-muted-foreground">429s, last 24 hours</dt>
+            <dd>{sharedAi?.hits_24h ?? 0}</dd>
+            <dt className="text-muted-foreground">Waiting for quota</dt>
+            <dd>
+              {sharedAi?.waiting ?? 0}
+              {waitingSince
+                ? ` (oldest queued ${formatRelative(waitingSince, now)})`
+                : ""}
+            </dd>
+          </dl>
+          {sharedAlert && (
+            <p
+              role="alert"
+              className="mt-3 rounded-lg bg-destructive/10 p-3 text-destructive"
+            >
+              Google keeps rate-limiting the shared key. Tailorings wait and
+              retry every run; if this lasts, the free tier&apos;s daily limit
+              may be too small for everyone.
+            </p>
+          )}
+        </div>
+      </section>
 
       <section aria-labelledby="runs-heading" className="flex flex-col gap-3">
         <h2 id="runs-heading" className="text-lg font-medium">

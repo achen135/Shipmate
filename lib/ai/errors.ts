@@ -17,9 +17,10 @@ import { AiError, PROVIDER_LABELS, type ProviderName } from "./types";
 
 /**
  * Key-shaped tokens: sk-…, sk-ant-…, sk-proj-…, masked forms (sk-****abcd),
- * and Google API keys (AIza…).
+ * and Google API keys (AIza…, AQ.…).
  */
-const KEY_PATTERN = /\b(?:sk-[A-Za-z0-9_*\-]{4,}|AIza[A-Za-z0-9_\-]{10,})/g;
+const KEY_PATTERN =
+  /\b(?:sk-[A-Za-z0-9_*\-]{4,}|AIza[A-Za-z0-9_\-]{10,}|AQ\.[A-Za-z0-9_.\-]{20,})/g;
 
 export function redact(text: string, secret?: string): string {
   let out = text;

@@ -52,13 +52,14 @@ export const apiKeyInputSchema = z
       .regex(/^\S+$/, "An API key has no spaces in it."),
   })
   .superRefine((value, ctx) => {
-    const looksGoogle = value.apiKey.startsWith("AIza");
+    // Older keys start AIza; AI Studio now also issues AQ.… keys.
+    const looksGoogle = /^(AIza|AQ\.)/.test(value.apiKey);
     if (value.provider === "google") {
       if (!looksGoogle) {
         ctx.addIssue({
           code: "custom",
           path: ["apiKey"],
-          message: "Gemini API keys start with AIza.",
+          message: "Gemini API keys start with AIza or AQ.",
         });
       }
       return;

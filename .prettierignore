@@ -4,6 +4,7 @@ out/
 coverage/
 test-results/
 playwright-report/
+extension/dist/
 node_modules/
 
 # generated

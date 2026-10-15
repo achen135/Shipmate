@@ -358,6 +358,15 @@ function answerAi(url, request, raw, response) {
       return { edits: tailoringEdits(input) };
     }
     if (/runs past one page/.test(instructions)) return { edits: [] };
+    if (/second reviewer/.test(instructions)) {
+      return {
+        suggestions: [
+          {
+            what: "Two bullets in a row start with “Built”; one could start with “Designed”.",
+          },
+        ],
+      };
+    }
     if (/summarise what a company says/.test(instructions)) {
       return { summary: "", values: [], tech: [] };
     }
@@ -373,6 +382,21 @@ function answerAi(url, request, raw, response) {
   );
   if (gemini?.[2] === "countTokens") {
     return send(response, 200, { totalTokens: 12 });
+  }
+  // A posting that says E2E-FLASH-BUSY: the main shared model is out of
+  // quota (the backup, Flash-Lite, still answers).
+  if (
+    gemini?.[2] === "generateContent" &&
+    gemini[1] === "gemini-3.8-flash" &&
+    input.includes("E2E-FLASH-BUSY")
+  ) {
+    return send(response, 429, {
+      error: {
+        code: 429,
+        message: "Resource has been exhausted (e.g. check quota).",
+        status: "RESOURCE_EXHAUSTED",
+      },
+    });
   }
   if (gemini?.[2] === "generateContent") {
     return send(response, 200, {

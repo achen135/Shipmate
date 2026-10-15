@@ -14,6 +14,9 @@
  *   7. the whole-copy check (trace.ts); anything untraceable → the master
  *      ships unchanged
  *   8. re-score, report (changes, warnings, notes) and usage
+ *   9. a second look (second-look.ts): one read-only call on the finished
+ *      copy, whose notes are shown to the user and never applied. Skipped
+ *      when nothing changed (step 1's too-little-text exit skips it too)
  *
  * The PDF and the database write happen in the worker (worker/tailor.ts).
  * Pure apart from the provider and the measure, which the caller passes in,
@@ -44,6 +47,8 @@ import {
   scoreText,
   verifyKeywords,
 } from "./score";
+import { type Suggestion, secondLook } from "./second-look";
+import { containsPhrase } from "./text";
 import { untraceable } from "./trace";
 import { describeFacts, describeResume, factId } from "./view";
 
@@ -68,6 +73,10 @@ export type TailorResult = {
   missing: string[];
   changes: Change[];
   notes: string[];
+  /** Step 9's notes: what a second read noticed, never applied. */
+  suggestions: Suggestion[];
+  /** For the worker's log: whether step 9 ran. */
+  secondLook: "done" | "skipped" | "failed";
   /** skills_gap and low_score (the M5 rules are added by the caller). */
   warnings: Warning[];
   usage: {
@@ -126,6 +135,8 @@ export async function tailor(
       matched: [],
       missing: [],
       changes: [],
+      suggestions: [],
+      secondLook: "skipped",
       warnings: [],
       dropped: [],
       blocked: [],
@@ -252,7 +263,7 @@ export async function tailor(
   if (fit.pages > 1) notes.push(STILL_LONG_NOTE);
 
   // 7. The whole-copy check.
-  const blocked = untraceable(master, facts, content, keywords);
+  const blocked = untraceable(master, facts, content);
   if (blocked.length > 0) {
     content = master;
     changes = [];
@@ -262,7 +273,8 @@ export async function tailor(
   }
 
   // 8. Re-score and report.
-  const after = scoreText(keywords, resumeToText(content));
+  const finalText = resumeToText(content);
+  const after = scoreText(keywords, finalText);
   const warnings: Warning[] = [];
   if (missing.length > 0) {
     warnings.push({
@@ -280,8 +292,32 @@ export async function tailor(
     });
   }
 
+  // 9. A second look at the finished copy. It gets plain text and returns
+  // notes; `content` is final above this line and nothing below edits it.
+  // A keyword counts as on the resume here only in its own spelling: the
+  // variants are the keyword model's word, not a fact (M8 §0).
+  let suggestions: Suggestion[] = [];
+  let looked: TailorResult["secondLook"] = "skipped";
+  if (changes.length > 0) {
+    const look = await secondLook(provider, {
+      postingBlock,
+      keywordLines: keywords.map(
+        (k) =>
+          `- ${k.term} — ${k.importance}: ${containsPhrase(finalText, k.term) ? "ON RESUME" : "MISSING"}`,
+      ),
+      resumeText: finalText,
+    });
+    looked = look.status;
+    if (look.status === "done") {
+      suggestions = look.suggestions;
+      calls.push({ usage: look.usage, tier: "fast" });
+    }
+  }
+
   return result({
     content,
+    suggestions,
+    secondLook: looked,
     scoreBefore: before.score,
     scoreAfter: after.score,
     matched: after.matched.map((k) => k.term),

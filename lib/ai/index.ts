@@ -43,6 +43,7 @@ export function createProvider(
     fetch?: typeof fetch;
     timeoutMs?: number;
     shared?: boolean;
+    backup?: boolean;
   } = {},
 ): AiProvider {
   const env = options.env ?? process.env;
@@ -58,7 +59,11 @@ export function createProvider(
     case "openai":
       return createOpenAIProvider(config);
     case "google":
-      return createGoogleProvider({ ...config, shared: options.shared });
+      return createGoogleProvider({
+        ...config,
+        shared: options.shared,
+        backup: options.backup,
+      });
   }
 }
 
@@ -124,12 +129,13 @@ export function serviceRoleKeySources(
 /**
  * A ready provider for this user: their own key if they saved one, else the
  * shared free Gemini key (`provider.shared` says which). Throws NoKeyError
- * when there's neither.
+ * when there's neither. `sharedBackup` puts the shared key on its backup
+ * model (Flash-Lite); it never affects a user's own key.
  */
 export async function getProvider(
   sources: KeySources,
   userId: string,
-  options: { env?: Env; fetch?: typeof fetch } = {},
+  options: { env?: Env; fetch?: typeof fetch; sharedBackup?: boolean } = {},
 ): Promise<AiProvider> {
   const env = options.env ?? process.env;
   const sealed = await sources.sealed(userId);
@@ -146,5 +152,6 @@ export async function getProvider(
     env,
     fetch: options.fetch,
     shared: true,
+    backup: options.sharedBackup,
   });
 }

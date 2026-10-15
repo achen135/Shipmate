@@ -1,7 +1,9 @@
 import { join } from "node:path";
 
 import { type Page, expect, test } from "@playwright/test";
+import { createClient } from "@supabase/supabase-js";
 
+import { applyAndReturn, blockExternal } from "./helpers/actions";
 import {
   createTestUser,
   deleteCreatedUsers,
@@ -50,28 +52,6 @@ async function member(page: Page, label: string, next: string) {
   await finishOnboarding(user.id);
   await signIn(page, user, next);
   return user;
-}
-
-/** Keep the application tabs the tests open from reaching the real sites. */
-async function blockExternal(page: Page) {
-  await page
-    .context()
-    .route(/^https:\/\/(boards\.greenhouse\.io|example\.com)\//, (route) =>
-      route.fulfill({ status: 200, body: "an application page" }),
-    );
-}
-
-/** Click Apply (opens a tab), close it, come back: what a person does. */
-async function applyAndReturn(page: Page) {
-  await expect(async () => {
-    const popup = page.waitForEvent("popup");
-    await page.getByRole("link", { name: "Apply", exact: true }).click();
-    await (await popup).close();
-    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-    await expect(
-      page.getByRole("alertdialog", { name: "Did you submit?" }),
-    ).toBeVisible({ timeout: 1000 });
-  }).toPass();
 }
 
 test("upload a resume, review a posting, apply, and find it in the Tracker", async ({
@@ -189,6 +169,32 @@ test("upload a resume, review a posting, apply, and find it in the Tracker", asy
   await applyAndReturn(page);
   await page.getByRole("button", { name: "Yes, I applied" }).click();
   await expect(page.getByText("In your Tracker: Applied")).toBeVisible();
+
+  // The exact PDF that went with it is recorded and opens from the Tracker.
+  const admin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
+    process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
+    { auth: { persistSession: false, autoRefreshToken: false } },
+  );
+  const { data: applied } = await admin
+    .from("user_postings")
+    .select("id, resume_used")
+    .eq("user_id", user.id)
+    .eq("posting_id", postingId)
+    .single();
+  expect(applied?.resume_used).toMatchObject({
+    kind: "uploaded",
+    bucket: "uploads",
+    file_name: "sample-resume.pdf",
+  });
+  await page.goto(`/tracker/${applied!.id}`);
+  await expect(page.getByTestId("resume-used")).toContainText(
+    "Resume sent: Your uploaded resume (sample-resume.pdf)",
+  );
+  const sent = await page.request.get(
+    `/api/applications/${applied!.id}/resume`,
+  );
+  expect(sent.headers()["content-type"]).toBe("application/pdf");
 
   await page.goto("/tracker");
   await expect(page.getByRole("link", { name: company }).first()).toBeVisible();

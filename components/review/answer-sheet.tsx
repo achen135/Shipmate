@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { loadQuestions } from "@/lib/questions/load";
-import type { AnswerProfile } from "@/lib/questions/prefill";
+import { toAnswerProfile } from "@/lib/questions/profile";
 import { type SheetItem, buildSheet } from "@/lib/questions/sheet";
 import type { Review } from "@/lib/review/queries";
 
@@ -16,31 +16,6 @@ import { PasteQuestions } from "./paste-questions";
  * opens the posting, fetches) the questions, so the page streams this in
  * behind a Suspense boundary instead of making everything wait for the ATS.
  */
-
-export function toAnswerProfile(
-  profile: Review["profile"],
-  email: string | null,
-): AnswerProfile {
-  const answers =
-    profile?.standard_answers &&
-    typeof profile.standard_answers === "object" &&
-    !Array.isArray(profile.standard_answers)
-      ? (profile.standard_answers as AnswerProfile["answers"])
-      : {};
-  return {
-    name: profile?.name ?? null,
-    email: profile?.email ?? email,
-    phone: profile?.phone ?? null,
-    school: profile?.school ?? null,
-    degree: profile?.degree ?? null,
-    major: profile?.major ?? null,
-    gradMonth: profile?.grad_month ?? null,
-    gradYear: profile?.grad_year ?? null,
-    workAuthorized: profile?.work_authorized ?? null,
-    needsSponsorship: profile?.needs_sponsorship ?? null,
-    answers,
-  };
-}
 
 function pastedQuestions(sheet: Review["item"]): string {
   const value = sheet?.answer_sheet;

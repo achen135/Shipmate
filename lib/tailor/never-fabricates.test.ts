@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import type { AiProvider } from "@/lib/ai/types";
 import type { ResumeContent } from "@/lib/resume/structured";
 import type { Fact } from "@/lib/schemas/fact-bank";
 
@@ -335,4 +336,221 @@ function mulberry32(seed: number) {
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
+}
+
+/*
+ * M8 §0: the keyword step's "variants" are the model's own word that two
+ * spellings are one skill, and nothing checks it. A posting that asks for
+ * "C++" can come back as { term: "C++", variants: ["C"] }; if the resume
+ * lists "C", a "rename this to the posting's spelling" edit would turn a
+ * true skill into a false one. That edit (rename_list_value) no longer
+ * exists. These fixtures are near-miss siblings a model could plausibly
+ * group, each tried through every edit that could carry the new spelling,
+ * with the grouping in the keywords the checks are given.
+ */
+const SIBLINGS = [
+  { has: "C", claims: "C++" },
+  { has: "Java", claims: "JavaScript" },
+  { has: "SQL", claims: "NoSQL" },
+] as const;
+
+/** Mentions every sibling's claimed skill, so each grouping passes verifyKeywords. */
+const siblingPosting = {
+  title: "Software Engineer Intern",
+  company: "Tidewater",
+  text: `${backendPostingText()}
+Also useful: C++, JavaScript, and NoSQL databases such as MongoDB.
+`,
+};
+
+function backendPostingText() {
+  return PEOPLE[0].posting.text;
+}
+
+/** The SWE fixture's Languages line (s4.l1) lists Python, TypeScript, Java, C, SQL. */
+const LANGUAGES = listId(3, 0);
+
+function siblingEdits(has: string, claims: string) {
+  return {
+    edits: [
+      edit("rename_list_value", LANGUAGES, {
+        text: claims,
+        order: [has],
+        keyword: claims,
+      }),
+      edit("add_list_value", LANGUAGES, { text: claims, keyword: claims }),
+      edit("reword_bullet", bulletId(1, 0, 0), {
+        text: `Built a caching layer in ${claims} for the pricing API that cut p95 latency by 40%`,
+        keyword: claims,
+      }),
+      edit("reword_text", sectionId(3), { text: claims, keyword: claims }),
+    ],
+  };
+}
+
+const languagesOf = (content: ResumeContent) => {
+  const section = content.sections[3];
+  return section.layout === "list" ? section.items[0].values : [];
+};
+
+describe("never fabricates: a different skill passed off as another spelling", () => {
+  const person = PEOPLE[0];
+
+  it("rename_list_value is not an edit the model can ask for", () => {
+    expect(EDIT_OPS).not.toContain("rename_list_value");
+  });
+
+  const siblingKeywords = (has: string, claims: string) => () => ({
+    keywords: [
+      {
+        term: claims,
+        importance: "required",
+        kind: "hard_skill",
+        variants: [has],
+      },
+      ...["Python", "REST APIs", "Redis", "Docker"].map((term) => ({
+        term,
+        importance: "required",
+        kind: "hard_skill",
+        variants: [],
+      })),
+    ],
+  });
+  const run = (provider: AiProvider) =>
+    tailor(
+      {
+        master: person.resume,
+        facts: [...person.facts],
+        posting: siblingPosting,
+        research: null,
+      },
+      { provider, measure: lineMeasure(40).measure },
+    );
+
+  it.each(SIBLINGS)(
+    "a model asking to rename $has to $claims is refused by the output schema itself",
+    async ({ has, claims }) => {
+      const { provider } = scriptedProvider({
+        posting_keywords: siblingKeywords(has, claims),
+        resume_edits: () => siblingEdits(has, claims),
+      });
+      await expect(run(provider)).rejects.toThrow(/rename_list_value|Invalid/);
+    },
+  );
+
+  it.each(SIBLINGS)(
+    "a resume listing $has never comes out listing $claims",
+    async ({ has, claims }) => {
+      expect(languagesOf(person.resume)).toContain(has);
+      const withoutRename = () => ({
+        edits: siblingEdits(has, claims).edits.filter(
+          (e) => e.op !== "rename_list_value",
+        ),
+      });
+      const { provider } = scriptedProvider({
+        posting_keywords: siblingKeywords(has, claims),
+        resume_edits: withoutRename,
+        resume_cuts: withoutRename,
+      });
+      const result = await run(provider);
+      expect(result.blocked).toEqual([]);
+      expect(languagesOf(result.content)).toContain(has);
+      expect(languagesOf(result.content)).not.toContain(claims);
+      for (const change of result.changes) {
+        expect(`${change.what} ${change.after ?? ""}`).not.toContain(claims);
+      }
+      assertNothingInvented(
+        { ...person, posting: siblingPosting },
+        result.content,
+      );
+    },
+  );
+
+  it.each(SIBLINGS)(
+    "applyEdits drops a rename of $has to $claims even with the grouping in its keywords",
+    ({ has, claims }) => {
+      const result = applyEdits({
+        base: person.resume,
+        master: person.resume,
+        facts: [...person.facts],
+        keywords: [{ term: claims, variants: [has] }],
+        edits: [
+          edit("rename_list_value", LANGUAGES, { text: claims, order: [has] }),
+        ],
+      });
+      expect(result.changes).toEqual([]);
+      expect(result.content).toEqual(person.resume);
+      expect(result.dropped).toEqual([
+        {
+          op: "rename_list_value",
+          target: LANGUAGES,
+          reason: "unknown kind of edit",
+        },
+      ]);
+    },
+  );
+
+  it.each(SIBLINGS)(
+    "the whole-copy check refuses $claims in place of $has, whatever the keywords say",
+    ({ has, claims }) => {
+      const renamed = structuredClone(person.resume);
+      const languages = renamed.sections[3];
+      if (languages.layout === "list") {
+        languages.items[0].values = languages.items[0].values.map((v) =>
+          v === has ? claims : v,
+        );
+      }
+      // An extra argument (the old aliases list) must change nothing.
+      const check = untraceable as (...args: unknown[]) => string[];
+      expect(
+        check(person.resume, person.facts, renamed, [
+          { term: claims, variants: [has] },
+        ]),
+      ).toEqual([`value “${claims}” isn't on the master or a fact`]);
+    },
+  );
+
+  it("under a seeded fuzzer: 500 edit lists of renames and additions against mismatched groupings", () => {
+    const random = mulberry32(2026);
+    const pick = <T>(items: readonly T[]): T =>
+      items[Math.floor(random() * items.length)];
+    const keywords = SIBLINGS.map((s) => ({
+      term: s.claims,
+      variants: [s.has],
+    }));
+    const ops = [
+      "rename_list_value",
+      "add_list_value",
+      "reword_bullet",
+      "reword_text",
+    ];
+    const ids = idsOf(person.resume);
+    for (let run = 0; run < 500; run += 1) {
+      const edits = Array.from({ length: 1 + Math.floor(random() * 8) }, () => {
+        const sibling = pick(SIBLINGS);
+        return edit(pick(ops), pick([LANGUAGES, ...ids]), {
+          text:
+            random() < 0.5 ? sibling.claims : `Used ${sibling.claims} daily`,
+          order: [random() < 0.8 ? sibling.has : pick(SIBLINGS).has],
+          keyword: sibling.claims,
+        });
+      });
+      const output = applyEdits({
+        base: person.resume,
+        master: person.resume,
+        facts: [...person.facts],
+        keywords,
+        edits,
+      }).content;
+      for (const { claims } of SIBLINGS) {
+        expect(languagesOf(output)).not.toContain(claims);
+        expect(resumeText(output)).not.toContain(claims);
+      }
+      expect(untraceable(person.resume, [...person.facts], output)).toEqual([]);
+    }
+  });
+});
+
+function resumeText(content: ResumeContent) {
+  return corpusLines(content, []).join("\n");
 }

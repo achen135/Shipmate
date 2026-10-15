@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import { type Page, expect } from "@playwright/test";
 
 /**
  * Run `act` (a click that fires a Server Action) and wait until the action's
@@ -23,4 +23,26 @@ export async function andWaitForAction(
   );
   await act();
   await done;
+}
+
+/** Keep the application tabs the tests open from reaching the real sites. */
+export async function blockExternal(page: Page): Promise<void> {
+  await page
+    .context()
+    .route(/^https:\/\/(boards\.greenhouse\.io|example\.com)\//, (route) =>
+      route.fulfill({ status: 200, body: "an application page" }),
+    );
+}
+
+/** Click Apply (opens a tab), close it, come back: what a person does. */
+export async function applyAndReturn(page: Page): Promise<void> {
+  await expect(async () => {
+    const popup = page.waitForEvent("popup");
+    await page.getByRole("link", { name: "Apply", exact: true }).click();
+    await (await popup).close();
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await expect(
+      page.getByRole("alertdialog", { name: "Did you submit?" }),
+    ).toBeVisible({ timeout: 1000 });
+  }).toPass();
 }

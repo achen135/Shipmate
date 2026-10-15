@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Shipmate Autofill</title>
+    <style>
+      body {
+        margin: 0;
+        width: 300px;
+        font:
+          14px/1.45 system-ui,
+          sans-serif;
+        background: #fbf7ef;
+        color: #1b2a41;
+      }
+      main {
+        padding: 14px 16px;
+      }
+      h1 {
+        font-size: 15px;
+        margin: 0 0 8px;
+      }
+      p {
+        margin: 0 0 10px;
+      }
+      button {
+        font: inherit;
+        border: 1px solid #1b2a41;
+        background: transparent;
+        color: #1b2a41;
+        border-radius: 8px;
+        padding: 4px 10px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Shipmate Autofill</h1>
+      <p id="status" role="status"></p>
+      <p>It never submits: you check the form and click Submit yourself.</p>
+      <button id="settings" type="button">Settings</button>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

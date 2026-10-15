@@ -4,10 +4,29 @@ import { formatRelative } from "@/lib/format/time";
 import { postedAt } from "./group";
 import type { InboxItem } from "./queries";
 
+/**
+ * The card's tailoring line, from the row's latest tailoring: in progress,
+ * or the fit score after tailoring. Nothing for a failed one, one without a
+ * score (too little posting text), or none at all (Simple mode).
+ */
+export function tailoringBadge(
+  latest: { state: string; score_after: number | null } | undefined,
+): PostingCardData["tailoring"] {
+  if (!latest) return null;
+  if (latest.state === "queued" || latest.state === "running") {
+    return { kind: "working" };
+  }
+  if (latest.state === "done" && latest.score_after !== null) {
+    return { kind: "score", score: latest.score_after };
+  }
+  return null;
+}
+
 /** A user_postings row (with its posting) → what PostingCard renders. */
 export function toCardData(item: InboxItem, now: number): PostingCardData {
   const p = item.posting;
   return {
+    tailoring: tailoringBadge(item.tailorings[0]),
     id: item.id,
     unseen: item.seen_at === null,
     posting: {

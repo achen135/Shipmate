@@ -17,12 +17,13 @@ import { z } from "zod";
 
 import type { ClientOptions } from "./anthropic";
 import { toAiError } from "./errors";
-import { EFFORT, MODELS } from "./models";
+import { EFFORT, MODELS, SHARED_BACKUP_MODEL } from "./models";
 import {
   AiError,
   type AiProvider,
   type AiUsage,
   type StructuredRequest,
+  type Tier,
 } from "./types";
 
 /** JSON Schema keywords Gemini's responseJsonSchema accepts (SDK docs). */
@@ -90,8 +91,12 @@ const REFUSED = new Set<string>([
 ]);
 
 export function createGoogleProvider(
-  options: ClientOptions & { shared?: boolean },
+  options: ClientOptions & { shared?: boolean; backup?: boolean },
 ): AiProvider {
+  // The backup model is the shared key's, for both tiers.
+  const backup = Boolean(options.shared && options.backup);
+  const modelFor = (tier: Tier) =>
+    backup ? SHARED_BACKUP_MODEL.id : MODELS.google[tier].id;
   const client = new GoogleGenAI({
     apiKey: options.apiKey,
     httpOptions: {
@@ -109,11 +114,12 @@ export function createGoogleProvider(
   return {
     name: "google",
     shared: options.shared ?? false,
+    backup,
 
     async testKey() {
       try {
         await client.models.countTokens({
-          model: MODELS.google.fast.id,
+          model: modelFor("fast"),
           contents: "Shipmate key check",
         });
       } catch (error) {
@@ -125,7 +131,7 @@ export function createGoogleProvider(
       let response;
       try {
         response = await client.models.generateContent({
-          model: MODELS.google[request.tier].id,
+          model: modelFor(request.tier),
           contents: request.input,
           config: {
             systemInstruction: request.system,
@@ -173,7 +179,7 @@ export function createGoogleProvider(
       const meta = response.usageMetadata;
       const usage: AiUsage = {
         provider: "google",
-        model: response.modelVersion ?? MODELS.google[request.tier].id,
+        model: response.modelVersion ?? modelFor(request.tier),
         inputTokens: meta?.promptTokenCount ?? 0,
         // Thinking is billed as output.
         outputTokens:

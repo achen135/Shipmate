@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { Warning } from "@/lib/review/warnings";
 
 import type { Change } from "./edits";
+import { MAX_SUGGESTIONS, type Suggestion } from "./second-look";
 
 /**
  * Tailoring as the signed-in user sees it (RLS: their own rows only).
@@ -20,6 +21,9 @@ const changesSchema = z.array(
   }),
 );
 const notesSchema = z.array(z.string());
+const suggestionsSchema = z
+  .array(z.object({ what: z.string() }))
+  .max(MAX_SUGGESTIONS);
 const warningsSchema = z.array(
   z.object({ kind: z.string(), message: z.string() }).loose(),
 );
@@ -34,12 +38,16 @@ export type TailoringView = {
   matched: string[];
   missing: string[];
   changes: Change[];
+  /** A second look's notes: noticed, never applied. */
+  suggestions: Suggestion[];
   notes: string[];
   warnings: Warning[];
   hasPdf: boolean;
   pdfPending: boolean;
   edited: boolean;
   keySource: "own" | "shared" | null;
+  /** The model that answered last (the shared key's backup, sometimes). */
+  model: string | null;
   estCost: number;
   error: string | null;
 };
@@ -52,7 +60,7 @@ export async function getLatestTailoring(
   const { data, error } = await supabase
     .from("tailorings")
     .select(
-      "id, state, created_at, rate_limited_at, score_before, score_after, matched, missing, changes, notes, warnings, pdf_path, pdf_requested_at, edited_at, key_source, est_cost, error",
+      "id, state, created_at, rate_limited_at, score_before, score_after, matched, missing, changes, suggestions, notes, warnings, pdf_path, pdf_requested_at, edited_at, key_source, model, est_cost, error",
     )
     .eq("user_posting_id", userPostingId)
     .order("created_at", { ascending: false })
@@ -70,12 +78,14 @@ export async function getLatestTailoring(
     matched: data.matched,
     missing: data.missing,
     changes: changesSchema.catch([]).parse(data.changes),
+    suggestions: suggestionsSchema.catch([]).parse(data.suggestions),
     notes: notesSchema.catch([]).parse(data.notes),
     warnings: warningsSchema.catch([]).parse(data.warnings) as Warning[],
     hasPdf: data.pdf_path !== null,
     pdfPending: data.pdf_requested_at !== null,
     edited: data.edited_at !== null,
     keySource: (data.key_source as TailoringView["keySource"]) ?? null,
+    model: data.model,
     estCost: Number(data.est_cost),
     error: data.error,
   };

@@ -10,8 +10,9 @@ import { createClient } from "@/lib/supabase/server";
 const POSTING_FIELDS =
   "id, title, url, locations, terms, category, sponsorship, degrees, posted_at, first_seen_at, source_names, status, company:companies(name)" as const;
 
+/** With the latest tailoring (AI mode), for the card's spinner and fit score. */
 const ITEM_FIELDS =
-  `id, status, skip_reason, seen_at, created_at, posting:postings!inner(${POSTING_FIELDS})` as const;
+  `id, status, skip_reason, seen_at, created_at, posting:postings!inner(${POSTING_FIELDS}), tailorings(state, score_after, created_at)` as const;
 
 /** The Inbox shows at most this many; triage brings older ones into view. */
 export const LIST_LIMIT = 300;
@@ -25,7 +26,9 @@ export async function listUserPostings(status: ListStatus) {
     .select(ITEM_FIELDS)
     .eq("status", status)
     .order("created_at", { ascending: false })
-    .limit(LIST_LIMIT);
+    .limit(LIST_LIMIT)
+    .order("created_at", { referencedTable: "tailorings", ascending: false })
+    .limit(1, { referencedTable: "tailorings" });
   if (error) throw new Error(`user_postings: ${error.message}`);
   return data;
 }

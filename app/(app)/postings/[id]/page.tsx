@@ -7,17 +7,21 @@ import { z } from "zod";
 
 import { AnswerSheetSection } from "@/components/review/answer-sheet";
 import { ReviewActions } from "@/components/review/review-actions";
+import { SecondLook } from "@/components/review/second-look";
 import {
   PdfRefresh,
   TailorButton,
   TailoringProgress,
 } from "@/components/review/tailoring";
 import { requireMember } from "@/lib/auth/viewer";
+import { applyLink } from "@/lib/extension/marker";
 import { formatRelative, formatShortDate } from "@/lib/format/time";
 import { parseContent, resumeToText } from "@/lib/resume/structured";
 import { keywordMatch } from "@/lib/review/keywords";
 import { getReview } from "@/lib/review/queries";
 import { describePrevious, reviewWarnings } from "@/lib/review/warnings";
+import { SHARED_BACKUP_MODEL } from "@/lib/ai/models";
+import { LOW_SCORE } from "@/lib/tailor/pipeline";
 import { type TailoringView, getLatestTailoring } from "@/lib/tailor/queries";
 
 export const metadata: Metadata = { title: "Posting" };
@@ -191,6 +195,35 @@ function TailoredResume({
           {note}
         </p>
       ))}
+      {tailoring.keySource === "shared" &&
+      tailoring.model === SHARED_BACKUP_MODEL.id ? (
+        <p className="text-sm text-muted-foreground" data-testid="own-key-hint">
+          Shipmate&apos;s shared free AI was busy, so this ran on its backup
+          model ({SHARED_BACKUP_MODEL.label}), which is a little weaker. Tailor
+          again later for the main one, or add{" "}
+          <Link href="/profile/ai" className="underline underline-offset-2">
+            your own key
+          </Link>
+          .
+        </p>
+      ) : (
+        tailoring.keySource === "shared" &&
+        tailoring.scoreAfter !== null &&
+        (tailoring.scoreAfter < LOW_SCORE ||
+          tailoring.changes.length === 0) && (
+          <p
+            className="text-sm text-muted-foreground"
+            data-testid="own-key-hint"
+          >
+            This ran on Shipmate&apos;s shared free model. A stronger one, on{" "}
+            <Link href="/profile/ai" className="underline underline-offset-2">
+              your own Anthropic or OpenAI key
+            </Link>
+            , may word what you already have better. No model will add skills
+            you don&apos;t have.
+          </p>
+        )
+      )}
       {tailoring.changes.length > 0 && (
         <div className="flex flex-col gap-2">
           <h3 className="font-medium">What changed</h3>
@@ -204,6 +237,7 @@ function TailoredResume({
           </ul>
         </div>
       )}
+      <SecondLook suggestions={tailoring.suggestions} />
     </div>
   );
 }
@@ -457,7 +491,8 @@ export default async function PostingPage({
 
       <ReviewActions
         postingId={posting.id}
-        applyUrl={posting.url}
+        // With the extension's #shipmate= marker when it can fill the page.
+        applyUrl={applyLink(posting.url, item?.id ?? null)}
         item={
           item && {
             id: item.id,

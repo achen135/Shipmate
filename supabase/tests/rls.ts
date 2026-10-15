@@ -2561,6 +2561,375 @@ async function testTailorings(a: TestUser, b: TestUser): Promise<void> {
   await admin.from("tailorings").delete().in("user_id", [a.id, b.id]);
 }
 
+async function testResumeUsed(a: TestUser, b: TestUser): Promise<void> {
+  console.log(
+    "\nresume_used: recorded only through record_resume_used, for the user's own file",
+  );
+
+  await admin
+    .from("profiles")
+    .update({ mode: "ai", daily_cap: 10 })
+    .in("user_id", [a.id, b.id]);
+  const [p1, p2] = await Promise.all([
+    seedPosting("Used T1"),
+    seedPosting("Used T2"),
+  ]);
+  const [r1, r2] = await Promise.all([inboxRow(a.id, p1), inboxRow(a.id, p2)]);
+  const pdf = () =>
+    new Blob(["%PDF-1.4 rls resume used"], { type: "application/pdf" });
+
+  const direct = await a.client
+    .from("user_postings")
+    .update({ resume_used: { kind: "tailored", path: "x" } } as never)
+    .eq("id", r1)
+    .select("id");
+  check(
+    "A can't write resume_used directly",
+    direct.error !== null || (direct.data ?? []).length === 0,
+  );
+
+  const nothing = await a.client.rpc("record_resume_used", {
+    p_user_posting_id: r1,
+  });
+  eq("with no PDF at all, nothing is recorded", nothing.data, null);
+
+  // Two prints of r1's tailoring, a third for r2: each at its own path.
+  const t1 = await admin
+    .from("tailorings")
+    .insert({ user_id: a.id, user_posting_id: r1 })
+    .select("id")
+    .single();
+  const old = `${a.id}/${p1}/old.pdf`;
+  const latest = `${a.id}/${p1}/new.pdf`;
+  const other = `${a.id}/${p2}/x.pdf`;
+  for (const path of [old, latest, other]) {
+    await admin.storage.from("pdfs").upload(path, pdf(), { upsert: true });
+  }
+  await admin
+    .from("tailorings")
+    .update({ state: "done", pdf_path: latest })
+    .eq("id", t1.data!.id);
+
+  const bTry = await b.client.rpc("record_resume_used", {
+    p_user_posting_id: r1,
+  });
+  check("B can't record one on A's application", bTry.error !== null);
+  const wrongPath = await a.client.rpc("record_resume_used", {
+    p_user_posting_id: r1,
+    p_path: other,
+  });
+  check(
+    "A can't name another posting's PDF for this one",
+    wrongPath.error !== null,
+  );
+  const stale = await a.client.rpc("record_resume_used", {
+    p_user_posting_id: r1,
+    p_path: old,
+  });
+  check("…or a path no tailoring of this posting has", stale.error !== null);
+
+  const recorded = await a.client.rpc("record_resume_used", {
+    p_user_posting_id: r1,
+  });
+  eq("A records the latest tailored PDF", recorded.error, null);
+  const used = recorded.data as { kind?: string; path?: string } | null;
+  eq("…as tailored", used?.kind, "tailored");
+  eq("…at its exact path", used?.path, latest);
+
+  await admin
+    .from("tailorings")
+    .update({ pdf_path: old })
+    .eq("id", t1.data!.id);
+  const again = await a.client.rpc("record_resume_used", {
+    p_user_posting_id: r1,
+  });
+  eq(
+    "the first record wins",
+    (again.data as { path?: string } | null)?.path,
+    latest,
+  );
+  const bSees = await b.client
+    .from("user_postings")
+    .select("resume_used")
+    .eq("id", r1);
+  eq("B can't read it", bSees.data?.length ?? 0, 0);
+
+  // No tailoring for r2: the uploaded resume, if the file is there.
+  const upload = `${a.id}/resume-rls.pdf`;
+  await a.client.storage
+    .from("uploads")
+    .upload(upload, pdf(), { upsert: true });
+  await admin.from("resumes").upsert(
+    {
+      user_id: a.id,
+      kind: "uploaded_pdf",
+      file_path: upload,
+      file_name: "A.pdf",
+      text_content: "",
+    },
+    { onConflict: "user_id" },
+  );
+  const uploaded = await a.client.rpc("record_resume_used", {
+    p_user_posting_id: r2,
+  });
+  eq(
+    "without a tailored PDF, the uploaded resume is recorded",
+    (uploaded.data as { kind?: string; path?: string } | null)?.path,
+    upload,
+  );
+
+  const internal = await a.client.rpc(
+    "resume_used_for" as never,
+    {
+      p_user: a.id,
+      p_user_posting_id: r1,
+    } as never,
+  );
+  check("the inner function isn't callable", internal.error !== null);
+  const anon = createClient<Database>(url, publishableKey, NO_SESSION);
+  const anonCall = await anon.rpc("record_resume_used", {
+    p_user_posting_id: r1,
+  });
+  check("signed-out callers can't record one", anonCall.error !== null);
+
+  console.log("\ntailorings.suggestions: the worker's only");
+  const suggest = await a.client
+    .from("tailorings")
+    .update({ suggestions: [{ what: "x" }] } as never)
+    .eq("id", t1.data!.id)
+    .select("id");
+  check(
+    "A can't write second-look notes",
+    suggest.error !== null || (suggest.data ?? []).length === 0,
+  );
+  const notArray = await admin
+    .from("tailorings")
+    .update({ suggestions: { what: "x" } as never })
+    .eq("id", t1.data!.id);
+  check("notes must be an array", notArray.error !== null);
+
+  await admin.storage.from("pdfs").remove([old, latest, other]);
+  await admin.storage.from("uploads").remove([upload]);
+  await admin.from("resumes").delete().eq("user_id", a.id);
+  await admin.from("tailorings").delete().in("user_id", [a.id, b.id]);
+}
+
+async function testExtension(a: TestUser, b: TestUser): Promise<void> {
+  console.log(
+    "\nextension: a hashed token, server secret required, the token's user's rows only",
+  );
+  const { createHash, randomBytes } = await import("node:crypto");
+  const mint = () => {
+    const token = `shm_ext_${randomBytes(32).toString("base64url")}`;
+    return { token, hash: createHash("sha256").update(token).digest("hex") };
+  };
+  const anon = createClient<Database>(url, publishableKey, NO_SESSION);
+
+  const aToken = mint();
+  const connected = await a.client.rpc("connect_extension", {
+    p_token_hash: aToken.hash,
+  });
+  eq("A connects the extension", connected.error, null);
+  const notHex = await a.client.rpc("connect_extension", {
+    p_token_hash: "not-a-hash",
+  });
+  check("only a SHA-256 hash is stored", notHex.error !== null);
+  const anonConnect = await anon.rpc("connect_extension", {
+    p_token_hash: mint().hash,
+  });
+  check("signed-out callers can't connect one", anonConnect.error !== null);
+
+  const rows = await a.client
+    .from("extension_tokens")
+    .select("id, created_at, revoked_at");
+  eq("A sees their connection", rows.data?.length, 1);
+  const hashRead = await a.client.from("extension_tokens").select("token_hash");
+  check("…but never the hash", hashRead.error !== null);
+  const bRows = await b.client.from("extension_tokens").select("id");
+  eq("B sees none of A's", bRows.data?.length ?? 0, 0);
+  const forged = await a.client
+    .from("extension_tokens")
+    .insert({ user_id: a.id, token_hash: mint().hash } as never);
+  check("A can't insert one directly", forged.error !== null);
+
+  const postingId = await seedPosting("Extension Intern");
+  await admin
+    .from("postings")
+    .update({ ats: "greenhouse", ats_job_id: "424242" })
+    .eq("id", postingId);
+  const aRow = await inboxRow(a.id, postingId);
+  const bRow = await inboxRow(b.id, postingId);
+  const context = (hash: string, secret = LOCAL_SERVER_SECRET, extra = {}) =>
+    anon.rpc("extension_context", {
+      p_secret: secret,
+      p_token_hash: hash,
+      p_ats: "greenhouse",
+      p_ats_job_id: "424242",
+      p_url: "https://boards.greenhouse.io/x/jobs/424242",
+      ...extra,
+    });
+
+  const noSecret = await context(aToken.hash, "wrong".repeat(10));
+  check("without the server secret, nothing", noSecret.error !== null);
+  const badToken = await context(mint().hash);
+  check(
+    "an unknown token is refused as not connected",
+    badToken.error?.code === "28000",
+    badToken.error,
+  );
+  const found = await context(aToken.hash);
+  eq("A's token finds A's Inbox row for the page", found.error, null);
+  const data = found.data as {
+    found: boolean;
+    auto: boolean;
+    user_posting_id: string;
+  };
+  eq("…the right row", data.user_posting_id, aRow);
+  eq("…not automatic without a marker", data.auto, false);
+
+  const nonce = randomBytes(16).toString("base64url");
+  const withMarker = await context(aToken.hash, LOCAL_SERVER_SECRET, {
+    p_marker_user_posting_id: aRow,
+    p_marker_nonce: nonce,
+  });
+  eq(
+    "a marker for A's own row fills automatically",
+    (withMarker.data as { auto: boolean }).auto,
+    true,
+  );
+  const reused = await context(aToken.hash, LOCAL_SERVER_SECRET, {
+    p_marker_user_posting_id: aRow,
+    p_marker_nonce: nonce,
+  });
+  eq(
+    "…once: the same marker again doesn't",
+    (reused.data as { auto: boolean }).auto,
+    false,
+  );
+  const bMarker = await context(aToken.hash, LOCAL_SERVER_SECRET, {
+    p_marker_user_posting_id: bRow,
+    p_marker_nonce: randomBytes(16).toString("base64url"),
+  });
+  eq(
+    "a marker naming B's row doesn't fill automatically for A's token",
+    (bMarker.data as { auto: boolean }).auto,
+    false,
+  );
+  eq(
+    "…and A's token still only gets A's own row",
+    (bMarker.data as { user_posting_id: string }).user_posting_id,
+    aRow,
+  );
+  const otherPage = await context(aToken.hash, LOCAL_SERVER_SECRET, {
+    p_ats_job_id: "999",
+    p_url: "https://boards.greenhouse.io/x/jobs/999",
+    p_marker_user_posting_id: aRow,
+    p_marker_nonce: randomBytes(16).toString("base64url"),
+  });
+  eq(
+    "a marker on a page that isn't its posting finds nothing",
+    (otherPage.data as { found: boolean }).found,
+    false,
+  );
+
+  // The PDF: a grant for exactly A's file, for a minute.
+  const path = `${a.id}/${postingId}/ext.pdf`;
+  const other = `${b.id}/${postingId}/ext.pdf`;
+  for (const p of [path, other]) {
+    await admin.storage
+      .from("pdfs")
+      .upload(p, new Blob(["%PDF-1.4 ext"], { type: "application/pdf" }), {
+        upsert: true,
+      });
+  }
+  await admin
+    .from("tailorings")
+    .insert({ user_id: a.id, user_posting_id: aRow })
+    .select("id")
+    .single()
+    .then(({ data: t }) =>
+      admin
+        .from("tailorings")
+        .update({ state: "done", pdf_path: path })
+        .eq("id", t!.id),
+    );
+  await admin
+    .from("tailorings")
+    .insert({ user_id: b.id, user_posting_id: bRow })
+    .select("id")
+    .single()
+    .then(({ data: t }) =>
+      admin
+        .from("tailorings")
+        .update({ state: "done", pdf_path: other })
+        .eq("id", t!.id),
+    );
+  const before = await anon.storage.from("pdfs").download(path);
+  check("signed out, A's PDF can't be read", before.error !== null);
+  const bPdf = await anon.rpc("extension_pdf", {
+    p_secret: LOCAL_SERVER_SECRET,
+    p_token_hash: aToken.hash,
+    p_user_posting_id: bRow,
+  });
+  check("A's token can't open B's PDF", bPdf.error !== null);
+  const pdf = await anon.rpc("extension_pdf", {
+    p_secret: LOCAL_SERVER_SECRET,
+    p_token_hash: aToken.hash,
+    p_user_posting_id: aRow,
+  });
+  eq(
+    "A's token opens A's tailored PDF",
+    (pdf.data as { path: string }).path,
+    path,
+  );
+  const during = await anon.storage.from("pdfs").download(path);
+  eq("…readable for the grant's minute", during.error, null);
+  const stillNot = await anon.storage.from("pdfs").download(other);
+  check("…and only that file", stillNot.error !== null);
+
+  // I submitted it: applied, and the attached PDF recorded.
+  const bSubmit = await anon.rpc("extension_submitted", {
+    p_secret: LOCAL_SERVER_SECRET,
+    p_token_hash: aToken.hash,
+    p_user_posting_id: bRow,
+  });
+  check("A's token can't mark B's application", bSubmit.error !== null);
+  const submitted = await anon.rpc("extension_submitted", {
+    p_secret: LOCAL_SERVER_SECRET,
+    p_token_hash: aToken.hash,
+    p_user_posting_id: aRow,
+    p_path: path,
+  });
+  eq("A's token marks A's application submitted", submitted.error, null);
+  const applied = await admin
+    .from("user_postings")
+    .select("status, resume_used")
+    .eq("id", aRow)
+    .single();
+  eq("…applied", applied.data?.status, "applied");
+  eq(
+    "…with the attached PDF recorded",
+    (applied.data?.resume_used as { path?: string } | null)?.path,
+    path,
+  );
+
+  const off = await a.client.rpc("disconnect_extension");
+  eq("A disconnects", off.error, null);
+  const after = await context(aToken.hash);
+  check("the token stops working at once", after.error?.code === "28000");
+  const anonFns = await anon.rpc(
+    "extension_user" as never,
+    {
+      p_secret: LOCAL_SERVER_SECRET,
+      p_token_hash: aToken.hash,
+    } as never,
+  );
+  check("the inner token check isn't callable", anonFns.error !== null);
+
+  await admin.storage.from("pdfs").remove([path, other]);
+  await admin.from("tailorings").delete().in("user_id", [a.id, b.id]);
+}
+
 // ---------------------------------------------------------------- main
 
 async function main(): Promise<void> {
@@ -2600,6 +2969,8 @@ async function main(): Promise<void> {
     await testFactBank(a, b);
     await testCompanyResearch(a);
     await testTailorings(a, b);
+    await testResumeUsed(a, b);
+    await testExtension(a, b);
   } finally {
     await deleteSeededPostings();
     await deleteTestUsers();

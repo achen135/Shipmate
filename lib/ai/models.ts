@@ -77,6 +77,24 @@ export const MODELS: Record<ProviderName, Record<Tier, Model>> = {
 };
 
 /**
+ * The shared key's backup model (M8 §1, the "safety valve" in Design
+ * Decisions "AI cost model"): Flash-Lite has its own free quota, separate
+ * from Flash's and larger, but is the weaker model, so it's only used for a
+ * tailoring Flash has already turned away with a 429 (worker/tailor.ts).
+ * gemini-3.5-flash-lite is Google's current stable Flash-Lite (there's no
+ * 3.8 Flash-Lite for text); it has a free tier and takes the same
+ * thinkingLevel values. Checked 2026-10-15 on ai.google.dev /models,
+ * /pricing and /thinking. Only ever used on the shared key (cost $0); the
+ * paid price is here for completeness.
+ */
+export const SHARED_BACKUP_MODEL: Model = {
+  id: "gemini-3.5-flash-lite",
+  label: "Gemini 3.5 Flash-Lite",
+  inputPerM: 0.3,
+  outputPerM: 2.5,
+};
+
+/**
  * Reasoning effort per tier. Both providers take the same names. The fast
  * tier copies and classifies (resume import), so it doesn't need deep
  * thought; medium keeps an import under about a minute.
@@ -108,12 +126,14 @@ export const STEP_ESTIMATES = {
   /** One-time: resume file → structured resume. */
   import: [{ tier: "fast", input: 3_000, output: 4_000 }],
   /**
-   * One tailored posting (M7): score + gap check on the fast model, then the
-   * edit on the strong one.
+   * One tailored posting: score + gap check on the fast model, the edit on
+   * the strong one (M7), then the second look on the fast one (M8): the
+   * posting plus the finished resume in, a few short notes out.
    */
   tailor: [
     { tier: "fast", input: 8_000, output: 2_000 },
     { tier: "strong", input: 10_000, output: 4_000 },
+    { tier: "fast", input: 5_000, output: 1_500 },
   ],
 } as const satisfies Record<
   string,

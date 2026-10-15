@@ -9,6 +9,7 @@ import { BasicsForm } from "@/components/profile/basics-form";
 import { WatchProfileList } from "@/components/watch/watch-profile-list";
 import { Button } from "@/components/ui/button";
 import { requireMember } from "@/lib/auth/viewer";
+import { getExtensionConnection } from "@/lib/extension/queries";
 import { getAiSettings } from "@/lib/ai/queries";
 import { PROVIDER_LABELS } from "@/lib/ai/types";
 import { getResume } from "@/lib/resume/queries";
@@ -32,7 +33,11 @@ export default async function ProfilePage() {
     .from("follows")
     .select("company_id", { count: "exact", head: true });
   if (followsError) throw new Error(`follows: ${followsError.message}`);
-  const [resume, ai] = await Promise.all([getResume(), getAiSettings()]);
+  const [resume, ai, extension] = await Promise.all([
+    getResume(),
+    getAiSettings(),
+    getExtensionConnection(),
+  ]);
   const hasResume = resume?.file_path != null;
   const { count: deviceCount, error: devicesError } = await supabase
     .from("push_subscriptions")
@@ -131,6 +136,32 @@ export default async function ProfilePage() {
               {deviceCount
                 ? `${deviceCount} ${deviceCount === 1 ? "device" : "devices"} on.`
                 : "Get told when new matches arrive."}
+            </p>
+          </div>
+          <ChevronRight
+            aria-hidden="true"
+            className="size-4 text-muted-foreground"
+          />
+        </Link>
+      </section>
+
+      <section
+        aria-labelledby="extension-heading"
+        className="flex flex-col gap-4"
+      >
+        <h2 id="extension-heading" className="text-lg font-medium">
+          Browser extension
+        </h2>
+        <Link
+          href="/profile/extension"
+          className="flex items-center gap-3 rounded-xl border bg-card p-4 hover:bg-muted/50"
+        >
+          <div className="min-w-0 flex-1">
+            <p className="font-medium">Shipmate Autofill</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {extension
+                ? "Connected."
+                : "Fill application forms in one click; you still submit."}
             </p>
           </div>
           <ChevronRight

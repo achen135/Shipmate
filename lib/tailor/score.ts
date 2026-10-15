@@ -4,10 +4,18 @@
  * Match Score = keywords matched / keywords wanted × 100.
  *
  * The model only extracts (fast tier): the terms, how much they matter, and
- * the other spellings an ATS would accept. Code keeps a keyword only if the
- * posting really says it (no invented requirements), then does the matching
- * itself, so the before and after scores are measured the same way, are
- * repeatable, and the "after" costs nothing.
+ * the other spellings it thinks an ATS would accept. Code keeps a keyword
+ * only if the posting really says it (no invented requirements), then does
+ * the matching itself, so the before and after scores are measured the same
+ * way, are repeatable, and the "after" costs nothing.
+ *
+ * The model's `variants` never widen a match (M8 §0a): they're its own
+ * claim that two spellings are one skill, and nothing checks that ("C" is
+ * not "C++"). A keyword matches only in its own spelling, with text.ts's
+ * mechanical folding (plurals, verb endings, possessives). Variants are
+ * kept only where they make the edit checks stricter (edits.ts claim
+ * words). A hand-made synonym table would be the way back, for scoring and
+ * editing alike.
  *
  * Weighting: a required keyword counts twice, a preferred one once.
  */
@@ -41,6 +49,7 @@ export type Keyword = {
   term: string;
   importance: "required" | "preferred";
   kind: (typeof KEYWORD_KINDS)[number];
+  /** The model's other spellings: never used to match (see above). */
   variants: string[];
 };
 
@@ -51,8 +60,11 @@ export const MIN_POSTING_CHARS = 400;
 const MAX_KEYWORDS = 30;
 
 /**
- * Keep the keywords the posting actually contains (as a phrase, in the
- * term or one of its variants), cleaned and deduplicated.
+ * Keep the keywords the posting actually contains, in the posting's own
+ * spelling: the model's term if the posting writes it, else the first of
+ * its variants that the posting writes (never a term the posting doesn't
+ * say). Cleaned, and deduplicated by spelling only: two keywords the model
+ * grouped stay two.
  */
 export function verifyKeywords(
   extracted: ExtractedKeywords,
@@ -60,21 +72,20 @@ export function verifyKeywords(
 ): Keyword[] {
   const seen: Keyword[] = [];
   for (const k of extracted.keywords) {
-    const term = k.term.trim().slice(0, 80);
-    if (!term) continue;
-    const variants = [
+    const spellings = [
       ...new Set(
-        k.variants
+        [k.term, ...k.variants]
           .map((v) => v.trim().slice(0, 80))
-          .filter((v) => v && !containsPhrase(term, v)),
+          .filter(Boolean),
       ),
-    ].slice(0, 5);
-    const spellings = [term, ...variants];
-    if (!spellings.some((s) => containsPhrase(postingText, s))) continue;
-    const duplicate = seen.find((s) =>
-      [s.term, ...s.variants].some((x) =>
-        spellings.some((y) => containsPhrase(x, y) && containsPhrase(y, x)),
-      ),
+    ];
+    const term = spellings.find((s) => containsPhrase(postingText, s));
+    if (!term) continue;
+    const variants = spellings
+      .filter((v) => !containsPhrase(term, v) || !containsPhrase(v, term))
+      .slice(0, 5);
+    const duplicate = seen.find(
+      (s) => containsPhrase(s.term, term) && containsPhrase(term, s.term),
     );
     if (duplicate) {
       if (k.importance === "required") duplicate.importance = "required";
@@ -86,8 +97,9 @@ export function verifyKeywords(
   return seen;
 }
 
-export const hasKeyword = (text: string, keyword: Keyword) =>
-  [keyword.term, ...keyword.variants].some((s) => containsPhrase(text, s));
+/** In its own spelling only: a variant is the model's word, not proof. */
+export const hasKeyword = (text: string, keyword: Pick<Keyword, "term">) =>
+  containsPhrase(text, keyword.term);
 
 export type Score = { score: number; matched: Keyword[]; missing: Keyword[] };
 

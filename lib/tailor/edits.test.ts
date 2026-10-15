@@ -434,3 +434,32 @@ describe("untraceable: the whole-copy check", () => {
     expect(backendPosting.text).toContain("Kafka");
   });
 });
+
+describe("applyEdits: a change's why never leans on a variant (M8 §0a)", () => {
+  it("a bullet newly naming C is not explained as the posting asking for C++", () => {
+    const base = structuredClone(sweResume);
+    const experience = base.sections[1];
+    if (experience.layout === "entries") {
+      experience.items[0].subheading =
+        "Software Engineering Intern (Python, Redis, FastAPI, C)";
+    }
+    const result = applyEdits({
+      base,
+      master: base,
+      facts: sweFacts,
+      keywords: [kw("C++", ["C"])],
+      edits: [
+        edit({
+          op: "reword_bullet",
+          target: "s2.e1.b2",
+          text: "Wrote integration tests in C for 12 endpoints with pytest",
+          keyword: "C++",
+        }),
+      ],
+    });
+    expect(result.dropped).toEqual([]);
+    expect(result.changes).toHaveLength(1);
+    expect(result.changes[0].what).not.toContain("C++");
+    expect(result.changes[0].why).not.toContain("C++");
+  });
+});

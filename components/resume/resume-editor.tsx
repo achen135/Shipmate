@@ -13,7 +13,12 @@ import { toast } from "sonner";
 
 import { ResumePreview } from "@/components/resume/resume-preview";
 import { Button } from "@/components/ui/button";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -392,6 +397,32 @@ function SectionCard({
         </Button>
       </div>
 
+      {section.layout === "entries" && (
+        <Field orientation="horizontal" className="w-auto">
+          <FieldLabel htmlFor={`${id}-pairs`} className="font-normal">
+            Beside each title on the first line
+          </FieldLabel>
+          <Select
+            value={section.headingPairsWith ?? "dates"}
+            onValueChange={(value) =>
+              edit((s) => {
+                if (s.layout === "entries") {
+                  s.headingPairsWith = value as "dates" | "location";
+                }
+              })
+            }
+          >
+            <SelectTrigger id={`${id}-pairs`} className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="dates">Dates</SelectItem>
+              <SelectItem value="location">Location</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+      )}
+
       {section.layout === "text" && (
         <Field>
           <FieldLabel htmlFor={`${id}-text`}>Text</FieldLabel>
@@ -440,6 +471,7 @@ function SectionCard({
               </FieldLabel>
               <Textarea
                 id={`${id}-${i}-bullets`}
+                aria-describedby={`${id}-${i}-bullets-bold`}
                 value={entry.bullets}
                 onChange={(e) =>
                   edit((s) => {
@@ -448,6 +480,9 @@ function SectionCard({
                   })
                 }
               />
+              <FieldDescription id={`${id}-${i}-bullets-bold`}>
+                **Double asterisks** around words make them bold.
+              </FieldDescription>
             </Field>
             <div>
               <Button

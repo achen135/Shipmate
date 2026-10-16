@@ -1,9 +1,13 @@
 // @vitest-environment node
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { IMPORT_CASES } from "./__fixtures__/import-cases";
-import { fromImported } from "./structured";
-import { escapeHtml, renderResumeHtml, safeHref } from "./template";
+import { fromEditor, toEditor } from "./editor";
+import { fromImported, resumeContentSchema } from "./structured";
+import { RESUME_CSS, escapeHtml, renderResumeHtml, safeHref } from "./template";
 
 describe("renderResumeHtml", () => {
   const content = fromImported(IMPORT_CASES[0].faithful);
@@ -78,6 +82,135 @@ describe("escapeHtml", () => {
   it("escapes the five characters", () => {
     expect(escapeHtml(`<a href="x">'&'</a>`)).toBe(
       "&lt;a href=&quot;x&quot;&gt;&#39;&amp;&#39;&lt;/a&gt;",
+    );
+  });
+});
+
+describe("the preview's font (fix handoff, Finding 2)", () => {
+  const content = fromImported(IMPORT_CASES[0].faithful);
+
+  it("the preview loads CMU Serif, the PDF's font, in all four faces", () => {
+    const html = renderResumeHtml(content, { previewFont: true });
+    const faces = [...html.matchAll(/@font-face \{([^}]*)\}/g)].map(
+      (m) => m[1],
+    );
+    expect(faces).toHaveLength(4);
+    for (const face of faces)
+      expect(face).toContain('font-family: "CMU Serif"');
+    expect(html).toContain('url("/fonts/cmu-serif/cmu-serif-500-roman.woff2")');
+    expect(html).toContain(
+      'url("/fonts/cmu-serif/cmu-serif-700-italic.woff2")',
+    );
+  });
+
+  it("the PDF's HTML doesn't: the worker has the font installed", () => {
+    expect(renderResumeHtml(content)).not.toContain("@font-face");
+  });
+
+  it("CMU Serif comes first, so preview and PDF pick the same face", () => {
+    expect(RESUME_CSS).toMatch(
+      /font-family: "CMU Serif", "Latin Modern Roman"/,
+    );
+  });
+
+  it("the font files are in public/, as WOFF2, with their licence", () => {
+    const dir = join(__dirname, "..", "..", "public", "fonts", "cmu-serif");
+    for (const face of ["500-roman", "500-italic", "700-roman", "700-italic"]) {
+      const bytes = readFileSync(join(dir, `cmu-serif-${face}.woff2`));
+      expect(bytes.subarray(0, 4).toString("latin1")).toBe("wOF2");
+    }
+    expect(readFileSync(join(dir, "OFL.txt"), "utf8")).toContain(
+      "SIL OPEN FONT LICENSE",
+    );
+  });
+});
+
+describe("which side of the first line holds the dates (fix handoff, Finding 3)", () => {
+  const school = {
+    heading: "Riverside State University",
+    subheading: "Bachelor of Science in Computer Science",
+    dates: "Expected May 2029",
+    location: "Riverside, CA",
+    bullets: [],
+  };
+  const resume = (headingPairsWith?: "dates" | "location") => ({
+    header: { name: "Jordan Lee", email: "", phone: "", links: [] },
+    sections: [
+      {
+        title: "Education",
+        layout: "entries" as const,
+        items: [school],
+        ...(headingPairsWith ? { headingPairsWith } : {}),
+      },
+    ],
+  });
+  const rows = (html: string) =>
+    [
+      ...html.matchAll(
+        /<div class="row[^"]*"><span[^>]*>(.*?)<\/span><span class="right">(.*?)<\/span><\/div>/g,
+      ),
+    ].map((m) => [m[1], m[2]]);
+
+  it("by default (and for every resume saved before): title with dates, then location", () => {
+    expect(rows(renderResumeHtml(resume()))).toEqual([
+      ["Riverside State University", "Expected May 2029"],
+      ["Bachelor of Science in Computer Science", "Riverside, CA"],
+    ]);
+    expect(renderResumeHtml(resume())).toBe(renderResumeHtml(resume("dates")));
+  });
+
+  it("set to location: title with location, then degree with dates", () => {
+    expect(rows(renderResumeHtml(resume("location")))).toEqual([
+      ["Riverside State University", "Riverside, CA"],
+      ["Bachelor of Science in Computer Science", "Expected May 2029"],
+    ]);
+  });
+
+  it("the editor keeps it, and doesn't store the default", () => {
+    expect(fromEditor(toEditor(resume("location")))).toEqual(
+      resume("location"),
+    );
+    expect(fromEditor(toEditor(resume()))).toEqual(resume());
+    expect(resumeContentSchema.safeParse(resume("location")).success).toBe(
+      true,
+    );
+  });
+});
+
+describe("project-style entries on one line (fix handoff, Finding 4)", () => {
+  const entry = (location: string) => ({
+    header: { name: "Jordan Lee", email: "", phone: "", links: [] },
+    sections: [
+      {
+        title: "Projects",
+        layout: "entries" as const,
+        items: [
+          {
+            heading: "Tide Tracker",
+            subheading: "Next.js, TypeScript, <PostgreSQL>",
+            dates: "April 2025 – August 2025",
+            location,
+            bullets: ["Cut reads by **97.2%**"],
+          },
+        ],
+      },
+    ],
+  });
+
+  it("a subheading and no location: name | stack, dates right, one row", () => {
+    const html = renderResumeHtml(entry(""));
+    expect(html).toContain(
+      '<div class="row compact"><span><span class="heading">Tide Tracker</span><span class="sep">|</span><span class="stack">Next.js, TypeScript, &lt;PostgreSQL&gt;</span></span><span class="right">April 2025 – August 2025</span></div>',
+    );
+    expect(html).not.toContain('class="row sub"');
+    expect(html).toContain("<li>Cut reads by <strong>97.2%</strong></li>");
+  });
+
+  it("an entry with a real location keeps its two rows, unchanged", () => {
+    const html = renderResumeHtml(entry("Boston, MA"));
+    expect(html).not.toContain('class="row compact"');
+    expect(html).toContain(
+      '<div class="row"><span class="heading">Tide Tracker</span><span class="right">April 2025 – August 2025</span></div><div class="row sub"><span>Next.js, TypeScript, &lt;PostgreSQL&gt;</span><span class="right">Boston, MA</span></div>',
     );
   });
 });

@@ -10,6 +10,7 @@ import {
 import { type Edit, StructureChangeError, applyEdits } from "./edits";
 import type { Keyword } from "./score";
 import { untraceable } from "./trace";
+import { describeResume } from "./view";
 
 /*
  * Ids in sweResume (lib/tailor/view.ts):
@@ -507,5 +508,105 @@ describe("the fabrication checks stay exact (M8 §0d)", () => {
     expect(result.dropped[0].reason).toContain(
       "isn't on your resume or in your facts",
     );
+  });
+});
+
+describe("bold: tailoring never adds any (fix handoff, Finding 1)", () => {
+  const withBold = () => {
+    const base = structuredClone(sweResume);
+    const experience = base.sections[1];
+    if (experience.layout === "entries") {
+      experience.items[0].bullets[0] =
+        "Built a caching layer for the pricing API that cut p95 latency by **40%**";
+    }
+    return base;
+  };
+
+  it("a reworded bullet keeps the bold its kept words had, and nothing new is bold", () => {
+    const base = withBold();
+    const result = applyEdits({
+      base,
+      master: base,
+      facts: sweFacts,
+      keywords: KEYWORDS,
+      edits: [
+        edit({
+          op: "reword_bullet",
+          target: "s2.e1.b1",
+          // The model writes markers of its own: they're ignored.
+          text: "Built a **Redis** caching layer for the pricing API that cut p95 latency by 40%",
+          keyword: "Redis",
+        }),
+      ],
+    });
+    expect(result.dropped).toEqual([]);
+    const bullets =
+      result.content.sections[1].layout === "entries"
+        ? result.content.sections[1].items[0].bullets
+        : [];
+    expect(bullets[0]).toBe(
+      "Built a Redis caching layer for the pricing API that cut p95 latency by **40%**",
+    );
+    expect(untraceable(base, sweFacts, result.content)).toEqual([]);
+  });
+
+  it("an added bullet or list value is never bold", () => {
+    const base = withBold();
+    const result = applyEdits({
+      base,
+      master: base,
+      facts: sweFacts,
+      keywords: KEYWORDS,
+      edits: [
+        edit({
+          op: "add_bullet",
+          target: "s2.e1",
+          text: "Ran background jobs with **Celery** workers at Harbor Labs",
+          fact: "f2",
+        }),
+        edit({ op: "add_list_value", target: "s4.l2", text: "**Kubernetes**" }),
+      ],
+    });
+    expect(JSON.stringify(result.content)).not.toContain("**Celery**");
+    expect(JSON.stringify(result.content)).not.toContain("**Kubernetes**");
+    expect(untraceable(base, sweFacts, result.content)).toEqual([]);
+  });
+
+  it("the whole-copy check refuses bold the master doesn't have", () => {
+    const base = withBold();
+    const tampered = structuredClone(base);
+    const experience = tampered.sections[1];
+    if (experience.layout === "entries") {
+      experience.items[0].bullets[1] =
+        "Wrote integration tests for **12** endpoints with pytest";
+    }
+    expect(untraceable(base, sweFacts, tampered)).toEqual([
+      "“12” is bold, and isn't on the master",
+    ]);
+  });
+
+  it("the model is shown plain text", () => {
+    expect(describeResume(withBold())).toContain("p95 latency by 40%");
+    expect(describeResume(withBold())).not.toContain("**");
+  });
+});
+
+describe("a section's row layout survives tailoring (fix handoff, Finding 3)", () => {
+  it("is copied from the master unchanged", () => {
+    const base = structuredClone(sweResume);
+    const education = base.sections[0];
+    if (education.layout === "entries") education.headingPairsWith = "location";
+    const result = applyEdits({
+      base,
+      master: base,
+      facts: sweFacts,
+      keywords: KEYWORDS,
+      edits: [
+        edit({ op: "order_list_values", target: "s4.l1", order: ["SQL"] }),
+      ],
+    });
+    const out = result.content.sections[0];
+    expect(out.layout === "entries" && out.headingPairsWith).toBe("location");
+    expect(untraceable(base, sweFacts, result.content)).toEqual([]);
   });
 });

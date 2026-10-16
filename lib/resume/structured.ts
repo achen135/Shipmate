@@ -60,6 +60,12 @@ export const sectionSchema = z.discriminatedUnion("layout", [
     title,
     layout: z.literal("entries"),
     items: z.array(entrySchema).max(30),
+    /**
+     * What sits right of an entry's heading on its first line: its dates
+     * (the default, "Role … Dates") or its location ("School … City",
+     * dates then go on the second line). Set by the user per section.
+     */
+    headingPairsWith: z.enum(["dates", "location"]).optional(),
   }),
   z.object({
     title,
@@ -296,19 +302,21 @@ export function fromImported(
  * match compares against in AI mode (Simple mode uses the PDF's text).
  */
 export function resumeToText(content: ResumeContent): string {
+  // Bold markers are presentation, not words (lib/resume/bold.ts).
+  const plain = (text: string) => text.replace(/\*\*(.+?)\*\*/g, "$1");
   const out: string[] = [content.header.name];
   for (const section of content.sections) {
     out.push(section.title);
     if (section.layout === "entries") {
       for (const e of section.items) {
-        out.push(e.heading, e.subheading, ...e.bullets);
+        out.push(e.heading, e.subheading, ...e.bullets.map(plain));
       }
     } else if (section.layout === "list") {
       for (const item of section.items) {
-        out.push(`${item.label} ${joinValues(item)}`);
+        out.push(plain(`${item.label} ${joinValues(item)}`));
       }
     } else {
-      out.push(section.text);
+      out.push(plain(section.text));
     }
   }
   return out.filter(Boolean).join("\n");

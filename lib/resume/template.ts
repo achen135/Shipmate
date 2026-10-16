@@ -9,12 +9,8 @@
  * what gets sent.
  */
 
-import {
-  type Entry,
-  type ListItem,
-  type ResumeContent,
-  joinValues,
-} from "./structured";
+import { renderBold } from "./bold";
+import { type Entry, type ListItem, type ResumeContent } from "./structured";
 
 const ESCAPES: Record<string, string> = {
   "&": "&amp;",
@@ -54,7 +50,7 @@ export const RESUME_CSS = `
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; background: #fff; color: #000; }
 body {
-  font-family: "Latin Modern Roman", "CMU Serif", "Computer Modern Serif", Georgia, "Times New Roman", serif;
+  font-family: "CMU Serif", "Latin Modern Roman", "Computer Modern Serif", Georgia, "Times New Roman", serif;
   font-size: 10.5pt;
   line-height: 1.25;
 }
@@ -75,6 +71,8 @@ h2 {
 .row .right { text-align: right; white-space: nowrap; }
 .heading { font-weight: 700; }
 .sub { font-style: italic; font-size: 9.5pt; }
+.compact .stack { font-style: italic; font-size: 9.5pt; }
+.compact .sep { margin: 0 5pt; }
 ul { margin: 2pt 0 0; padding-left: 16pt; }
 li { font-size: 9.5pt; margin: 0 0 1pt; }
 .list { margin: 0 0 0 6pt; padding: 0; list-style: none; }
@@ -83,32 +81,73 @@ li { font-size: 9.5pt; margin: 0 0 1pt; }
 p.text { margin: 0 0 0 6pt; font-size: 9.5pt; }
 `;
 
-function renderEntry(entry: Entry): string {
-  const first =
-    entry.heading || entry.dates
-      ? `<div class="row"><span class="heading">${escapeHtml(entry.heading)}</span><span class="right">${escapeHtml(entry.dates)}</span></div>`
-      : "";
-  const second =
-    entry.subheading || entry.location
-      ? `<div class="row sub"><span>${escapeHtml(entry.subheading)}</span><span class="right">${escapeHtml(entry.location)}</span></div>`
-      : "";
+/**
+ * The PDF's font for the live preview (fix handoff, Finding 2). The worker
+ * prints with CMU Serif installed (`fonts-cmu`, tailor.yml), so the PDF
+ * never needs this; a browser usually doesn't have it and would show
+ * Georgia. These are the same font files, served from /fonts/cmu-serif
+ * (SIL Open Font License), so the preview is the PDF's font everywhere.
+ */
+export const PREVIEW_FONT_CSS = [
+  ["500-roman", "normal", 400],
+  ["500-italic", "italic", 400],
+  ["700-roman", "normal", 700],
+  ["700-italic", "italic", 700],
+]
+  .map(
+    ([file, style, weight]) =>
+      `@font-face { font-family: "CMU Serif"; font-style: ${style}; font-weight: ${weight}; font-display: block; src: url("/fonts/cmu-serif/cmu-serif-${file}.woff2") format("woff2"); }`,
+  )
+  .join("\n");
+
+function renderEntry(
+  entry: Entry,
+  pairsWith: "dates" | "location" = "dates",
+): string {
   const bullets = entry.bullets.filter((b) => b.trim());
   const list = bullets.length
-    ? `<ul>${bullets.map((b) => `<li>${escapeHtml(b)}</li>`).join("")}</ul>`
+    ? `<ul>${bullets.map((b) => `<li>${renderBold(b)}</li>`).join("")}</ul>`
     : "";
+
+  // A project-style entry (a subheading such as its tech stack, and no
+  // location: Finding 4) fits on one line, "Name | Stack … Dates", as in
+  // the original layout. Anything with a location keeps two rows.
+  if (entry.subheading && !entry.location) {
+    const sep = entry.heading ? '<span class="sep">|</span>' : "";
+    return `<div class="entry"><div class="row compact"><span><span class="heading">${escapeHtml(entry.heading)}</span>${sep}<span class="stack">${escapeHtml(entry.subheading)}</span></span><span class="right">${escapeHtml(entry.dates)}</span></div>${list}</div>`;
+  }
+
+  const [right1, right2] =
+    pairsWith === "location"
+      ? [entry.location, entry.dates]
+      : [entry.dates, entry.location];
+  const first =
+    entry.heading || right1
+      ? `<div class="row"><span class="heading">${escapeHtml(entry.heading)}</span><span class="right">${escapeHtml(right1)}</span></div>`
+      : "";
+  const second =
+    entry.subheading || right2
+      ? `<div class="row sub"><span>${escapeHtml(entry.subheading)}</span><span class="right">${escapeHtml(right2)}</span></div>`
+      : "";
   return `<div class="entry">${first}${second}${list}</div>`;
 }
 
 function renderListItem(item: ListItem): string {
-  const values = escapeHtml(
-    joinValues({ ...item, values: item.values.filter((v) => v.trim()) }),
-  );
+  // Each value's own bold; the separator itself is never inside a span.
+  const values = item.values
+    .filter((v) => v.trim())
+    .map(renderBold)
+    .join(item.separator === ";" ? "; " : ", ");
   return item.label.trim()
     ? `<li><span class="label">${escapeHtml(item.label)}:</span> ${values}</li>`
     : `<li>${values}</li>`;
 }
 
-export function renderResumeHtml(content: ResumeContent): string {
+export function renderResumeHtml(
+  content: ResumeContent,
+  /** previewFont: the editor's preview (not the PDF): load CMU Serif. */
+  options: { previewFont?: boolean } = {},
+): string {
   const { header } = content;
   const contact = [
     header.location ? escapeHtml(header.location) : "",
@@ -126,11 +165,13 @@ export function renderResumeHtml(content: ResumeContent): string {
         : "";
       const body =
         section.layout === "entries"
-          ? section.items.map(renderEntry).join("")
+          ? section.items
+              .map((e) => renderEntry(e, section.headingPairsWith))
+              .join("")
           : section.layout === "list"
             ? `<ul class="list">${section.items.map(renderListItem).join("")}</ul>`
             : section.text.trim()
-              ? `<p class="text">${escapeHtml(section.text)}</p>`
+              ? `<p class="text">${renderBold(section.text)}</p>`
               : "";
       return `<section>${title}${body}</section>`;
     })
@@ -138,6 +179,6 @@ export function renderResumeHtml(content: ResumeContent): string {
 
   const name = escapeHtml(header.name || "Your name");
   return `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>${name}</title><style>${RESUME_CSS}</style></head>
+<html lang="en"><head><meta charset="utf-8"><title>${name}</title><style>${options.previewFont ? `${PREVIEW_FONT_CSS}\n` : ""}${RESUME_CSS}</style></head>
 <body><div class="page"><header><h1>${name}</h1><p class="contact">${contact.join('<span class="sep">|</span>')}</p></header>${sections}</div></body></html>`;
 }

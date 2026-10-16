@@ -14,7 +14,12 @@ const PAGE_HEIGHT = 1056;
  * scripts, its own styles), scaled down to fit the column.
  */
 export function ResumePreview({ content }: { content: ResumeContent }) {
-  const html = useMemo(() => renderResumeHtml(content), [content]);
+  // The PDF's own font (CMU Serif), loaded from /fonts, so the preview
+  // looks like the PDF on any machine.
+  const html = useMemo(
+    () => renderResumeHtml(content, { previewFont: true }),
+    [content],
+  );
   const box = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.5);
 

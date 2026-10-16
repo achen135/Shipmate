@@ -1,6 +1,11 @@
 import { join } from "node:path";
 
-import { type Page, expect, test } from "@playwright/test";
+import {
+  type Page,
+  expect,
+  request as playwrightRequest,
+  test,
+} from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 
 import { andWaitForAction } from "./helpers/actions";
@@ -164,6 +169,11 @@ test("import a Word resume with no key of your own (shared Gemini): same section
 }) => {
   const user = await createTestUser("ai-import");
   await finishOnboarding(user.id);
+  // The preview's first render fetches its font: listen from the start.
+  const font = page.waitForResponse(
+    (r) => r.url().endsWith("/fonts/cmu-serif/cmu-serif-500-roman.woff2"),
+    { timeout: 60_000 },
+  );
   await signIn(page, user, "/profile/resume");
   await expect(
     page.getByRole("heading", { name: "Structured resume" }),
@@ -191,6 +201,23 @@ test("import a Word resume with no key of your own (shared Gemini): same section
     "Selected Work",
     "Where I've Studied",
   ]);
+  // It loads the PDF's own font (CMU Serif) from /fonts, from the sandbox's
+  // opaque origin and without the session, so it looks like the PDF anywhere.
+  const fontResponse = await font;
+  expect(fontResponse.status()).toBe(200);
+  expect(fontResponse.headers()["access-control-allow-origin"]).toBe("*");
+  expect(fontResponse.headers()["content-type"]).toContain("font/woff2");
+  const signedOut = await playwrightRequest.newContext({
+    baseURL: page.url(),
+  });
+  const direct = await signedOut.get(
+    "/fonts/cmu-serif/cmu-serif-700-roman.woff2",
+    {
+      maxRedirects: 0,
+    },
+  );
+  expect(direct.status()).toBe(200);
+  await signedOut.dispose();
 
   const row = await db()
     .from("resumes")

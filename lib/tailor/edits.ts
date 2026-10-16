@@ -35,6 +35,10 @@
  *   resume or in a fact.
  * - Drop and reorder: within one entry, list line or section only.
  *
+ * - Bold (`**…**`, lib/resume/bold.ts): the model sees plain text; a
+ *   reworded line keeps bold only on spans that were bold in it before,
+ *   and nothing new is ever bolded.
+ *
  * Sections are never renamed, merged, split, added, removed or reordered
  * (hard rule 8): there is no operation for it, and an edit list that asks
  * for one anyway (an unknown section-level op, or moving entries between
@@ -43,6 +47,7 @@
 
 import { z } from "zod";
 
+import { carryBold, stripBold } from "@/lib/resume/bold";
 import type { ResumeContent } from "@/lib/resume/structured";
 import type { Fact } from "@/lib/schemas/fact-bank";
 
@@ -184,7 +189,13 @@ type WList = {
   separator?: ";";
 };
 type WSection =
-  | { id: string; title: string; layout: "entries"; entries: WEntry[] }
+  | {
+      id: string;
+      title: string;
+      layout: "entries";
+      entries: WEntry[];
+      headingPairsWith?: "dates" | "location";
+    }
   | { id: string; title: string; layout: "list"; lists: WList[] }
   | {
       id: string;
@@ -201,6 +212,9 @@ function toWorking(content: ResumeContent): WSection[] {
         id: sectionId(s),
         title: section.title,
         layout: "entries",
+        ...(section.headingPairsWith
+          ? { headingPairsWith: section.headingPairsWith }
+          : {}),
         entries: section.items.map((e, i) => ({
           id: entryId(s, i),
           heading: e.heading,
@@ -252,6 +266,9 @@ function fromWorking(
         return {
           title: section.title,
           layout: "entries" as const,
+          ...(section.headingPairsWith
+            ? { headingPairsWith: section.headingPairsWith }
+            : {}),
           items: section.entries
             .filter((e) => !e.dropped)
             .map((e) => ({
@@ -484,8 +501,10 @@ export function applyEdits(input: ApplyInput): ApplyResult {
           break;
         }
         const { entry, bullet } = found;
-        const text = edit.text.trim();
-        if (!text || text.length > 600) {
+        // The model sees and writes plain text; the line keeps only the
+        // bold its own kept words had (never new bold).
+        const text = carryBold(bullet.text, edit.text.trim());
+        if (!stripBold(text) || text.length > 600) {
           drop(edit, "empty or too long");
           break;
         }
@@ -525,7 +544,7 @@ export function applyEdits(input: ApplyInput): ApplyResult {
           break;
         }
         const { entry } = found;
-        const text = edit.text.trim();
+        const text = stripBold(edit.text.trim());
         if (!fact) {
           drop(edit, "a new bullet needs a fact to come from");
           break;
@@ -688,7 +707,7 @@ export function applyEdits(input: ApplyInput): ApplyResult {
           break;
         }
         const { list, section } = found;
-        const value = edit.text.trim();
+        const value = stripBold(edit.text.trim());
         if (!value || value.length > 120 || list.values.length >= 60) {
           drop(edit, "empty, too long, or the line is full");
           break;
@@ -725,9 +744,9 @@ export function applyEdits(input: ApplyInput): ApplyResult {
           break;
         }
         const { list, section } = found;
-        const value = edit.text.trim();
+        const value = stripBold(edit.text.trim());
         const index = list.values.findIndex(
-          (v) => v.trim().toLowerCase() === value.toLowerCase(),
+          (v) => stripBold(v).trim().toLowerCase() === value.toLowerCase(),
         );
         if (index === -1) {
           drop(edit, "no such value");
@@ -750,8 +769,8 @@ export function applyEdits(input: ApplyInput): ApplyResult {
         const { list, section } = found;
         const next = reorder(
           list.values,
-          (v) => v.trim().toLowerCase(),
-          edit.order.map((v) => v.trim().toLowerCase()),
+          (v) => stripBold(v).trim().toLowerCase(),
+          edit.order.map((v) => stripBold(v).trim().toLowerCase()),
         );
         if (next.every((v, i) => v === list.values[i])) {
           drop(edit, "no change");
@@ -774,8 +793,8 @@ export function applyEdits(input: ApplyInput): ApplyResult {
           break;
         }
         const section = found.section;
-        const text = edit.text.trim();
-        if (!text || text.length > 3000 || text === section.text) {
+        const text = carryBold(section.text, edit.text.trim());
+        if (!stripBold(text) || text.length > 3000 || text === section.text) {
           drop(edit, "empty, too long, or no change");
           break;
         }

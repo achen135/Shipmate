@@ -1,0 +1,144 @@
+%-------------------------------------------------------------------------------
+% Shipmate test fixture: a made-up resume (not a real person)
+% Template: Jake Gutierrez's resume template (MIT License)
+% Built with: tectonic bold-resume.tex (see lib/resume/bold.test.ts)
+%-------------------------------------------------------------------------------
+\documentclass[letterpaper,11pt]{article}
+
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+\usepackage{iftex}
+\ifpdftex
+  \input{glyphtounicode}
+\fi
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+% Margins
+\addtolength{\oddsidemargin}{-0.6in}
+\addtolength{\evensidemargin}{-0.6in}
+\addtolength{\textwidth}{1.2in}
+\addtolength{\topmargin}{-.7in}
+\addtolength{\textheight}{1.3in}
+
+\urlstyle{same}
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+% Section formatting
+\titleformat{\section}{
+  \vspace{-4pt}\scshape\raggedright\large
+}{}{0em}{}[\color{black}\titlerule \vspace{-5pt}]
+
+% Ensure that generated PDF is machine readable / ATS-friendly
+\ifpdftex
+  \pdfgentounicode=1
+\fi
+
+%-------------------------
+% Custom commands
+\newcommand{\resumeItem}[1]{
+  \item\small{
+    {#1 \vspace{-2pt}}
+  }
+}
+
+\newcommand{\resumeSubheading}[4]{
+  \vspace{-2pt}\item
+    \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
+      \textbf{#1} & #2 \\
+      \textit{\small#3} & \textit{\small #4} \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeProjectHeading}[2]{
+    \item
+    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
+      \small#1 & #2 \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\renewcommand\labelitemii{$\vcenter{\hbox{\tiny$\bullet$}}$}
+
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.15in, label={}]}
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
+\newcommand{\resumeItemListStart}{\begin{itemize}}
+\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-5pt}}
+
+%-------------------------------------------------------------------------------
+\begin{document}
+
+%----------HEADING----------
+\begin{center}
+    \textbf{\Huge \scshape Jordan Lee} \\ \vspace{3pt}
+    \small Riverside, CA $|$ 555-0100 $|$
+    \href{mailto:jordan@example.edu}{\underline{jordan@example.edu}} $|$
+    \href{https://github.com/jlee}{\underline{github.com/jlee}}
+\end{center}
+
+%-----------EDUCATION-----------
+\section{Education}
+  \resumeSubHeadingListStart
+    \resumeSubheading
+      {Riverside State University}{Riverside, CA}
+      {Bachelor of Science in Computer Science}{Expected May 2029}
+    \resumeItemListStart
+      \resumeItem{\textbf{Cumulative GPA:} \textbf{3.7} / 4.0}
+      \resumeItem{\textbf{Relevant Coursework:} Data Structures, Machine Learning, Database Systems}
+    \resumeItemListEnd
+  \resumeSubHeadingListEnd
+
+%-----------EXPERIENCE-----------
+\section{Experience}
+  \resumeSubHeadingListStart
+    \resumeSubheading
+      {Research Intern}{January 2026 -- August 2026}
+      {Harbor Data Lab}{Riverside, CA}
+      \resumeItemListStart
+        \resumeItem{Built a Python pipeline that cleaned and labeled a dataset of \textbf{12,000+} forum threads for moderation research}
+        \resumeItem{Prototyped early-warning strategies for AI editing agents with the lab's PI and two partner teams}
+      \resumeItemListEnd
+  \resumeSubHeadingListEnd
+
+%-----------PROJECTS-----------
+\section{Projects}
+    \resumeSubHeadingListStart
+      \resumeProjectHeading
+        {\textbf{Tide Tracker} $|$ \emph{Next.js, TypeScript, FastAPI, PostgreSQL}}{April 2025 -- August 2025}
+        \resumeItemListStart
+          \resumeItem{Added a read-through cache in front of Postgres, cutting database reads by \textbf{97.2\%} under a k6 load test}
+          \resumeItem{Trained a LightGBM classifier that beat the rules baseline by \textbf{0.18 PR-AUC} on a \textbf{250K}-event simulated log, scoring at \textbf{6ms} p99}
+        \resumeItemListEnd
+      \resumeProjectHeading
+        {\textbf{MarkUp} $|$ \emph{Java, PostgreSQL, Javalin, Docker}}{September 2025 -- January 2026}
+        \resumeItemListStart
+          \resumeItem{Fault-injection tests confirmed \textbf{11.5s} worker recovery and \textbf{3.8s} leader failover with zero duplicate writes}
+          \resumeItem{Cut deal-query latency from 410ms to \textbf{0.20ms} and matched listings at \textbf{1.000 precision / 0.981 recall}}
+          \resumeItem{Shipped a buy/wait signal at a \textbf{0.731} hit rate (vs. 0.402 / 0.690), served at \textbf{1,204 req/s}}
+        \resumeItemListEnd
+    \resumeSubHeadingListEnd
+
+%-----------SKILLS & INTERESTS-----------
+\section{Skills and Interests}
+ \begin{itemize}[leftmargin=0.15in, label={}]
+    \small{\item{
+     \textbf{Languages}{: C++, Java, Python, TypeScript, SQL} \\
+     \textbf{Activities \& Leadership}{: Built a Unity game with a peak of 100+ concurrent players; Repaired and assembled 60+ computers at a local repair shop; Tutor for physics, mathematics, and SAT preparation}
+    }}
+ \end{itemize}
+
+\end{document}

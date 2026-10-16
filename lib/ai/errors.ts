@@ -54,6 +54,40 @@ function providerMessage(error: unknown): string {
   return typeof nested === "string" ? nested : error.message;
 }
 
+/**
+ * Google's word for "overloaded", from the error body: the v1beta shape
+ * carries `status: "UNAVAILABLE"` beside a numeric code; the newer error
+ * reference gives `code: "service_unavailable"` instead. The HTTP status is
+ * 503 in both, so this only matters if the status is ever missing.
+ */
+function googleUnavailable(error: unknown): boolean {
+  if (!(error instanceof GoogleApiError)) return false;
+  try {
+    const body = JSON.parse(error.message) as {
+      error?: { status?: unknown; code?: unknown };
+    };
+    return (
+      body.error?.status === "UNAVAILABLE" ||
+      body.error?.code === "service_unavailable"
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * A provider's "overloaded, come back in a moment" (503): coded
+ * `rate_limited` like a 429, since every caller handles both the same way,
+ * but worth telling apart where a quick retry helps (resume import).
+ */
+export function isOverloaded(error: unknown): error is AiError {
+  return (
+    error instanceof AiError &&
+    error.code === "rate_limited" &&
+    error.status === 503
+  );
+}
+
 export function toAiError(
   error: unknown,
   provider: ProviderName,
@@ -104,6 +138,15 @@ export function toAiError(
       "out_of_credit",
       `This ${label} account is out of credit.${detail}`,
       status,
+    );
+  }
+
+  // Overloaded: the same "come back later" as a 429, not a real failure.
+  if (status === 503 || googleUnavailable(error)) {
+    return new AiError(
+      "rate_limited",
+      `${label}'s servers are briefly overloaded. Try again in a moment.${detail}`,
+      503,
     );
   }
 

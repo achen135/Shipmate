@@ -75,6 +75,13 @@ export function createProvider(
 export const SHARED_BUSY_MESSAGE =
   "Shipmate's shared free AI is busy right now. Try again in a minute, or add your own key in Profile → AI.";
 
+/**
+ * What a person sees when the shared key's model is overloaded (a 503) and
+ * a few quick retries didn't get through: Google's moment, not theirs.
+ */
+export const SHARED_OVERLOADED_MESSAGE =
+  "Google's servers are briefly overloaded. Try again in a moment.";
+
 /** Neither a personal key nor the shared key is available. */
 export class NoKeyError extends Error {
   constructor() {

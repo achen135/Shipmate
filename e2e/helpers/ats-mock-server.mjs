@@ -401,6 +401,23 @@ function answerAi(url, request, raw, response) {
       },
     });
   }
+  // E2E-FLASH-OVERLOADED: Flash answers 503 (overloaded), Flash-Lite still
+  // answers. E2E-ALL-OVERLOADED: both models answer 503.
+  if (
+    gemini?.[2] === "generateContent" &&
+    (input.includes("E2E-ALL-OVERLOADED") ||
+      (gemini[1] === "gemini-3.8-flash" &&
+        input.includes("E2E-FLASH-OVERLOADED")))
+  ) {
+    return send(response, 503, {
+      error: {
+        code: 503,
+        message:
+          "This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.",
+        status: "UNAVAILABLE",
+      },
+    });
+  }
   if (gemini?.[2] === "generateContent") {
     return send(response, 200, {
       candidates: [

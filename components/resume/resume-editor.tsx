@@ -223,7 +223,7 @@ function HeaderFields({
   const id = useId();
   const { header } = state;
   const text = (
-    key: "name" | "email" | "phone",
+    key: "name" | "email" | "phone" | "location",
     label: string,
     type = "text",
   ) => (
@@ -232,7 +232,7 @@ function HeaderFields({
       <Input
         id={`${id}-${key}`}
         type={type}
-        value={header[key]}
+        value={header[key] ?? ""}
         onChange={(e) =>
           change((d) => {
             d.header[key] = e.target.value;
@@ -249,6 +249,7 @@ function HeaderFields({
         {text("email", "Email", "email")}
         {text("phone", "Phone", "tel")}
       </div>
+      {text("location", "Location (city, state)")}
       {header.links.map((link, i) => (
         <div key={i} className="grid grid-cols-[1fr_1fr_auto] items-end gap-2">
           <Field>

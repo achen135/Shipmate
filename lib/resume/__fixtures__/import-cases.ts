@@ -1,7 +1,8 @@
 /**
  * Resume import fixtures: four resumes with different section-naming
  * styles, as text the way unpdf / mammoth extract it, each with a faithful
- * conversion in the flat shape the AI returns. The conversions are written
+ * conversion in the flat shape the AI returns (list lines copied whole, as
+ * the prompt asks since M8 §0b). The conversions are written
  * by hand to the prompt's rules (not recorded from a model: CI never calls a
  * real API). lib/resume/import.test.ts checks that faithful ones pass
  * `checkImport` cleanly and that renamed / merged / reordered / invented
@@ -71,6 +72,7 @@ Frameworks: React, Node.js, Flask`,
       name: "Jordan Lee",
       email: "jordan@example.edu",
       phone: "555-0100",
+      location: "",
       links: [
         {
           label: "linkedin.com/in/jordanlee",
@@ -113,8 +115,8 @@ Frameworks: React, Node.js, Flask`,
         ),
       ]),
       list("Technical Skills", [
-        { label: "Languages", values: ["Python", "Go", "TypeScript", "SQL"] },
-        { label: "Frameworks", values: ["React", "Node.js", "Flask"] },
+        { line: "Languages: Python, Go, TypeScript, SQL" },
+        { line: "Frameworks: React, Node.js, Flask" },
       ]),
     ],
   },
@@ -143,6 +145,7 @@ Signals and Systems, Circuits II, Biomaterials, Data Structures`,
       name: "PRIYA NATARAJAN",
       email: "priya.n@example.edu",
       phone: "(555) 010-2233",
+      location: "",
       links: [{ label: "priyan.dev", url: "https://priyan.dev" }],
     },
     sections: [
@@ -182,13 +185,7 @@ Signals and Systems, Circuits II, Biomaterials, Data Structures`,
       ]),
       list("RELEVANT COURSEWORK", [
         {
-          label: "",
-          values: [
-            "Signals and Systems",
-            "Circuits II",
-            "Biomaterials",
-            "Data Structures",
-          ],
+          line: "Signals and Systems, Circuits II, Biomaterials, Data Structures",
         },
       ]),
     ],
@@ -215,6 +212,7 @@ Excel, Power BI, SAP, Tableau`,
       name: "Sam Okafor",
       email: "sam.okafor@example.com",
       phone: "555-0199",
+      location: "",
       links: [],
     },
     sections: [
@@ -235,14 +233,9 @@ Excel, Power BI, SAP, Tableau`,
         ),
       ]),
       list("Certifications", [
-        {
-          label: "",
-          values: ["APICS CPIM Part 1 (2026)", "Lean Six Sigma Yellow Belt"],
-        },
+        { line: "APICS CPIM Part 1 (2026); Lean Six Sigma Yellow Belt" },
       ]),
-      list("Tools I Use", [
-        { label: "", values: ["Excel", "Power BI", "SAP", "Tableau"] },
-      ]),
+      list("Tools I Use", [{ line: "Excel, Power BI, SAP, Tableau" }]),
     ],
   },
 };
@@ -263,6 +256,7 @@ Bayview Community College, A.S. Computer Science, 2025`,
       name: "Riley Chen",
       email: "riley@example.org",
       phone: "",
+      location: "",
       links: [],
     },
     sections: [

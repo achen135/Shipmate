@@ -1,11 +1,17 @@
 /**
  * The editor works on text the way people type it: bullets one per line,
- * list values comma-separated. These two pure functions convert between that
+ * list values separated by commas (or by semicolons, when a value has
+ * commas of its own: typing a semicolon switches the line to semicolons). These two pure functions convert between that
  * and the stored shape (lib/resume/structured.ts), so a half-typed line never
  * vanishes from under the cursor.
  */
 
-import type { Layout, ResumeContent } from "./structured";
+import {
+  type Layout,
+  type ResumeContent,
+  joinValues,
+  splitValues,
+} from "./structured";
 
 export type EditorEntry = {
   heading: string;
@@ -18,7 +24,7 @@ export type EditorEntry = {
 
 export type EditorListItem = {
   label: string;
-  /** Comma-separated. */
+  /** Comma-separated, or semicolon-separated if it has any semicolons. */
   values: string;
 };
 
@@ -61,7 +67,7 @@ export function toEditor(content: ResumeContent): EditorState {
           layout: "list",
           items: section.items.map((i) => ({
             label: i.label,
-            values: i.values.join(", "),
+            values: joinValues(i),
           })),
         };
       }
@@ -81,18 +87,15 @@ const lines = (text: string) =>
     .map((l) => l.trim())
     .filter(Boolean);
 
-const commaList = (text: string) =>
-  text
-    .split(",")
-    .map((v) => v.trim())
-    .filter(Boolean);
-
 export function fromEditor(state: EditorState): ResumeContent {
   return {
     header: {
       name: state.header.name.trim(),
       email: state.header.email.trim(),
       phone: state.header.phone.trim(),
+      ...(state.header.location?.trim()
+        ? { location: state.header.location.trim() }
+        : {}),
       links: state.header.links
         .map((l) => ({ label: l.label.trim(), url: l.url.trim() }))
         .filter((l) => l.label || l.url),
@@ -118,7 +121,7 @@ export function fromEditor(state: EditorState): ResumeContent {
           layout: "list" as const,
           items: section.items.map((i) => ({
             label: i.label.trim(),
-            values: commaList(i.values),
+            ...splitValues(i.values),
           })),
         };
       }

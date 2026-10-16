@@ -22,7 +22,7 @@
 
 import { z } from "zod";
 
-import { containsPhrase } from "./text";
+import { containsPhrase, mentionsPhrase } from "./text";
 
 export const KEYWORD_KINDS = [
   "hard_skill",
@@ -59,6 +59,23 @@ export const MIN_KEYWORDS = 4;
 export const MIN_POSTING_CHARS = 400;
 const MAX_KEYWORDS = 30;
 
+/** "experience building software", "ability to learn", "passion for …". */
+const FRAMING =
+  /^(experience|ability|able|comfort|comfortable|passion|passionate|willingness|willing|eagerness|eager|desire|interest|interested|enthusiasm|curiosity|aptitude|track record|proven)\b/i;
+
+/** A soft skill phrased as something you do: "communicate openly", "ask questions early". */
+const DOING =
+  /^(communicate|communicating|ask|asking|build|building|work|working|thrive|thriving|learn|learning|take|taking|be|being|have|having|get|getting|move|moving|own|owning|care|caring|love|enjoy|seek|seeking|deliver|delivering|think|thinking|solve|solving|stay|staying|adapt|adapting|wear|embrace|embracing|bring|bringing|share|sharing|speak|speaking|give|giving|raise|raising|hold|holding)\b/i;
+
+/**
+ * Interview criteria, not resume words (M8 §0d): a person shows them, an
+ * ATS can't find them as written, so they'd only ever read as "missing".
+ * Real named skills stay ("leadership", "stakeholder management").
+ */
+function qualifying(term: string, kind: Keyword["kind"]): boolean {
+  return FRAMING.test(term) || (kind === "soft_skill" && DOING.test(term));
+}
+
 /**
  * Keep the keywords the posting actually contains, in the posting's own
  * spelling: the model's term if the posting writes it, else the first of
@@ -80,7 +97,7 @@ export function verifyKeywords(
       ),
     ];
     const term = spellings.find((s) => containsPhrase(postingText, s));
-    if (!term) continue;
+    if (!term || qualifying(term, k.kind)) continue;
     const variants = spellings
       .filter((v) => !containsPhrase(term, v) || !containsPhrase(v, term))
       .slice(0, 5);
@@ -97,9 +114,13 @@ export function verifyKeywords(
   return seen;
 }
 
-/** In its own spelling only: a variant is the model's word, not proof. */
+/**
+ * In its own spelling only: a variant is the model's word, not proof (§0a).
+ * Read the way a person would: a word or two may sit inside a phrase
+ * ("AI editing agents" has "AI agents"; §0d), never inside one word.
+ */
 export const hasKeyword = (text: string, keyword: Pick<Keyword, "term">) =>
-  containsPhrase(text, keyword.term);
+  mentionsPhrase(text, keyword.term);
 
 export type Score = { score: number; matched: Keyword[]; missing: Keyword[] };
 

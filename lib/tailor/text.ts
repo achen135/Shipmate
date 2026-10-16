@@ -128,6 +128,48 @@ export function containsPhrase(text: string, phrase: string): boolean {
   return keyLine(text).includes(needle);
 }
 
+/** At most this many words between a phrase's words, for mentionsPhrase. */
+export const MAX_PHRASE_GAP = 2;
+
+/** Sentence and line ends, list separators and bullets: a phrase doesn't span them. */
+const CLAUSE_BREAK = /\n|[.;!?](?=\s|$)|[•|▪]/;
+
+/**
+ * The fit score's reading of "is this phrase on the resume?" (M8 §0d):
+ * like containsPhrase, but a phrase of two or more words may have up to
+ * MAX_PHRASE_GAP words between its words, in order, within one sentence
+ * or line ("AI agents" in "built AI editing agents"). A single word or
+ * tech spelling is matched exactly ("C" is never "C++").
+ *
+ * Scoring only. The no-fabrication checks (edits.ts, trace.ts) keep
+ * containsPhrase: there, dropping a word from what the user wrote would
+ * be a new claim.
+ */
+export function mentionsPhrase(text: string, phrase: string): boolean {
+  const needle = tokenize(phrase).map((t) => t.key);
+  if (needle.length === 0) return false;
+  if (needle.length === 1) return containsPhrase(text, phrase);
+  for (const clause of text.split(CLAUSE_BREAK)) {
+    const keys = tokenize(clause).map((t) => t.key);
+    for (let start = 0; start < keys.length; start += 1) {
+      if (keys[start] !== needle[0]) continue;
+      let at = start;
+      let found = true;
+      for (const word of needle.slice(1)) {
+        const window = keys.slice(at + 1, at + 2 + MAX_PHRASE_GAP);
+        const next = window.indexOf(word);
+        if (next === -1) {
+          found = false;
+          break;
+        }
+        at += 1 + next;
+      }
+      if (found) return true;
+    }
+  }
+  return false;
+}
+
 /** Words in `after` that `before` doesn't have (by key). */
 export function addedTokens(before: string, after: string): Token[] {
   const had = keySet(before);

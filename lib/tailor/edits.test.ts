@@ -463,3 +463,49 @@ describe("applyEdits: a change's why never leans on a variant (M8 §0a)", () => 
     expect(result.changes[0].why).not.toContain("C++");
   });
 });
+
+describe("the header's location survives tailoring (M8 §0c)", () => {
+  it("is copied from the master unchanged, and the final check accepts it", () => {
+    const base = structuredClone(sweResume);
+    base.header.location = "Ithaca, NY";
+    const result = applyEdits({
+      base,
+      master: base,
+      facts: sweFacts,
+      keywords: KEYWORDS,
+      edits: [
+        edit({ op: "order_list_values", target: "s4.l1", order: ["SQL"] }),
+      ],
+    });
+    expect(result.content.header.location).toBe("Ithaca, NY");
+    expect(untraceable(base, sweFacts, result.content)).toEqual([]);
+    const moved = structuredClone(result.content);
+    moved.header.location = "Boston, MA";
+    expect(untraceable(base, sweFacts, moved)).toEqual(["the header changed"]);
+  });
+});
+
+describe("the fabrication checks stay exact (M8 §0d)", () => {
+  it("AI editing agents on the resume doesn't let AI agents be added to a list", () => {
+    const base = structuredClone(sweResume);
+    const projects = base.sections[2];
+    if (projects.layout === "entries") {
+      projects.items[0].bullets.push(
+        "Built AI editing agents for the marketplace",
+      );
+    }
+    const result = applyEdits({
+      base,
+      master: base,
+      facts: sweFacts,
+      keywords: [kw("AI agents")],
+      edits: [
+        edit({ op: "add_list_value", target: "s4.l2", text: "AI agents" }),
+      ],
+    });
+    expect(result.changes).toEqual([]);
+    expect(result.dropped[0].reason).toContain(
+      "isn't on your resume or in your facts",
+    );
+  });
+});

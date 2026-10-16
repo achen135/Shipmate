@@ -177,7 +177,12 @@ type WEntry = {
   dropped: boolean;
   nextBullet: number;
 };
-type WList = { id: string; label: string; values: string[] };
+type WList = {
+  id: string;
+  label: string;
+  values: string[];
+  separator?: ";";
+};
 type WSection =
   | { id: string; title: string; layout: "entries"; entries: WEntry[] }
   | { id: string; title: string; layout: "list"; lists: WList[] }
@@ -222,6 +227,7 @@ function toWorking(content: ResumeContent): WSection[] {
           id: listId(s, l),
           label: item.label,
           values: [...item.values],
+          ...(item.separator ? { separator: item.separator } : {}),
         })),
       };
     }
@@ -264,6 +270,7 @@ function fromWorking(
           items: section.lists.map((l) => ({
             label: l.label,
             values: [...l.values],
+            ...(l.separator ? { separator: l.separator } : {}),
           })),
         };
       }

@@ -9,7 +9,12 @@
  * what gets sent.
  */
 
-import type { Entry, ListItem, ResumeContent } from "./structured";
+import {
+  type Entry,
+  type ListItem,
+  type ResumeContent,
+  joinValues,
+} from "./structured";
 
 const ESCAPES: Record<string, string> = {
   "&": "&amp;",
@@ -95,7 +100,9 @@ function renderEntry(entry: Entry): string {
 }
 
 function renderListItem(item: ListItem): string {
-  const values = escapeHtml(item.values.filter((v) => v.trim()).join(", "));
+  const values = escapeHtml(
+    joinValues({ ...item, values: item.values.filter((v) => v.trim()) }),
+  );
   return item.label.trim()
     ? `<li><span class="label">${escapeHtml(item.label)}:</span> ${values}</li>`
     : `<li>${values}</li>`;
@@ -104,6 +111,7 @@ function renderListItem(item: ListItem): string {
 export function renderResumeHtml(content: ResumeContent): string {
   const { header } = content;
   const contact = [
+    header.location ? escapeHtml(header.location) : "",
     header.phone ? escapeHtml(header.phone) : "",
     header.email ? link(header.email, safeHref(`mailto:${header.email}`)) : "",
     ...header.links

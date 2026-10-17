@@ -16,9 +16,10 @@ export const PROVIDER_LABELS: Record<ProviderName, string> = {
 };
 
 /**
- * Which model a step uses: `fast` for extraction and scoring (resume import,
- * keyword extraction), `strong` for edits and writing (M7). Model IDs per
- * provider live in lib/ai/models.ts.
+ * Which model a step uses: `fast` for reading and notes (resume import,
+ * company research, fact suggestions, the second look), `strong` for the
+ * steps whose judgment shapes the tailored copy (keyword scoring, edits,
+ * one-page cuts). Model IDs per provider live in lib/ai/models.ts.
  */
 export type Tier = "fast" | "strong";
 

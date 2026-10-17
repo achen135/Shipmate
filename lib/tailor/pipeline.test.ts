@@ -20,7 +20,7 @@ const k = (
   term: string,
   importance: "required" | "preferred" = "required",
   variants: string[] = [],
-) => ({ term, importance, kind: "hard_skill", variants });
+) => ({ term, importance, kind: "hard_skill", variants, alternatives: [] });
 
 const backendKeywords = () => ({
   keywords: [
@@ -85,7 +85,7 @@ describe("tailor: the pipeline end to end (fake model, fake page measure)", () =
     });
 
     expect(calls.map((c) => [c.name, c.tier])).toEqual([
-      ["posting_keywords", "fast"],
+      ["posting_keywords", "strong"],
       ["resume_edits", "strong"],
     ]);
     // The edit step sees the master resume with ids, the gap, and the facts.
@@ -147,9 +147,40 @@ describe("tailor: the pipeline end to end (fake model, fake page measure)", () =
       provider: scriptedProvider(script).provider,
       measure: lineMeasure(40).measure,
     });
-    // 2 × (1000 × $0.75 + 500 × $3.75) / 1M
+    // Keywords and edits both on Flash: 2 × (1000 × $0.75 + 500 × $3.75) / 1M
     expect(own.usage.costUsd).toBeCloseTo(0.00525, 6);
     expect(own.notes).toEqual([NOTES.nothing]);
+  });
+
+  it("records the edit step's model, not the second look's: Flash-Lite there isn't the backup", async () => {
+    const { provider, calls } = scriptedProvider(
+      {
+        posting_keywords: backendKeywords,
+        resume_edits: honestEdits,
+        second_look: () => ({ suggestions: [{ what: "Fine." }] }),
+      },
+      { shared: true },
+    );
+    const result = await tailor(input, {
+      provider,
+      measure: lineMeasure(40).measure,
+    });
+    // The last call ran on Flash-Lite…
+    expect(calls.at(-1)).toMatchObject({ name: "second_look", tier: "fast" });
+    expect(result.secondLook).toBe("done");
+    // …but the tailoring ran on Flash.
+    expect(result.usage.model).toBe("gemini-3.8-flash");
+
+    // Stopped before the edit step: no model to name, even though scoring
+    // ran on the same (strong) tier.
+    const few = await tailor(input, {
+      provider: scriptedProvider({
+        posting_keywords: () => ({ keywords: [k("Python")] }),
+      }).provider,
+      measure: lineMeasure(40).measure,
+    });
+    expect(few.notes).toEqual([NOTES.fewKeywords]);
+    expect(few.usage.model).toBeNull();
   });
 
   it("too little posting text: no AI calls, no made-up score, a note", async () => {

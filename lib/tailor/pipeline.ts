@@ -44,6 +44,7 @@ import {
   MIN_POSTING_CHARS,
   extractedKeywordsSchema,
   hasKeyword,
+  keywordLabel,
   scoreText,
   verifyKeywords,
 } from "./score";
@@ -80,6 +81,12 @@ export type TailorResult = {
   warnings: Warning[];
   usage: {
     provider: AiUsage["provider"] | null;
+    /**
+     * The model the edit step ran on, null if it never ran. Not simply the
+     * last call's: on Gemini the second look runs on Flash-Lite, which is
+     * also the shared key's backup, and the review page reads this to say a
+     * tailoring ran on the backup.
+     */
     model: string | null;
     inputTokens: number;
     outputTokens: number;
@@ -110,10 +117,7 @@ export const NOTES = {
 } as const;
 
 const list = (keywords: Keyword[], max = 5) =>
-  keywords
-    .slice(0, max)
-    .map((k) => k.term)
-    .join(", ") +
+  keywords.slice(0, max).map(keywordLabel).join(", ") +
   (keywords.length > max ? `, and ${keywords.length - max} more` : "");
 
 export async function tailor(
@@ -124,6 +128,8 @@ export async function tailor(
   const { provider, measure } = deps;
   const calls: { usage: AiUsage; tier: Tier }[] = [];
   const notes: string[] = [];
+  /** The edit step's model, once it has run (see TailorResult.usage.model). */
+  let editModel: string | null = null;
   const result = (
     partial: Partial<TailorResult> & { content: ResumeContent },
   ): TailorResult => {
@@ -143,7 +149,7 @@ export async function tailor(
       notes,
       usage: {
         provider: last?.provider ?? null,
-        model: last?.model ?? null,
+        model: editModel,
         inputTokens: calls.reduce((n, c) => n + c.usage.inputTokens, 0),
         outputTokens: calls.reduce((n, c) => n + c.usage.outputTokens, 0),
         costUsd: calls.reduce(
@@ -162,16 +168,18 @@ export async function tailor(
   }
   const postingBlock = `<posting>\nCompany: ${posting.company}\nTitle: ${posting.title}\n\n${text.slice(0, MAX_POSTING_CHARS)}\n</posting>`;
 
-  // 2. Baseline score.
+  // 2. Baseline score. On the strong tier, not the fast one: on Gemini,
+  // Flash-Lite's keyword lists didn't hold up (Design Decisions "Which
+  // Gemini model runs which step").
   const extracted = await provider.generateStructured({
-    tier: "fast",
+    tier: "strong",
     system: KEYWORDS_SYSTEM,
     input: postingBlock,
     schema: extractedKeywordsSchema,
     name: "posting_keywords",
     maxOutputTokens: 8_000,
   });
-  calls.push({ usage: extracted.usage, tier: "fast" });
+  calls.push({ usage: extracted.usage, tier: "strong" });
   const keywords = verifyKeywords(extracted.data, `${posting.title}\n${text}`);
   if (keywords.length < MIN_KEYWORDS) {
     notes.push(NOTES.fewKeywords);
@@ -191,7 +199,8 @@ export async function tailor(
         ? `IN FACTS ${factId(factFor(k))}`
         : "MISSING";
     // No "(also: …)": the model's variants aren't proof of anything (§0a).
-    return `- ${k.term} — ${k.importance}, ${k.kind.replace("_", " ")}: ${status}`;
+    // An "or" list: "Bachelor's or Master's or PhD", any one of them counts.
+    return `- ${keywordLabel(k)} — ${k.importance}, ${k.kind.replace("_", " ")}: ${status}`;
   });
 
   // 3. Company context, 5. edit from the master.
@@ -223,6 +232,7 @@ export async function tailor(
     maxOutputTokens: 12_000,
   });
   calls.push({ usage: plan.usage, tier: "strong" });
+  editModel = plan.usage.model;
 
   let content = master;
   let changes: Change[] = [];
@@ -299,7 +309,7 @@ export async function tailor(
       postingBlock,
       keywordLines: keywords.map(
         (k) =>
-          `- ${k.term} — ${k.importance}: ${hasKeyword(finalText, k) ? "ON RESUME" : "MISSING"}`,
+          `- ${keywordLabel(k)} — ${k.importance}: ${hasKeyword(finalText, k) ? "ON RESUME" : "MISSING"}`,
       ),
       resumeText: finalText,
     });
@@ -316,8 +326,8 @@ export async function tailor(
     secondLook: looked,
     scoreBefore: before.score,
     scoreAfter: after.score,
-    matched: after.matched.map((k) => k.term),
-    missing: missing.map((k) => k.term),
+    matched: after.matched.map(keywordLabel),
+    missing: missing.map(keywordLabel),
     changes,
     warnings,
     dropped,

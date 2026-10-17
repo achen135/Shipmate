@@ -1,3 +1,4 @@
+import { MODELS } from "@/lib/ai/models";
 import type { AiProvider, StructuredRequest, Tier } from "@/lib/ai/types";
 import type { ResumeContent } from "@/lib/resume/structured";
 
@@ -6,7 +7,8 @@ import type { ResumeContent } from "@/lib/resume/structured";
  * posting_keywords, resume_edits, resume_cuts) answers from a script. The
  * answer is parsed with the request's own schema, as real structured output
  * would be, so a script can't hand the pipeline something a real model
- * couldn't.
+ * couldn't. Each answer names the model Gemini's tier really uses (Flash-Lite
+ * for the fast tier, Flash for scoring and edits).
  */
 export type Script = Partial<
   Record<string, (input: string, call: number) => unknown>
@@ -37,7 +39,7 @@ export function scriptedProvider(
         data,
         usage: {
           provider: "google" as const,
-          model: "gemini-3.8-flash",
+          model: MODELS.google[request.tier].id,
           inputTokens: 1000,
           outputTokens: 500,
         },

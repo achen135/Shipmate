@@ -1,6 +1,7 @@
 "use client";
 
 import { Sparkles } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useTransition } from "react";
 import { toast } from "sonner";
@@ -56,9 +57,12 @@ export function TailorButton({
 export function TailoringProgress({
   state,
   waitingForQuota,
+  shared,
 }: {
   state: "queued" | "running";
   waitingForQuota: boolean;
+  /** On Shipmate's shared key (not the user's own). */
+  shared: boolean;
 }) {
   const router = useRouter();
   useEffect(() => {
@@ -66,10 +70,29 @@ export function TailoringProgress({
     return () => clearInterval(timer);
   }, [router]);
 
+  if (waitingForQuota && shared) {
+    // The moment a key of their own matters most (Fix Handoff "shared key
+    // quota" §2).
+    return (
+      <div role="status" className="flex flex-col gap-1 text-sm">
+        <p className="text-muted-foreground">
+          Waiting: Shipmate&apos;s shared free AI is busy right now. It tries
+          again on its next run, within about 30 minutes.
+        </p>
+        <p data-testid="own-key-nudge">
+          Don&apos;t want to wait?{" "}
+          <Link href="/profile/ai" className="underline underline-offset-2">
+            Add your own free key
+          </Link>
+          : about 2 minutes, still $0.
+        </p>
+      </div>
+    );
+  }
   return (
     <p role="status" className="text-sm text-muted-foreground">
       {waitingForQuota
-        ? "Waiting: Shipmate's shared free AI is busy right now. It tries again on its next run, within about 30 minutes."
+        ? "Waiting: your AI key is rate-limited or its servers are busy right now. Shipmate tries again on its next run, within about 30 minutes."
         : state === "queued"
           ? "Charting course… tailoring starts in a moment."
           : "Charting course… tailoring your resume to this posting. This takes about a minute."}

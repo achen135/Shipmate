@@ -28,6 +28,7 @@ const kw = (term: string, variants: string[] = []): Keyword => ({
   importance: "required",
   kind: "hard_skill",
   variants,
+  alternatives: [],
 });
 
 const KEYWORDS: Keyword[] = [
@@ -96,6 +97,25 @@ describe("applyEdits: what's allowed", () => {
           "Built a Redis caching layer for the pricing API that cut p95 latency by 40%",
       },
     ]);
+  });
+
+  it('explains an edit naming one option of an "or" list by that option', () => {
+    const result = applyEdits({
+      base: sweResume,
+      master: sweResume,
+      facts: sweFacts,
+      keywords: [{ ...kw("Memcached"), alternatives: ["Redis"] }],
+      edits: [
+        edit({
+          op: "reword_bullet",
+          target: "s2.e1.b1",
+          text: "Built a Redis caching layer for the pricing API that cut p95 latency by 40%",
+          keyword: "Memcached or Redis",
+        }),
+      ],
+    });
+    expect(result.dropped).toEqual([]);
+    expect(result.changes[0].why).toBe("the posting asks for “Redis”");
   });
 
   it("rewords a bullet using a fact about that entry, and says so", () => {

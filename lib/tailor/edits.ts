@@ -156,10 +156,11 @@ export type ApplyInput = {
   master: ResumeContent;
   facts: Fact[];
   /**
-   * The posting's keywords (verified against its text). Their variants only
-   * add claim words (stricter checks); they never match anything (§0a).
+   * The posting's keywords (verified against its text). Their variants and
+   * an "or" list's other options only add claim words (stricter checks);
+   * variants never match anything (§0a).
    */
-  keywords: { term: string; variants: string[] }[];
+  keywords: { term: string; variants: string[]; alternatives?: string[] }[];
   edits: unknown[];
   /** Only these ops (the one-page step allows drops only). */
   allowed?: readonly EditOpName[];
@@ -411,9 +412,15 @@ export function applyEdits(input: ApplyInput): ApplyResult {
   const evidence: Evidence = {
     global: keySet(...corpusLines(master, facts)),
     keywordWords: new Set(
-      [...keySet(...keywords.flatMap((k) => [k.term, ...k.variants]))].filter(
-        (k) => !isFunctionWord(k),
-      ),
+      [
+        ...keySet(
+          ...keywords.flatMap((k) => [
+            k.term,
+            ...k.variants,
+            ...(k.alternatives ?? []),
+          ]),
+        ),
+      ].filter((k) => !isFunctionWord(k)),
     ),
   };
   const lines = corpusLines(master, facts);
@@ -423,14 +430,25 @@ export function applyEdits(input: ApplyInput): ApplyResult {
   const keywordFor = (edit: Edit, before: string, after: string) => {
     const wanted = edit.keyword.trim();
     if (!wanted) return null;
-    // In the keyword's own spelling only: a variant isn't proof (§0a).
+    // In the keyword's own spelling only: a variant isn't proof (§0a). An
+    // "or" list may be named by any of its options, or all of them.
+    const same = (a: string, b: string) =>
+      containsPhrase(a, b) && containsPhrase(b, a);
+    const options = (k: (typeof keywords)[number]) => [
+      k.term,
+      ...(k.alternatives ?? []),
+    ];
     const known = keywords.find(
-      (k) => containsPhrase(k.term, wanted) && containsPhrase(wanted, k.term),
+      (k) =>
+        options(k).some((o) => same(o, wanted)) ||
+        same(options(k).join(" or "), wanted),
     );
     if (!known) return null;
-    const mentioned =
-      containsPhrase(after, known.term) && !containsPhrase(before, known.term);
-    return mentioned ? known.term : null;
+    return (
+      options(known).find(
+        (o) => containsPhrase(after, o) && !containsPhrase(before, o),
+      ) ?? null
+    );
   };
   const askedFor = (kw: string | null) =>
     kw ? `the posting asks for ${quote(kw)}` : null;

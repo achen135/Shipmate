@@ -18,7 +18,7 @@ import {
   editPlanSchema,
 } from "./edits";
 import { CUT_SYSTEM } from "./prompts";
-import type { Keyword } from "./score";
+import { type Keyword, keywordLabel } from "./score";
 import { describeResume } from "./view";
 
 export const MAX_FIT_LOOPS = 2;
@@ -62,7 +62,7 @@ export async function fitOnePage(input: {
       system: CUT_SYSTEM,
       input: [
         `<keywords>\n${input.keywords
-          .map((k) => `- ${k.term} (${k.importance})`)
+          .map((k) => `- ${keywordLabel(k)} (${k.importance})`)
           .join("\n")}\n</keywords>`,
         `<overflow>\nAbout ${Math.max(5, Math.round(measured.overflow * 100))}% of a page too long.\n</overflow>`,
         `<resume>\n${describeResume(content)}\n</resume>`,

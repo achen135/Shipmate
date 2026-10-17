@@ -99,6 +99,7 @@ export function AiSettings({
   return (
     <div className="flex flex-col gap-6">
       <ModeStatus savedKey={savedKey} mode={mode} setMode={actions.setMode} />
+      {mode === "ai" && !savedKey && <OwnKeyNudge />}
       <CapForm
         dailyCap={dailyCap}
         autoTailor={autoTailor}
@@ -113,8 +114,9 @@ export function AiSettings({
         </p>
       )}
       <section
+        id="own-key"
         aria-labelledby="own-key-heading"
-        className="flex flex-col gap-4"
+        className="flex scroll-mt-4 flex-col gap-4"
       >
         <h3 id="own-key-heading" className="font-medium">
           Your own key{" "}
@@ -139,6 +141,61 @@ export function AiSettings({
         )}
       </section>
       <WhatGetsSent provider={savedKey?.provider ?? null} />
+    </div>
+  );
+}
+
+/**
+ * On the shared key: say plainly that a key of their own is the better
+ * default, and how to get a free one (Fix Handoff "shared key quota" §2).
+ * The shared key's Flash quota is 20 requests a day for everyone, so this
+ * is the real next step, not a footnote. The steps are the ones Alex used
+ * to make the shared key (M7 Handoff §3).
+ */
+function OwnKeyNudge() {
+  return (
+    <div
+      className="flex flex-col gap-3 rounded-xl border bg-card p-4 text-sm"
+      data-testid="own-key-nudge"
+    >
+      <p className="font-medium">
+        You&apos;re using Shipmate&apos;s shared free key
+      </p>
+      <p className="text-muted-foreground">
+        Everyone shares its daily limit, so tailoring can wait a while. For
+        faster, more reliable results, add your own free Google Gemini key:
+        about 2 minutes, still $0.
+      </p>
+      <ol className="list-decimal space-y-1 pl-5 text-muted-foreground">
+        <li>
+          Go to{" "}
+          <a
+            href={KEY_PAGES.google.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2"
+          >
+            Google AI Studio
+          </a>{" "}
+          and sign in with your Google account.
+        </li>
+        <li>
+          Click <strong>Get API key</strong>, then{" "}
+          <strong>Create API key</strong>.
+        </li>
+        <li>
+          Pick <strong>Create API key in new project</strong> (or a project with
+          no billing). Google&apos;s free use depends on billing being off for
+          that project.
+        </li>
+        <li>
+          Copy the key and paste it under{" "}
+          <a href="#own-key" className="underline underline-offset-2">
+            Your own key
+          </a>{" "}
+          below, with Google Gemini picked.
+        </li>
+      </ol>
     </div>
   );
 }
@@ -263,7 +320,7 @@ function CostExplainer({
         <p className="mt-3 text-xs text-muted-foreground">
           {oneModel
             ? `Model: ${models.fast.label} (${price("fast")}).`
-            : `Models: ${models.fast.label} for reading and scoring (${price("fast")}), ${models.strong.label} for editing (${price("strong")}).`}{" "}
+            : `Models: ${models.fast.label} for reading and notes (${price("fast")}), ${models.strong.label} for scoring and editing (${price("strong")}).`}{" "}
           A long posting or a two-page resume costs more.
         </p>
       </div>

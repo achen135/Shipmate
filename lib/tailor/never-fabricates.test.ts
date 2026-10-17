@@ -229,6 +229,7 @@ const keywordsFor = (person: Person) => () => ({
       importance: "required",
       kind: "hard_skill",
       variants: [],
+      alternatives: [],
     })),
 });
 
@@ -418,12 +419,14 @@ describe("never fabricates: a different skill passed off as another spelling", (
         importance: "required",
         kind: "hard_skill",
         variants: [has],
+        alternatives: [],
       },
       ...["Python", "REST APIs", "Redis", "Docker"].map((term) => ({
         term,
         importance: "required",
         kind: "hard_skill",
         variants: [],
+        alternatives: [],
       })),
     ],
   });
@@ -530,6 +533,7 @@ describe("never fabricates: a different skill passed off as another spelling", (
       const keywords = SIBLINGS.map((s) => ({
         term: s.claims,
         variants: [s.has],
+        alternatives: [],
       }));
       const ops = [
         "rename_list_value",
@@ -601,12 +605,14 @@ describe("never overstates: a sibling skill in the facts or the report (M8 §0a)
               importance: "required",
               kind: "hard_skill",
               variants: [has],
+              alternatives: [],
             },
             ...["Python", "REST APIs", "Redis", "Docker"].map((term) => ({
               term,
               importance: "required",
               kind: "hard_skill",
               variants: [],
+              alternatives: [],
             })),
           ],
         }),

@@ -429,7 +429,7 @@ describe("Google Gemini provider", () => {
     const { impl, calls } = fakeFetch(() => ({ body: { totalTokens: 4 } }));
     await createGoogleProvider({ apiKey: GOOGLE_KEY, fetch: impl }).testKey();
     expect(calls).toHaveLength(1);
-    expect(calls[0].url).toContain("/models/gemini-3.8-flash:countTokens");
+    expect(calls[0].url).toContain("/models/gemini-3.5-flash-lite:countTokens");
     expect(calls[0].headers.get("x-goog-api-key")).toBe(GOOGLE_KEY);
     expect(calls[0].url).not.toContain(GOOGLE_KEY);
   });
@@ -443,7 +443,11 @@ describe("Google Gemini provider", () => {
       fetch: impl,
       shared: true,
     });
-    const { data, usage } = await provider.generateStructured(request);
+    // The edit tier: Flash (the fast tier is Flash-Lite, below).
+    const { data, usage } = await provider.generateStructured({
+      ...request,
+      tier: "strong",
+    });
     expect(data).toEqual({ title: "Hi", count: 2 });
     expect(provider.shared).toBe(true);
     expect(usage).toEqual({
@@ -500,8 +504,13 @@ describe("Google Gemini provider", () => {
       backup: true,
     });
     expect(own.backup).toBe(false);
-    await own.generateStructured(request);
+    await own.generateStructured({ ...request, tier: "strong" });
     expect(calls[2].url).toContain("/models/gemini-3.8-flash:generateContent");
+    // Its fast tier is Flash-Lite too: the split is per step, not per key.
+    await own.generateStructured(request);
+    expect(calls[3].url).toContain(
+      "/models/gemini-3.5-flash-lite:generateContent",
+    );
   });
 
   it("strips JSON Schema keywords Gemini doesn't accept, but not field names", () => {

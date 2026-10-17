@@ -45,6 +45,7 @@ describe("tailor: the final check", () => {
           importance: "required",
           kind: "hard_skill",
           variants: [],
+          alternatives: [],
         })),
       }),
       resume_edits: noEdits,

@@ -178,7 +178,9 @@ test("tailor a posting on the shared key: score, changes, PDF, edit the copy, da
   await expect(page.getByText(/Charting course/)).toBeVisible();
 
   // "Charting course" shows as soon as it's clicked; the row lands a moment
-  // later, when the Route Handler answers.
+  // later, when the Route Handler answers. Not necessarily still "queued" by
+  // the time it's read: the queue is shared, so another test's worker run
+  // may already have taken it (tailorUntilFinished handles that).
   let queuedId = "";
   await expect
     .poll(async () => {
@@ -190,7 +192,7 @@ test("tailor a posting on the shared key: score, changes, PDF, edit the copy, da
       queuedId = data?.id ?? "";
       return data?.state;
     })
-    .toBe("queued");
+    .toMatch(/^(queued|running|done)$/);
 
   // The worker (the database would have started tailor.yml in production).
   await tailorUntilFinished(queuedId);
@@ -511,6 +513,10 @@ test("a model overloaded (503) past every retry: the tailoring waits for the nex
       waiting: true,
     });
   await page.reload();
-  await expect(page.getByText(/^Waiting:/)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/^Waiting: your AI key/)).toBeVisible({
+    timeout: 15_000,
+  });
+  // Their own key: the shared-key nudge isn't for them.
+  await expect(page.getByTestId("own-key-nudge")).toHaveCount(0);
   await admin.from("tailorings").delete().eq("id", rowId);
 });

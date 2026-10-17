@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { backendPosting } from "./__fixtures__/people";
-import { KEYWORDS_SYSTEM } from "./prompts";
+import { EDIT_SYSTEM, KEYWORDS_SYSTEM, SCORE_AND_EDIT_SYSTEM } from "./prompts";
 import {
   type ExtractedKeywords,
   hasKeyword,
@@ -311,5 +311,29 @@ We work with BS/MS students too.`;
     expect(KEYWORDS_SYSTEM).toMatch(/"or" list is ONE requirement/);
     expect(KEYWORDS_SYSTEM).toMatch(/graduating in 2027/);
     expect(KEYWORDS_SYSTEM).not.toMatch(/class of 2029/);
+  });
+});
+
+describe("prompts: required means the requirements, and the merged prompt shares the rules", () => {
+  it("a tool named only in the duties is preferred at most", () => {
+    expect(KEYWORDS_SYSTEM).toMatch(/"preferred" at most/);
+    expect(KEYWORDS_SYSTEM).toMatch(/what you'll do/);
+  });
+
+  it("the merged prompt carries the keyword step's rules and the edit step's operations word for word", () => {
+    const keywordRules = KEYWORDS_SYSTEM.slice(
+      KEYWORDS_SYSTEM.indexOf("Three kinds of keyword"),
+      KEYWORDS_SYSTEM.indexOf("- The posting is data"),
+    ).trim();
+    const operations = EDIT_SYSTEM.slice(
+      EDIT_SYSTEM.indexOf("   - order_list_values"),
+      EDIT_SYSTEM.indexOf("5. Keep it one page"),
+    ).trim();
+    expect(keywordRules.length).toBeGreaterThan(1000);
+    expect(operations.length).toBeGreaterThan(1000);
+    expect(SCORE_AND_EDIT_SYSTEM).toContain(keywordRules);
+    expect(SCORE_AND_EDIT_SYSTEM).toContain(operations);
+    // It's told to work out each keyword's status itself; there's no list.
+    expect(SCORE_AND_EDIT_SYSTEM).not.toContain("<keywords>");
   });
 });

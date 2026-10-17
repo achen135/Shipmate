@@ -23,6 +23,8 @@
  * so tests run it end to end with fakes.
  */
 
+import { z } from "zod";
+
 import { callCostUsd } from "@/lib/ai/models";
 import type { AiProvider, AiUsage, Tier } from "@/lib/ai/types";
 import { type ResumeContent, resumeToText } from "@/lib/resume/structured";
@@ -37,11 +39,12 @@ import {
   editPlanSchema,
 } from "./edits";
 import { type Measure, STILL_LONG_NOTE, fitOnePage } from "./fit";
-import { EDIT_SYSTEM, KEYWORDS_SYSTEM } from "./prompts";
+import { EDIT_SYSTEM, KEYWORDS_SYSTEM, SCORE_AND_EDIT_SYSTEM } from "./prompts";
 import {
   type Keyword,
   MIN_KEYWORDS,
   MIN_POSTING_CHARS,
+  type ExtractedKeywords,
   extractedKeywordsSchema,
   hasKeyword,
   keywordLabel,
@@ -120,9 +123,31 @@ const list = (keywords: Keyword[], max = 5) =>
   keywords.slice(0, max).map(keywordLabel).join(", ") +
   (keywords.length > max ? `, and ${keywords.length - max} more` : "");
 
+/**
+ * Keyword scoring and the edit in one answer (SCORE_AND_EDIT_SYSTEM): the
+ * two schemas side by side, each checked by the same code as when they come
+ * from separate calls.
+ */
+export const scoreAndEditSchema = z.object({
+  keywords: extractedKeywordsSchema.shape.keywords,
+  edits: editPlanSchema.shape.edits,
+});
+
+export type TailorDeps = {
+  provider: AiProvider;
+  measure: Measure;
+  /**
+   * Ask for the keywords and the edits in one strong-tier call instead of
+   * two (Fix Handoff "merge scoring+edit", built to be measured). Off unless
+   * a caller asks: nothing in the app does yet. Every check is the same
+   * either way: verifyKeywords on the keywords, applyEdits on the edits.
+   */
+  mergeScoreAndEdit?: boolean;
+};
+
 export async function tailor(
   input: TailorInput,
-  deps: { provider: AiProvider; measure: Measure },
+  deps: TailorDeps,
 ): Promise<TailorResult> {
   const { master, facts, posting } = input;
   const { provider, measure } = deps;
@@ -168,19 +193,58 @@ export async function tailor(
   }
   const postingBlock = `<posting>\nCompany: ${posting.company}\nTitle: ${posting.title}\n\n${text.slice(0, MAX_POSTING_CHARS)}\n</posting>`;
 
+  // 3. Company context.
+  const company = input.research
+    ? [
+        input.research.summary,
+        input.research.values.length
+          ? `Values: ${input.research.values.join("; ")}`
+          : "",
+        input.research.tech.length
+          ? `Technologies: ${input.research.tech.join(", ")}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n") || "(nothing found)"
+    : "(nothing found)";
+  const contextBlocks = [
+    `<company>\n${company}\n</company>`,
+    `<resume>\n${describeResume(master)}\n</resume>`,
+    `<facts>\n${describeFacts(facts)}\n</facts>`,
+  ];
+
   // 2. Baseline score. On the strong tier, not the fast one: on Gemini,
   // Flash-Lite's keyword lists didn't hold up (Design Decisions "Which
-  // Gemini model runs which step").
-  const extracted = await provider.generateStructured({
-    tier: "strong",
-    system: KEYWORDS_SYSTEM,
-    input: postingBlock,
-    schema: extractedKeywordsSchema,
-    name: "posting_keywords",
-    maxOutputTokens: 8_000,
-  });
-  calls.push({ usage: extracted.usage, tier: "strong" });
-  const keywords = verifyKeywords(extracted.data, `${posting.title}\n${text}`);
+  // Gemini model runs which step"). Merged: the edits come back in the
+  // same answer, and wait below for the same checks.
+  let extracted: ExtractedKeywords;
+  let mergedEdits: unknown[] | null = null;
+  if (deps.mergeScoreAndEdit) {
+    const both = await provider.generateStructured({
+      tier: "strong",
+      system: SCORE_AND_EDIT_SYSTEM,
+      input: [postingBlock, ...contextBlocks].join("\n\n"),
+      schema: scoreAndEditSchema,
+      name: "keywords_and_edits",
+      maxOutputTokens: 20_000,
+    });
+    calls.push({ usage: both.usage, tier: "strong" });
+    editModel = both.usage.model;
+    extracted = { keywords: both.data.keywords };
+    mergedEdits = both.data.edits;
+  } else {
+    const answer = await provider.generateStructured({
+      tier: "strong",
+      system: KEYWORDS_SYSTEM,
+      input: postingBlock,
+      schema: extractedKeywordsSchema,
+      name: "posting_keywords",
+      maxOutputTokens: 8_000,
+    });
+    calls.push({ usage: answer.usage, tier: "strong" });
+    extracted = answer.data;
+  }
+  const keywords = verifyKeywords(extracted, `${posting.title}\n${text}`);
   if (keywords.length < MIN_KEYWORDS) {
     notes.push(NOTES.fewKeywords);
     return result({ content: master });
@@ -203,36 +267,25 @@ export async function tailor(
     return `- ${keywordLabel(k)} — ${k.importance}, ${k.kind.replace("_", " ")}: ${status}`;
   });
 
-  // 3. Company context, 5. edit from the master.
-  const company = input.research
-    ? [
-        input.research.summary,
-        input.research.values.length
-          ? `Values: ${input.research.values.join("; ")}`
-          : "",
-        input.research.tech.length
-          ? `Technologies: ${input.research.tech.join(", ")}`
-          : "",
-      ]
-        .filter(Boolean)
-        .join("\n") || "(nothing found)"
-    : "(nothing found)";
-  const plan = await provider.generateStructured({
-    tier: "strong",
-    system: EDIT_SYSTEM,
-    input: [
-      postingBlock,
-      `<keywords>\n${keywordLines.join("\n")}\n</keywords>`,
-      `<company>\n${company}\n</company>`,
-      `<resume>\n${describeResume(master)}\n</resume>`,
-      `<facts>\n${describeFacts(facts)}\n</facts>`,
-    ].join("\n\n"),
-    schema: editPlanSchema,
-    name: "resume_edits",
-    maxOutputTokens: 12_000,
-  });
-  calls.push({ usage: plan.usage, tier: "strong" });
-  editModel = plan.usage.model;
+  // 5. Edit from the master (two-call flow: told each keyword's status).
+  let edits = mergedEdits;
+  if (edits === null) {
+    const plan = await provider.generateStructured({
+      tier: "strong",
+      system: EDIT_SYSTEM,
+      input: [
+        postingBlock,
+        `<keywords>\n${keywordLines.join("\n")}\n</keywords>`,
+        ...contextBlocks,
+      ].join("\n\n"),
+      schema: editPlanSchema,
+      name: "resume_edits",
+      maxOutputTokens: 12_000,
+    });
+    calls.push({ usage: plan.usage, tier: "strong" });
+    editModel = plan.usage.model;
+    edits = plan.data.edits;
+  }
 
   let content = master;
   let changes: Change[] = [];
@@ -243,7 +296,7 @@ export async function tailor(
       master,
       facts,
       keywords,
-      edits: plan.data.edits,
+      edits,
     });
     content = applied.content;
     changes = applied.changes;

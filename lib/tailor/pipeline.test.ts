@@ -251,3 +251,100 @@ describe("tailor: the pipeline end to end (fake model, fake page measure)", () =
     expect(result.content).not.toEqual(opsResume);
   });
 });
+
+/*
+ * Fix handoff "merge scoring+edit": keywords and edits from one call. The
+ * merge only changes how many calls produce the checks' input; given the
+ * same model output, everything after must come out the same.
+ */
+describe("tailor: keywords and edits in one call (mergeScoreAndEdit)", () => {
+  // The honest edits, plus one that adds a skill nobody has (Kafka: MISSING).
+  const withFabrication = () => ({
+    edits: [
+      ...honestEdits().edits,
+      e("add_list_value", "s4.l2", { text: "Kafka", keyword: "Kafka" }),
+    ],
+  });
+
+  it("makes one strong-tier call, and the checks treat its answer exactly as two calls' answers", async () => {
+    const twoCall = scriptedProvider({
+      posting_keywords: backendKeywords,
+      resume_edits: withFabrication,
+    });
+    const separate = await tailor(input, {
+      provider: twoCall.provider,
+      measure: lineMeasure(40).measure,
+    });
+    const oneCall = scriptedProvider({
+      keywords_and_edits: () => ({
+        ...backendKeywords(),
+        ...withFabrication(),
+      }),
+    });
+    const merged = await tailor(input, {
+      provider: oneCall.provider,
+      measure: lineMeasure(40).measure,
+      mergeScoreAndEdit: true,
+    });
+
+    expect(oneCall.calls.map((c) => [c.name, c.tier])).toEqual([
+      ["keywords_and_edits", "strong"],
+    ]);
+    // The one call sees what the edit step saw, minus the <keywords> block.
+    expect(oneCall.calls[0].input).toContain("<posting>");
+    expect(oneCall.calls[0].input).toContain("[s2.e1.b1]");
+    expect(oneCall.calls[0].input).toContain("<facts>");
+    expect(oneCall.calls[0].input).not.toContain("<keywords>");
+
+    // Same keywords kept (Rust isn't in the posting), same score, same
+    // edits kept, the same fabricated one dropped.
+    for (const key of [
+      "content",
+      "changes",
+      "dropped",
+      "blocked",
+      "scoreBefore",
+      "scoreAfter",
+      "matched",
+      "missing",
+      "warnings",
+      "notes",
+    ] as const) {
+      expect(merged[key]).toEqual(separate[key]);
+    }
+    expect(merged.dropped.map((d) => d.op)).toContain("add_list_value");
+    expect(JSON.stringify(merged.content)).not.toContain("Kafka");
+    expect(merged.usage.model).toBe("gemini-3.8-flash");
+    // One call's tokens, not two.
+    expect(merged.usage.inputTokens).toBe(1000);
+  });
+
+  it("too few keywords: the master resume, the answer's edits unused", async () => {
+    const { provider } = scriptedProvider({
+      keywords_and_edits: () => ({
+        keywords: [k("Python")],
+        ...honestEdits(),
+      }),
+    });
+    const result = await tailor(input, {
+      provider,
+      measure: lineMeasure(40).measure,
+      mergeScoreAndEdit: true,
+    });
+    expect(result.notes).toEqual([NOTES.fewKeywords]);
+    expect(result.content).toEqual(sweResume);
+    expect(result.changes).toEqual([]);
+  });
+
+  it("off by default: two calls", async () => {
+    const { provider, calls } = scriptedProvider({
+      posting_keywords: backendKeywords,
+      resume_edits: noEdits,
+    });
+    await tailor(input, { provider, measure: lineMeasure(40).measure });
+    expect(calls.map((c) => c.name)).toEqual([
+      "posting_keywords",
+      "resume_edits",
+    ]);
+  });
+});

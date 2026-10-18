@@ -91,20 +91,23 @@ export async function getLatestTailoring(
   };
 }
 
-/** Today's tailorings that count against the cap, and what they cost. */
+/**
+ * Today's tailorings that count against the cap, and what they cost: the
+ * day's rows (run_on), as the cap counts them, so ones "Tailor all" queued
+ * for a later day count on that day, not today.
+ */
 export async function getUsageToday(): Promise<{
   count: number;
   cost: number;
 }> {
   const supabase = await createClient();
-  const { data: start, error: startError } = await supabase.rpc(
-    "tailoring_day_start",
-  );
-  if (startError) throw new Error(`day start: ${startError.message}`);
+  const { data: today, error: todayError } =
+    await supabase.rpc("tailoring_today");
+  if (todayError) throw new Error(`today: ${todayError.message}`);
   const { data, error } = await supabase
     .from("tailorings")
     .select("est_cost")
-    .gte("created_at", start)
+    .eq("run_on", today)
     .neq("state", "failed");
   if (error) throw new Error(`usage: ${error.message}`);
   return {

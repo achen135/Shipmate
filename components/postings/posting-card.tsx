@@ -34,8 +34,15 @@ export type PostingCardData = {
   };
   /** Formatted on the server ("3h ago") so it can't differ after hydration. */
   postedLabel: string;
-  /** AI mode: tailoring in progress, or the fit score after it. */
-  tailoring: { kind: "working" } | { kind: "score"; score: number } | null;
+  /**
+   * AI mode: queued for a later day ("Tue, Oct 20"), tailoring in progress,
+   * or the fit score after it.
+   */
+  tailoring:
+    | { kind: "later"; day: string }
+    | { kind: "working" }
+    | { kind: "score"; score: number }
+    | null;
 };
 
 type Outcome =
@@ -130,6 +137,14 @@ export function PostingCard({
         )}
       </p>
       {data.tailoring?.kind === "working" && <Tailoring />}
+      {data.tailoring?.kind === "later" && (
+        <p
+          data-testid="card-tailoring-later"
+          className="mt-1 text-xs text-muted-foreground"
+        >
+          Queued to tailor on {data.tailoring.day}
+        </p>
+      )}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {outcome.kind === "idle" && mode === "inbox" && (

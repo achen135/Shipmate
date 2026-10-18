@@ -801,6 +801,7 @@ export type Database = {
           finished_at: string | null;
           id: string;
           key_source: string | null;
+          mass: boolean;
           matched: string[];
           missing: string[];
           model: string | null;
@@ -809,9 +810,11 @@ export type Database = {
           pdf_requested_at: string | null;
           posting_id: string | null;
           provider: string | null;
+          queue_rank: number;
           rate_limit_hits: number;
           rate_limited_at: string | null;
           resume_content: Json | null;
+          run_on: string;
           score_after: number | null;
           score_before: number | null;
           started_at: string | null;
@@ -836,6 +839,7 @@ export type Database = {
           finished_at?: string | null;
           id?: string;
           key_source?: string | null;
+          mass?: boolean;
           matched?: string[];
           missing?: string[];
           model?: string | null;
@@ -844,9 +848,11 @@ export type Database = {
           pdf_requested_at?: string | null;
           posting_id?: string | null;
           provider?: string | null;
+          queue_rank?: number;
           rate_limit_hits?: number;
           rate_limited_at?: string | null;
           resume_content?: Json | null;
+          run_on?: string;
           score_after?: number | null;
           score_before?: number | null;
           started_at?: string | null;
@@ -870,6 +876,7 @@ export type Database = {
           finished_at?: string | null;
           id?: string;
           key_source?: string | null;
+          mass?: boolean;
           matched?: string[];
           missing?: string[];
           model?: string | null;
@@ -878,9 +885,11 @@ export type Database = {
           pdf_requested_at?: string | null;
           posting_id?: string | null;
           provider?: string | null;
+          queue_rank?: number;
           rate_limit_hits?: number;
           rate_limited_at?: string | null;
           resume_content?: Json | null;
+          run_on?: string;
           score_after?: number | null;
           score_before?: number | null;
           started_at?: string | null;
@@ -1084,6 +1093,7 @@ export type Database = {
           finished_at: string | null;
           id: string;
           key_source: string | null;
+          mass: boolean;
           matched: string[];
           missing: string[];
           model: string | null;
@@ -1092,9 +1102,57 @@ export type Database = {
           pdf_requested_at: string | null;
           posting_id: string | null;
           provider: string | null;
+          queue_rank: number;
           rate_limit_hits: number;
           rate_limited_at: string | null;
           resume_content: Json | null;
+          run_on: string;
+          score_after: number | null;
+          score_before: number | null;
+          started_at: string | null;
+          state: string;
+          suggestions: NonNullable<Json>;
+          tokens_in: number;
+          tokens_out: number;
+          updated_at: string;
+          user_id: string;
+          user_posting_id: string;
+          warnings: NonNullable<Json>;
+        }[];
+        SetofOptions: {
+          from: "*";
+          to: "tailorings";
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
+      claim_user_tailorings: {
+        Args: { p_limit?: number; p_skip?: string[]; p_user: string };
+        Returns: {
+          attempts: number;
+          auto: boolean;
+          changes: NonNullable<Json>;
+          created_at: string;
+          edited_at: string | null;
+          error: string | null;
+          est_cost: number;
+          finished_at: string | null;
+          id: string;
+          key_source: string | null;
+          mass: boolean;
+          matched: string[];
+          missing: string[];
+          model: string | null;
+          notes: NonNullable<Json>;
+          pdf_path: string | null;
+          pdf_requested_at: string | null;
+          posting_id: string | null;
+          provider: string | null;
+          queue_rank: number;
+          rate_limit_hits: number;
+          rate_limited_at: string | null;
+          resume_content: Json | null;
+          run_on: string;
           score_after: number | null;
           score_before: number | null;
           started_at: string | null;
@@ -1242,10 +1300,21 @@ export type Database = {
           used: number;
         }[];
       };
+      tailor_all: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          already: number;
+          daily_cap: number;
+          last_day: string;
+          queued_later: number;
+          queued_today: number;
+        }[];
+      };
       tailoring_day_start: {
         Args: Record<PropertyKey, never>;
         Returns: string;
       };
+      tailoring_today: { Args: Record<PropertyKey, never>; Returns: string };
       touch_seen: { Args: { p_link_ids: string[] }; Returns: undefined };
       update_links: { Args: { p_links: Json }; Returns: undefined };
       worker_shared_ai_key: {

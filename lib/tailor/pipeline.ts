@@ -103,6 +103,74 @@ export type TailorResult = {
 
 /** Posting text sent to the model: plenty for any real posting. */
 const MAX_POSTING_CHARS = 15_000;
+
+/**
+ * The posting as the model reads it (inside a <posting> tag the caller
+ * writes), or null when there's too little text to tailor against.
+ */
+export function postingBody(posting: TailorInput["posting"]): string | null {
+  const text = (posting.text ?? "").trim();
+  if (text.length < MIN_POSTING_CHARS) return null;
+  return `Company: ${posting.company}\nTitle: ${posting.title}\n\n${text.slice(0, MAX_POSTING_CHARS)}`;
+}
+
+/** What the company's own pages say, as the model reads it (<company>). */
+export function companyBody(research: CompanyContext | null): string {
+  if (!research) return "(nothing found)";
+  return (
+    [
+      research.summary,
+      research.values.length ? `Values: ${research.values.join("; ")}` : "",
+      research.tech.length ? `Technologies: ${research.tech.join(", ")}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n") || "(nothing found)"
+  );
+}
+
+/**
+ * Each verified keyword marked ON RESUME, IN FACTS (with the fact's id) or
+ * MISSING: the edit step's <keywords>. Matched on the resume's own spelling
+ * only, never the model's variants (§0a).
+ */
+export function keywordLines(
+  keywords: Keyword[],
+  master: ResumeContent,
+  facts: Fact[],
+): string[] {
+  const masterText = resumeToText(master);
+  return keywords.map((k) => {
+    const fact = factFor(facts, k);
+    const status = hasKeyword(masterText, k)
+      ? "ON RESUME"
+      : fact !== -1
+        ? `IN FACTS ${factId(fact)}`
+        : "MISSING";
+    // An "or" list: "Bachelor's or Master's or PhD", any one of them counts.
+    return `- ${keywordLabel(k)} — ${k.importance}, ${k.kind.replace("_", " ")}: ${status}`;
+  });
+}
+
+/**
+ * Step 2's request: one posting's keywords, on the strong tier. On Gemini,
+ * Flash-Lite's keyword lists didn't hold up (Design Decisions "Which Gemini
+ * model runs which step"), and asking for several postings' at once listed
+ * fewer of each (M9 §0), so it's always one posting per request.
+ */
+export function askKeywords(provider: AiProvider, body: string) {
+  return provider.generateStructured({
+    tier: "strong",
+    system: KEYWORDS_SYSTEM,
+    input: `<posting>\n${body}\n</posting>`,
+    schema: extractedKeywordsSchema,
+    name: "posting_keywords",
+    maxOutputTokens: 8_000,
+  });
+}
+
+/** The first fact that writes this keyword, or -1. */
+const factFor = (facts: Fact[], k: Keyword) =>
+  facts.findIndex((f) => hasKeyword(`${f.text}\n${f.detail}`, k));
 /** Below this after tailoring, the report says it's not a strong match. */
 export const LOW_SCORE = 50;
 
@@ -186,29 +254,17 @@ export async function tailor(
   };
 
   // 1. Posting text.
-  const text = (posting.text ?? "").trim();
-  if (text.length < MIN_POSTING_CHARS) {
+  const body = postingBody(posting);
+  if (body === null) {
     notes.push(NOTES.noText);
     return result({ content: master });
   }
-  const postingBlock = `<posting>\nCompany: ${posting.company}\nTitle: ${posting.title}\n\n${text.slice(0, MAX_POSTING_CHARS)}\n</posting>`;
+  const text = (posting.text ?? "").trim();
+  const postingBlock = `<posting>\n${body}\n</posting>`;
 
   // 3. Company context.
-  const company = input.research
-    ? [
-        input.research.summary,
-        input.research.values.length
-          ? `Values: ${input.research.values.join("; ")}`
-          : "",
-        input.research.tech.length
-          ? `Technologies: ${input.research.tech.join(", ")}`
-          : "",
-      ]
-        .filter(Boolean)
-        .join("\n") || "(nothing found)"
-    : "(nothing found)";
   const contextBlocks = [
-    `<company>\n${company}\n</company>`,
+    `<company>\n${companyBody(input.research)}\n</company>`,
     `<resume>\n${describeResume(master)}\n</resume>`,
     `<facts>\n${describeFacts(facts)}\n</facts>`,
   ];
@@ -233,14 +289,7 @@ export async function tailor(
     extracted = { keywords: both.data.keywords };
     mergedEdits = both.data.edits;
   } else {
-    const answer = await provider.generateStructured({
-      tier: "strong",
-      system: KEYWORDS_SYSTEM,
-      input: postingBlock,
-      schema: extractedKeywordsSchema,
-      name: "posting_keywords",
-      maxOutputTokens: 8_000,
-    });
+    const answer = await askKeywords(provider, body);
     calls.push({ usage: answer.usage, tier: "strong" });
     extracted = answer.data;
   }
@@ -253,19 +302,7 @@ export async function tailor(
   const before = scoreText(keywords, masterText);
 
   // 4. Gap check against the fact bank.
-  const factFor = (k: Keyword) =>
-    facts.findIndex((f) => hasKeyword(`${f.text}\n${f.detail}`, k));
-  const missing = before.missing.filter((k) => factFor(k) === -1);
-  const keywordLines = keywords.map((k) => {
-    const status = hasKeyword(masterText, k)
-      ? "ON RESUME"
-      : factFor(k) !== -1
-        ? `IN FACTS ${factId(factFor(k))}`
-        : "MISSING";
-    // No "(also: …)": the model's variants aren't proof of anything (§0a).
-    // An "or" list: "Bachelor's or Master's or PhD", any one of them counts.
-    return `- ${keywordLabel(k)} — ${k.importance}, ${k.kind.replace("_", " ")}: ${status}`;
-  });
+  const missing = before.missing.filter((k) => factFor(facts, k) === -1);
 
   // 5. Edit from the master (two-call flow: told each keyword's status).
   let edits = mergedEdits;
@@ -275,7 +312,7 @@ export async function tailor(
       system: EDIT_SYSTEM,
       input: [
         postingBlock,
-        `<keywords>\n${keywordLines.join("\n")}\n</keywords>`,
+        `<keywords>\n${keywordLines(keywords, master, facts).join("\n")}\n</keywords>`,
         ...contextBlocks,
       ].join("\n\n"),
       schema: editPlanSchema,

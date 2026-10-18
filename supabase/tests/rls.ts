@@ -2627,6 +2627,184 @@ async function testTailorings(a: TestUser, b: TestUser): Promise<void> {
   await admin.from("tailorings").delete().in("user_id", [a.id, b.id]);
 }
 
+async function testTailorAll(a: TestUser, b: TestUser): Promise<void> {
+  console.log(
+    "\ntailor_all (M9): today up to the cap, then later days; priority first; the worker waits for a row's day",
+  );
+
+  await admin
+    .from("profiles")
+    .update({ mode: "ai", daily_cap: 2 })
+    .in("user_id", [a.id, b.id]);
+  const titles = [
+    "TA1",
+    "TA2",
+    "TA3 done",
+    "TA4 priority",
+    "TA5 closed",
+    "TA6",
+  ];
+  const postings = await Promise.all(titles.map((t) => seedPosting(t)));
+  const [p1, , , p4, p5] = postings;
+  const rows: string[] = [];
+  for (const p of postings) rows.push(await inboxRow(a.id, p));
+  const [r1, r2, r3, r4, r5, r6] = rows;
+  const bSaved = await inboxRow(b.id, p1);
+
+  // Saved one after another, so the save order is known: r1, r2, r3, r4, r5.
+  for (const r of [r1, r2, r3, r4, r5]) {
+    await admin.from("user_postings").update({ status: "saved" }).eq("id", r);
+  }
+  await admin
+    .from("user_postings")
+    .update({ status: "saved" })
+    .eq("id", bSaved);
+  await admin.from("postings").update({ status: "closed" }).eq("id", p5);
+  const { data: company } = await admin
+    .from("postings")
+    .select("company_id")
+    .eq("id", p4)
+    .single();
+  await admin
+    .from("follows")
+    .insert({ user_id: a.id, company_id: company!.company_id, priority: true });
+
+  // r3 was tailored before (yesterday); r6 (not saved) was queued today.
+  const done = await admin
+    .from("tailorings")
+    .insert({ user_id: a.id, user_posting_id: r3 })
+    .select("id")
+    .single();
+  const { data: today } = await admin.rpc("tailoring_today");
+  const yesterday = new Date(`${today}T12:00:00Z`);
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+  const dayAfter = (n: number) => {
+    const d = new Date(`${today}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
+  };
+  await admin
+    .from("tailorings")
+    .update({ state: "done", run_on: yesterday.toISOString().slice(0, 10) })
+    .eq("id", done.data!.id);
+  const one = await a.client.from("tailorings").insert({ user_posting_id: r6 });
+  eq("A queues one today with Tailor this (1 of 2)", one.error, null);
+
+  const all = await a.client.rpc("tailor_all");
+  eq("A runs Tailor all", all.error, null);
+  const result = all.data?.[0];
+  eq("…one fits today (cap 2, one used)", result?.queued_today, 1);
+  eq("…two wait for later days", result?.queued_later, 2);
+  eq("…the last of them tomorrow (cap 2 a day)", result?.last_day, dayAfter(1));
+  eq("…one was already tailored", result?.already, 1);
+  eq("…and says the cap", result?.daily_cap, 2);
+
+  const { data: queued } = await admin
+    .from("tailorings")
+    .select("user_posting_id, run_on, mass, queue_rank, state")
+    .eq("user_id", a.id)
+    .eq("mass", true)
+    .order("queue_rank");
+  eq(
+    "priority company first, today; then in the order saved, tomorrow",
+    JSON.stringify(queued?.map((t) => [t.user_posting_id, t.run_on])),
+    JSON.stringify([
+      [r4, today],
+      [r1, dayAfter(1)],
+      [r2, dayAfter(1)],
+    ]),
+  );
+  check(
+    "a closed posting and one already tailored aren't queued",
+    !queued?.some((t) => t.user_posting_id === r5 || t.user_posting_id === r3),
+  );
+  const { data: bRows } = await admin
+    .from("tailorings")
+    .select("id")
+    .eq("user_id", b.id);
+  eq("B's saved postings are B's own business", bRows?.length ?? 0, 0);
+
+  const again = await a.client.rpc("tailor_all");
+  eq(
+    "Tailor all again queues nothing new",
+    `${again.data?.[0]?.queued_today}/${again.data?.[0]?.queued_later}`,
+    "0/0",
+  );
+  const extra = await a.client
+    .from("tailorings")
+    .insert({ user_posting_id: r5 });
+  check(
+    "today is full now: Tailor this is refused (the cap counts the day's rows)",
+    extra.error !== null && /Daily cap reached/.test(extra.error.message),
+  );
+  const forged = await a.client
+    .from("tailorings")
+    .insert({ user_posting_id: r5, run_on: dayAfter(30) } as never);
+  check("A can't pick a day themselves", forged.error !== null);
+
+  const bClaim = await b.client.rpc(
+    "claim_user_tailorings" as never,
+    {
+      p_user: a.id,
+    } as never,
+  );
+  check("B can't claim A's rows like the worker", bClaim.error !== null);
+  const claimed: string[] = [];
+  for (;;) {
+    const { data } = await admin.rpc("claim_tailoring", { p_skip: [] });
+    if (!data?.length) break;
+    claimed.push(data[0].user_posting_id);
+  }
+  check(
+    "the worker takes today's rows…",
+    claimed.includes(r4) && claimed.includes(r6),
+  );
+  check("…and not tomorrow's", !claimed.includes(r1) && !claimed.includes(r2));
+
+  // Tomorrow comes: the worker takes A's rows together, up to its limit.
+  await admin
+    .from("tailorings")
+    .update({ run_on: today! })
+    .eq("user_id", a.id)
+    .eq("mass", true);
+  await admin
+    .from("tailorings")
+    .update({ state: "queued" })
+    .eq("user_id", a.id)
+    .eq("state", "running");
+  const first = await admin.rpc("claim_tailoring", { p_skip: [] });
+  const more = await admin.rpc("claim_user_tailorings", {
+    p_user: a.id,
+    p_skip: [first.data![0].id],
+    p_limit: 2,
+  });
+  eq("claim_user_tailorings takes up to the limit", more.data?.length, 2);
+  check(
+    "…of that user's rows, marked running",
+    (more.data ?? []).every((t) => t.user_id === a.id && t.state === "running"),
+  );
+
+  await admin.from("profiles").update({ daily_cap: 0 }).eq("user_id", a.id);
+  const zero = await a.client.rpc("tailor_all");
+  check("a cap of 0 queues nothing", zero.error !== null);
+  await admin
+    .from("profiles")
+    .update({ mode: "simple", daily_cap: 2 })
+    .eq("user_id", a.id);
+  const simple = await a.client.rpc("tailor_all");
+  check(
+    "Simple mode can't",
+    simple.error !== null && /AI mode/.test(simple.error.message),
+  );
+  const outsider = await makeUser("tailor-all-outsider");
+  const notInvited = await outsider.client.rpc("tailor_all");
+  check("someone not invited can't", notInvited.error !== null);
+
+  await admin.from("profiles").update({ mode: "ai" }).eq("user_id", a.id);
+  await admin.from("tailorings").delete().in("user_id", [a.id, b.id]);
+  await admin.from("follows").delete().eq("user_id", a.id);
+}
+
 async function testResumeUsed(a: TestUser, b: TestUser): Promise<void> {
   console.log(
     "\nresume_used: recorded only through record_resume_used, for the user's own file",
@@ -3036,6 +3214,7 @@ async function main(): Promise<void> {
     await testFactBank(a, b);
     await testCompanyResearch(a);
     await testTailorings(a, b);
+    await testTailorAll(a, b);
     await testResumeUsed(a, b);
     await testExtension(a, b);
   } finally {

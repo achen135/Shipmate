@@ -12,7 +12,7 @@ const POSTING_FIELDS =
 
 /** With the latest tailoring (AI mode), for the card's spinner and fit score. */
 const ITEM_FIELDS =
-  `id, status, skip_reason, seen_at, created_at, posting:postings!inner(${POSTING_FIELDS}), tailorings(state, score_after, created_at)` as const;
+  `id, status, skip_reason, seen_at, created_at, posting:postings!inner(${POSTING_FIELDS}), tailorings(state, score_after, created_at, run_on)` as const;
 
 /** The Inbox shows at most this many; triage brings older ones into view. */
 export const LIST_LIMIT = 300;

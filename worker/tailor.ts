@@ -54,7 +54,9 @@ import { parseContent } from "@/lib/resume/structured";
 import { factFromRow, type Fact } from "@/lib/schemas/fact-bank";
 import { reviewWarnings } from "@/lib/review/warnings";
 import type { Json } from "@/lib/supabase/database.types";
-import { tailor } from "@/lib/tailor/pipeline";
+import { BATCH_SIZE, tailorBatch } from "@/lib/tailor/batch";
+import { tailoringDay } from "@/lib/tailor/mass";
+import { type TailorResult, tailor } from "@/lib/tailor/pipeline";
 import { fetchPostingText } from "@/lib/tailor/posting-text";
 import {
   type CompanyResearch,
@@ -174,6 +176,9 @@ async function tidyQueue(db: Db, now: number): Promise<void> {
         .eq("state", "queued")
         .not("rate_limited_at", "is", null)
         .lt("created_at", new Date(now - GIVE_UP_WAITING_MS).toISOString())
+        // Counted from the row's own day: one "Tailor all" queued for a
+        // later day has been waiting since that day, not since it was made.
+        .lt("run_on", tailoringDay(now - GIVE_UP_WAITING_MS))
     ).error,
   );
 }
@@ -224,7 +229,11 @@ async function loadResearch(
   return { research, usage };
 }
 
-async function tailorOne(
+/** Everything a row's tailoring needs before the AI's edit work. */
+type Prepared = Awaited<ReturnType<typeof prepareRow>>;
+
+/** Load what the row needs, fetch the posting's text, research the company. */
+async function prepareRow(
   db: Db,
   row: Row,
   provider: AiProvider,
@@ -321,9 +330,13 @@ async function tailorOne(
     researchUsage = loaded.usage;
   }
 
-  // 2, 4-8.
-  const result = await tailor(
-    {
+  return {
+    row,
+    person,
+    posting,
+    text,
+    researchUsage,
+    input: {
       master,
       facts: factList,
       posting: {
@@ -333,8 +346,19 @@ async function tailorOne(
       },
       research,
     },
-    { provider, measure: options.printer.measure },
-  );
+  };
+}
+
+/** The PDF, the warnings and the saved result, for a tailored row. */
+async function finishRow(
+  db: Db,
+  prepared: Prepared,
+  result: TailorResult,
+  provider: AiProvider,
+  options: DrainOptions,
+  how: "alone" | "batch",
+) {
+  const { row, person, posting, text, researchUsage } = prepared;
   if (result.blocked.length > 0) {
     // A bug in the edit checks, caught by the final one: loud, never shown.
     options.warn(
@@ -415,8 +439,23 @@ async function tailorOne(
   );
   await removeOldPrints(db, row.user_id, posting.id, pdfPath);
   console.log(
-    `[tailor] ${row.id}: done, ${result.scoreBefore ?? "-"} → ${result.scoreAfter ?? "-"}, ${result.changes.length} changes, ${result.dropped.length} edits dropped, second look ${result.secondLook} (${result.suggestions.length}), ${inTokens}/${outTokens} tokens (${provider.shared ? (provider.backup ? "shared backup" : "shared") : "own"} ${provider.name})`,
+    `[tailor] ${row.id}: done, ${result.scoreBefore ?? "-"} → ${result.scoreAfter ?? "-"}, ${result.changes.length} changes, ${result.dropped.length} edits dropped, second look ${result.secondLook} (${result.suggestions.length}), ${inTokens}/${outTokens} tokens (${provider.shared ? (provider.backup ? "shared backup" : "shared") : "own"} ${provider.name}, ${how})`,
   );
+}
+
+/** One row on its own: prepare, the pipeline, finish. */
+async function tailorOne(
+  db: Db,
+  row: Row,
+  provider: AiProvider,
+  options: DrainOptions,
+) {
+  const prepared = await prepareRow(db, row, provider, options);
+  const result = await tailor(prepared.input, {
+    provider,
+    measure: options.printer.measure,
+  });
+  await finishRow(db, prepared, result, provider, options, "alone");
 }
 
 /** A new path for every print: {user}/{posting}/{stamp}.pdf. */
@@ -533,40 +572,179 @@ export async function drainTailorings(
 
   const skip: string[] = [];
   const quota: SharedQuota = { mainBusy: false, backupBusy: false };
+
+  const update = async (label: string, id: string, values: object) =>
+    check(
+      label,
+      (await db.from("tailorings").update(values).eq("id", id)).error,
+    );
+  const requeue = (row: Row, extra: Record<string, unknown> = {}) =>
+    update("requeue tailoring", row.id, {
+      state: "queued",
+      started_at: null,
+      ...extra,
+    });
+  const fail = async (row: Row, message: string) => {
+    stats.failed += 1;
+    await update("fail tailoring", row.id, {
+      state: "failed",
+      error: message.slice(0, 500),
+      finished_at: new Date().toISOString(),
+    });
+  };
+
+  /** What a row's error means: failed, queued again, or left to wait. */
+  const settle = async (
+    row: Row,
+    error: unknown,
+    provider: AiProvider | null,
+  ) => {
+    if (isRateLimited(error)) {
+      stats.rateLimited += 1;
+      if (provider?.shared) {
+        // Main and backup both: no more shared-key rows this run.
+        quota.mainBusy = true;
+        quota.backupBusy = true;
+      }
+      options.warn(
+        `tailoring ${row.id}: ${provider?.shared ? "shared (main and backup)" : "own"} ${provider?.name ?? ""} key rate-limited (${error.status ?? ""}); left queued for the next run`,
+      );
+      await requeue(row, {
+        attempts: Math.max(0, row.attempts - 1),
+        rate_limited_at: new Date().toISOString(),
+        rate_limit_hits: row.rate_limit_hits + 1,
+        key_source: provider?.shared ? "shared" : "own",
+      });
+      return;
+    }
+    if (error instanceof MasterKeyError) {
+      // The worker's setup, not the user's problem: wait for the secret.
+      options.warn(
+        `tailoring ${row.id}: ${error.message} Add it as a repository secret; left queued.`,
+      );
+      stats.deferred += 1;
+      await requeue(row, { attempts: Math.max(0, row.attempts - 1) });
+      return;
+    }
+    if (error instanceof UserFixable) return fail(row, error.message);
+    if (error instanceof NoKeyError || error instanceof KeyDecryptError) {
+      return fail(row, error.message);
+    }
+    if (error instanceof AiError && PERMANENT.has(error.code)) {
+      console.warn(`[tailor] ${row.id}: ${error.code} ${error.status ?? ""}`);
+      return fail(row, error.message);
+    }
+    const label =
+      error instanceof AiError
+        ? `${error.code} ${error.status ?? ""}`
+        : error instanceof Error
+          ? `${error.name}: ${error.message.slice(0, 200)}`
+          : "unknown";
+    console.error(
+      `[tailor] ${row.id}: attempt ${row.attempts} failed: ${label}`,
+    );
+    if (row.attempts >= MAX_ATTEMPTS) {
+      await fail(row, error instanceof AiError ? error.message : FIX.crashed);
+    } else {
+      stats.requeued += 1;
+      await requeue(row);
+    }
+  };
+
+  /**
+   * Run `work` on the provider; if the shared key's main model says 429 or
+   * 503, once more on its backup (its own quota), now. Returns the provider
+   * that finished it.
+   */
+  const withBackup = async (
+    provider: AiProvider,
+    row: Row,
+    work: (provider: AiProvider) => Promise<void>,
+  ): Promise<AiProvider> => {
+    try {
+      await work(provider);
+      return provider;
+    } catch (error) {
+      if (!(isRateLimited(error) && provider.shared && !provider.backup)) {
+        throw error;
+      }
+      quota.mainBusy = true;
+      options.warn(
+        `tailoring ${row.id}: shared key's main model rate-limited (${error.status ?? ""}); trying the backup model for the rest of this run`,
+      );
+      const backup = await getProvider(options.keys, row.user_id, {
+        sharedBackup: true,
+      });
+      await work(backup);
+      return backup;
+    }
+  };
+
+  /**
+   * Several of one user's rows on Gemini (M9): each prepared on its own,
+   * then one batched edit request (lib/tailor/batch.ts), then each finished
+   * on its own. A row that fails to prepare or finish is settled alone; an
+   * error in the batch's requests settles every row in it.
+   */
+  const tailorGroup = async (rows: Row[], provider: AiProvider) => {
+    const prepared: Prepared[] = [];
+    for (const row of rows) {
+      try {
+        prepared.push(await prepareRow(db, row, provider, options));
+      } catch (error) {
+        await settle(row, error, provider);
+      }
+    }
+    if (prepared.length === 0) return;
+    let results: TailorResult[] = [];
+    let used = provider;
+    try {
+      used = await withBackup(provider, prepared[0].row, async (p) => {
+        const run = await tailorBatch(
+          {
+            master: prepared[0].input.master,
+            facts: prepared[0].input.facts,
+            postings: prepared.map((x) => ({
+              id: x.row.id,
+              posting: x.input.posting,
+              research: x.input.research,
+            })),
+          },
+          { provider: p, measure: options.printer.measure },
+        );
+        if (run.problems.length > 0) {
+          options.warn(
+            `tailoring batch of ${prepared.length}: ${run.problems.join("; ")} (asked alone instead)`,
+          );
+        }
+        results = run.outcomes.map((o) => {
+          // Keywords are asked per posting, so every outcome is done.
+          if (o.status !== "done") throw new Error(`batch: ${o.reason}`);
+          return o.result;
+        });
+      });
+    } catch (error) {
+      for (const x of prepared) await settle(x.row, error, used);
+      return;
+    }
+    for (const [i, x] of prepared.entries()) {
+      try {
+        await finishRow(db, x, results[i], used, options, "batch");
+        stats.done += 1;
+        if (used.backup) stats.onBackup += 1;
+      } catch (error) {
+        await settle(x.row, error, used);
+      }
+    }
+  };
+
   while (Date.now() < options.deadline) {
     const row = await claim(db, skip);
     if (!row) break;
     skip.push(row.id);
 
-    const fail = async (message: string) => {
-      stats.failed += 1;
-      check(
-        "fail tailoring",
-        (
-          await db
-            .from("tailorings")
-            .update({
-              state: "failed",
-              error: message.slice(0, 500),
-              finished_at: new Date().toISOString(),
-            })
-            .eq("id", row.id)
-        ).error,
-      );
-    };
-    const requeue = async (extra: Record<string, unknown> = {}) => {
-      check(
-        "requeue tailoring",
-        (
-          await db
-            .from("tailorings")
-            .update({ state: "queued", started_at: null, ...extra })
-            .eq("id", row.id)
-        ).error,
-      );
-    };
-
     let provider: AiProvider | null = null;
+    let group: Row[] = [row];
     try {
       provider = await getProvider(options.keys, row.user_id, {
         sharedBackup: sharedModel(quota) === "backup",
@@ -574,84 +752,42 @@ export async function drainTailorings(
       if (provider.shared && sharedModel(quota) === "wait") {
         // Not this run: put it back without spending an attempt.
         stats.deferred += 1;
-        await requeue({ attempts: Math.max(0, row.attempts - 1) });
+        await requeue(row, { attempts: Math.max(0, row.attempts - 1) });
         continue;
       }
-      try {
-        await tailorOne(db, row, provider, options);
-      } catch (error) {
-        if (!(isRateLimited(error) && provider.shared && !provider.backup)) {
-          throw error;
-        }
-        // Flash said 429 or 503 (twice, counting the SDK's retry): the
-        // backup model has its own quota, so try this row again there, now.
-        quota.mainBusy = true;
-        options.warn(
-          `tailoring ${row.id}: shared key's main model rate-limited (${error.status ?? ""}); trying the backup model for the rest of this run`,
-        );
-        provider = await getProvider(options.keys, row.user_id, {
-          sharedBackup: true,
+      // Gemini: the user's other runnable rows go in the same batch. Only
+      // Gemini, where it was measured and where requests a day are the
+      // limit (Design Decisions "Mass apply": measured and decided).
+      if (provider.name === "google") {
+        const { data, error } = await db.rpc("claim_user_tailorings", {
+          p_user: row.user_id,
+          p_skip: skip,
+          p_limit: BATCH_SIZE - 1,
         });
-        await tailorOne(db, row, provider, options);
+        check("claim more tailorings", error);
+        const more = (data ?? []) as Row[];
+        skip.push(...more.map((m) => m.id));
+        group = [row, ...more];
       }
-      stats.done += 1;
-      if (provider.backup) stats.onBackup += 1;
     } catch (error) {
-      if (isRateLimited(error)) {
-        stats.rateLimited += 1;
-        if (provider?.shared) {
-          // Main and backup both: no more shared-key rows this run.
-          quota.mainBusy = true;
-          quota.backupBusy = true;
-        }
-        options.warn(
-          `tailoring ${row.id}: ${provider?.shared ? "shared (main and backup)" : "own"} ${provider?.name ?? ""} key rate-limited (${error.status ?? ""}); left queued for the next run`,
-        );
-        await requeue({
-          attempts: Math.max(0, row.attempts - 1),
-          rate_limited_at: new Date().toISOString(),
-          rate_limit_hits: row.rate_limit_hits + 1,
-          key_source: provider?.shared ? "shared" : "own",
-        });
-        continue;
-      }
-      if (error instanceof MasterKeyError) {
-        // The worker's setup, not the user's problem: wait for the secret.
-        options.warn(
-          `tailoring ${row.id}: ${error.message} Add it as a repository secret; left queued.`,
-        );
-        stats.deferred += 1;
-        await requeue({ attempts: Math.max(0, row.attempts - 1) });
-        continue;
-      }
-      if (error instanceof UserFixable) {
-        await fail(error.message);
-        continue;
-      }
-      if (error instanceof NoKeyError || error instanceof KeyDecryptError) {
-        await fail(error.message);
-        continue;
-      }
-      if (error instanceof AiError && PERMANENT.has(error.code)) {
-        console.warn(`[tailor] ${row.id}: ${error.code} ${error.status ?? ""}`);
-        await fail(error.message);
-        continue;
-      }
-      const label =
-        error instanceof AiError
-          ? `${error.code} ${error.status ?? ""}`
-          : error instanceof Error
-            ? `${error.name}: ${error.message.slice(0, 200)}`
-            : "unknown";
-      console.error(
-        `[tailor] ${row.id}: attempt ${row.attempts} failed: ${label}`,
+      for (const r of group) await settle(r, error, provider);
+      continue;
+    }
+
+    if (group.length > 1) {
+      await tailorGroup(group, provider);
+      continue;
+    }
+    try {
+      const used = await withBackup(provider, row, (p) =>
+        tailorOne(db, row, p, options),
       );
-      if (row.attempts >= MAX_ATTEMPTS) {
-        await fail(error instanceof AiError ? error.message : FIX.crashed);
-      } else {
-        stats.requeued += 1;
-        await requeue();
-      }
+      stats.done += 1;
+      if (used.backup) stats.onBackup += 1;
+    } catch (error) {
+      // A 429 from the backup reaches here with the main provider in hand;
+      // the shared key is marked busy for the rest of the run either way.
+      await settle(row, error, provider);
     }
   }
 

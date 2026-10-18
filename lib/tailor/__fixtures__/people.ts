@@ -276,7 +276,9 @@ export const summaryFacts: Fact[] = [
 export const dataPosting = {
   title: "Data Science Intern",
   company: "Metro Analytics",
-  text: `Metro Analytics is looking for a Data Science Intern.
+  // Over MIN_POSTING_CHARS (400), so the pipeline really scores and edits
+  // for this person; at 396 characters it stopped at "not enough text".
+  text: `Metro Analytics is looking for a Data Science Intern to join the transit forecasting team.
 
 You will
 - Clean and analyze large datasets with Python, pandas and SQL

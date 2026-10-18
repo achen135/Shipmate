@@ -2,20 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import type { AiProvider } from "@/lib/ai/types";
 import type { ResumeContent } from "@/lib/resume/structured";
-import type { Fact } from "@/lib/schemas/fact-bank";
 
+import { assertNothingInvented } from "./__fixtures__/invented";
 import { PEOPLE } from "./__fixtures__/people";
 import { lineMeasure, scriptedProvider } from "./__fixtures__/fake-provider";
 import { EDIT_OPS, StructureChangeError, applyEdits } from "./edits";
-import { tailor } from "./pipeline";
+import { NOTES, tailor } from "./pipeline";
 import { type Keyword, verifyKeywords } from "./score";
-import {
-  hasWord,
-  isFunctionWord,
-  keySet,
-  looksFactual,
-  tokenize,
-} from "./text";
 import { untraceable } from "./trace";
 import {
   bulletId,
@@ -53,70 +46,6 @@ type Person = (typeof PEOPLE)[number];
  * hard rule 2 when it's only time.
  */
 const FUZZ_TIMEOUT_MS = 30_000;
-
-function linesOf(content: ResumeContent): string[] {
-  return corpusLines(content, []);
-}
-
-function assertNothingInvented(
-  person: Pick<Person, "resume" | "facts" | "posting">,
-  output: ResumeContent,
-) {
-  const { resume: master, facts, posting } = person;
-
-  // 1.
-  expect(untraceable(master, facts as Fact[], output)).toEqual([]);
-
-  // 2.
-  const own = keySet(...corpusLines(master, facts as Fact[]));
-  const postingOnly = new Set(
-    [...keySet(posting.title, posting.text)].filter(
-      (k) => !isFunctionWord(k) && !hasWord(own, k),
-    ),
-  );
-  for (const line of linesOf(output)) {
-    for (const token of tokenize(line)) {
-      expect(
-        postingOnly.has(token.key),
-        `“${token.raw}” in “${line}” comes from the posting, not the person`,
-      ).toBe(false);
-    }
-  }
-
-  // 3.
-  const factWords = keySet(...facts.flatMap((f) => [f.text, f.detail]));
-  output.sections.forEach((section, s) => {
-    const original = master.sections[s];
-    if (section.layout !== "entries" || original.layout !== "entries") return;
-    for (const entry of section.items) {
-      const source = original.items.find((o) => o.heading === entry.heading);
-      const entryWords = source
-        ? keySet(
-            source.heading,
-            source.subheading,
-            source.dates,
-            source.location,
-            ...source.bullets,
-          )
-        : new Set<string>();
-      for (const bullet of entry.bullets) {
-        for (const token of tokenize(bullet)) {
-          if (!looksFactual(token)) continue;
-          expect(
-            hasWord(entryWords, token.key) || hasWord(factWords, token.key),
-            `“${token.raw}” in “${bullet}” isn't from ${entry.heading} or a fact`,
-          ).toBe(true);
-        }
-      }
-    }
-  });
-
-  // 4.
-  expect(output.header).toEqual(master.header);
-  expect(output.sections.map((s) => [s.title, s.layout])).toEqual(
-    master.sections.map((s) => [s.title, s.layout]),
-  );
-}
 
 /** Every keyword-ish phrase in the posting: what a greedy model would add. */
 function postingPhrases(posting: Person["posting"]): string[] {
@@ -252,6 +181,10 @@ describe.each(PEOPLE.map((p) => [p.name, p] as const))(
         },
         { provider, measure: lineMeasure(12).measure },
       );
+      // The edit step really ran: a posting under MIN_POSTING_CHARS stops at
+      // "not enough text" and would make this test pass without testing.
+      expect(result.notes).not.toContain(NOTES.noText);
+      expect(result.changes.length + result.dropped.length).toBeGreaterThan(0);
       expect(result.blocked).toEqual([]);
       assertNothingInvented(person, result.content);
       // And the "why" of every change is code-written, from the posting's

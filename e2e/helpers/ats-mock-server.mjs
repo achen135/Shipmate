@@ -149,6 +149,9 @@ createServer((request, response) => {
         title: `Mock Systems Intern ${job[1]}`,
         company_name: "Harbor Mock Co",
         location: { name: "Boston, MA" },
+        // The posting text, HTML-escaped as Greenhouse sends it (the worker's
+        // prefetch of saved postings' text reads this).
+        content: "&lt;p&gt;About the role &amp;amp; the team.&lt;/p&gt;",
         ...(url.searchParams.get("questions") === "true"
           ? {
               questions: mockQuestions,

@@ -1,5 +1,6 @@
-import { Send } from "lucide-react";
+import { ListChecks, Send } from "lucide-react";
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { EmptyState } from "@/components/app/empty-state";
 import { PageHeader } from "@/components/app/page-header";
@@ -52,6 +53,16 @@ export default async function ToApplyPage() {
         </p>
       </div>
       {plan && <TailorAll {...plan} />}
+      {open.some((i) => i.tailorings[0]?.state === "done") && (
+        <Link
+          href="/to-apply/review"
+          data-testid="fast-review-link"
+          className="flex items-center gap-2 text-sm underline underline-offset-4"
+        >
+          <ListChecks aria-hidden="true" className="size-4" />
+          Review tailored results quickly
+        </Link>
+      )}
       {open.length > 0 && (
         <ul aria-label="Open" className="flex flex-col gap-3">
           {open.map((item) => (

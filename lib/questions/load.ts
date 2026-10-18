@@ -1,8 +1,10 @@
 import "server-only";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
 import { withE2eOrigin } from "@/lib/e2e-origin";
+import type { Database } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 
 import { questionsAreFresh } from "./cache";
@@ -26,7 +28,7 @@ export type LoadedQuestions = {
   questions: RawQuestion[];
 };
 
-type PostingForQuestions = {
+export type PostingForQuestions = {
   id: string;
   url: string;
   canonical_url: string;
@@ -45,6 +47,9 @@ const isStatus = (value: string | null): value is QuestionsStatus =>
 
 export async function loadQuestions(
   posting: PostingForQuestions,
+  // A client made earlier in the request: prefetch.ts runs after the response
+  // has gone, when the cookies it would read are no longer there.
+  client?: SupabaseClient<Database>,
 ): Promise<LoadedQuestions> {
   const status = isStatus(posting.questions_status)
     ? posting.questions_status
@@ -59,7 +64,7 @@ export async function loadQuestions(
     };
   }
 
-  const supabase = await createClient();
+  const supabase = client ?? (await createClient());
   const { data } = await supabase.rpc("posting_boards", {
     p_posting_id: posting.id,
   });

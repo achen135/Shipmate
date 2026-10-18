@@ -773,6 +773,68 @@ describe("getProvider", () => {
     expect(own.backup).toBeFalsy();
   });
 
+  it("counts each successful call on the shared key, and only those", async () => {
+    const answer = geminiResponse(JSON.stringify({ title: "Hi", count: 2 }));
+    const { impl } = fakeFetch(() => ({ body: answer }));
+    const { db, rpc } = fakeDb(null);
+    const provider = await getProvider(serviceRoleKeySources(db), userId, {
+      env,
+      fetch: impl,
+    });
+    await provider.generateStructured({ ...request, tier: "strong" });
+    expect(rpc).toHaveBeenCalledWith("record_shared_ai_call", {
+      p_model: "gemini-3.8-flash",
+    });
+    expect(provider.shared).toBe(true);
+
+    // A call that fails isn't counted.
+    const failing = fakeFetch(() => ({ status: 429, body: { error: {} } }));
+    const { db: db2, rpc: rpc2 } = fakeDb(null);
+    const busy = await getProvider(serviceRoleKeySources(db2), userId, {
+      env,
+      fetch: failing.impl,
+    });
+    await expect(busy.generateStructured(request)).rejects.toThrow();
+    expect((rpc2.mock.calls as unknown[][]).map((c) => c[0])).not.toContain(
+      "record_shared_ai_call",
+    );
+  });
+
+  it("a user's own key is never counted against the shared quota", async () => {
+    const own = "AIzaOWNownOWNownOWNownOWNownOWNown0001";
+    const sealed = sealApiKey(own, { userId, provider: "google" }, master);
+    const { impl } = fakeFetch(() => ({
+      body: geminiResponse(JSON.stringify({ title: "Hi", count: 2 })),
+    }));
+    const { db, rpc } = fakeDb({ provider: "google", ...sealed });
+    const provider = await getProvider(serviceRoleKeySources(db), userId, {
+      env,
+      fetch: impl,
+    });
+    await provider.generateStructured(request);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("failing to write the count never fails the call", async () => {
+    const { impl } = fakeFetch(() => ({
+      body: geminiResponse(JSON.stringify({ title: "Hi", count: 2 })),
+    }));
+    const { db } = fakeDb(null);
+    const sources = serviceRoleKeySources(db);
+    const provider = await getProvider(
+      {
+        ...sources,
+        recordSharedCall: async () => {
+          throw new Error("db down");
+        },
+      },
+      userId,
+      { env, fetch: impl },
+    );
+    const { data } = await provider.generateStructured(request);
+    expect(data).toEqual({ title: "Hi", count: 2 });
+  });
+
   it("the worker reads the shared key once per process", async () => {
     const { db, rpc } = fakeDb(null);
     const sources = serviceRoleKeySources(db);

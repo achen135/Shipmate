@@ -2226,6 +2226,72 @@ async function testSharedKey(a: TestUser): Promise<void> {
   }
 }
 
+async function testSharedQuota(a: TestUser): Promise<void> {
+  console.log(
+    "\nshared_ai_calls / shared_ai_quota: members read today's counts, nobody reads or writes the table",
+  );
+
+  await admin.from("shared_ai_calls").delete().neq("id", 0);
+  const worker = await admin.rpc("record_shared_ai_call", {
+    p_model: "gemini-3.8-flash",
+  });
+  eq("the worker (service role) records a call", worker.error, null);
+  const viaMember = await a.client.rpc("record_shared_ai_call", {
+    p_model: "gemini-3.8-flash",
+  });
+  eq("an invited member's session records a call", viaMember.error, null);
+
+  const quota = await a.client.rpc("shared_ai_quota");
+  eq(
+    "an invited member reads today's count per model",
+    JSON.stringify((quota.data ?? []).map((r) => [r.model, Number(r.used)])),
+    JSON.stringify([["gemini-3.8-flash", 2]]),
+  );
+
+  // Old rows don't count, and are pruned by the next record.
+  await admin.from("shared_ai_calls").insert({
+    model: "gemini-3.8-flash",
+    called_at: new Date(Date.now() - 4 * 86_400_000).toISOString(),
+  });
+  await admin.rpc("record_shared_ai_call", { p_model: "gemini-3.8-flash" });
+  const old = await admin
+    .from("shared_ai_calls")
+    .select("id")
+    .lt("called_at", new Date(Date.now() - 3 * 86_400_000).toISOString());
+  eq("calls older than 3 days are pruned", old.data?.length, 0);
+
+  const direct = await a.client.from("shared_ai_calls").select("*");
+  check(
+    "a member can't read the table directly",
+    direct.error !== null || (direct.data ?? []).length === 0,
+  );
+  const forged = await a.client
+    .from("shared_ai_calls")
+    .insert({ model: "gemini-3.8-flash" });
+  check("a member can't insert into the table directly", forged.error !== null);
+
+  const anon = createClient<Database>(url, publishableKey, NO_SESSION);
+  for (const [label, call] of [
+    ["read", anon.rpc("shared_ai_quota")],
+    ["record", anon.rpc("record_shared_ai_call", { p_model: "x" })],
+  ] as const) {
+    const res = await call;
+    check(`a signed-out visitor can't ${label}`, res.error !== null);
+  }
+
+  const outsider = await makeUser("quota-outsider");
+  const notInvited = await outsider.client.rpc("shared_ai_quota");
+  check(
+    "someone signed in but not invited can't read the counts",
+    notInvited.error !== null,
+  );
+  const notInvitedWrite = await outsider.client.rpc("record_shared_ai_call", {
+    p_model: "x",
+  });
+  check("or record a call", notInvitedWrite.error !== null);
+  await admin.from("shared_ai_calls").delete().neq("id", 0);
+}
+
 async function testStructuredResume(a: TestUser, b: TestUser): Promise<void> {
   console.log("\nresumes.content: the structured resume");
 
@@ -2965,6 +3031,7 @@ async function main(): Promise<void> {
     await testKeyFunctions(a, b);
     await testAiMode(a, b);
     await testSharedKey(a);
+    await testSharedQuota(a);
     await testStructuredResume(a, b);
     await testFactBank(a, b);
     await testCompanyResearch(a);

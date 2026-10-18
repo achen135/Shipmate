@@ -28,7 +28,12 @@ import {
   estimateStep,
   formatUsd,
 } from "@/lib/ai/models";
-import { PROVIDER_LABELS, PROVIDERS, type ProviderName } from "@/lib/ai/types";
+import {
+  PROVIDER_LABELS,
+  PROVIDERS,
+  type ProviderName,
+  type SharedQuotaLine,
+} from "@/lib/ai/types";
 import {
   type AiSettingsInput,
   aiSettingsSchema,
@@ -83,6 +88,7 @@ export function AiSettings({
   dailyCap,
   autoTailor,
   usedToday,
+  sharedQuota,
   actions,
 }: {
   savedKey: SavedKey | null;
@@ -90,6 +96,8 @@ export function AiSettings({
   dailyCap: number;
   autoTailor: boolean;
   usedToday: { count: number; cost: number };
+  /** Today's calls on the shared key; null with a key of your own. */
+  sharedQuota: SharedQuotaLine[] | null;
   actions: AiActions;
 }) {
   const [provider, setProvider] = useState<ProviderName>(
@@ -100,6 +108,7 @@ export function AiSettings({
     <div className="flex flex-col gap-6">
       <ModeStatus savedKey={savedKey} mode={mode} setMode={actions.setMode} />
       {mode === "ai" && !savedKey && <OwnKeyNudge />}
+      {mode === "ai" && sharedQuota && <SharedQuota lines={sharedQuota} />}
       <CapForm
         dailyCap={dailyCap}
         autoTailor={autoTailor}
@@ -196,6 +205,37 @@ function OwnKeyNudge() {
           below, with Google Gemini picked.
         </li>
       </ol>
+    </div>
+  );
+}
+
+/**
+ * How much of the shared key's free daily limit is spent, so nobody finds
+ * out by hitting "Tailor this" and being told to wait. Everyone's calls
+ * count, not just yours. Google's day ends at midnight Pacific.
+ */
+function SharedQuota({ lines }: { lines: SharedQuotaLine[] }) {
+  return (
+    <div
+      className="rounded-xl border bg-card p-4 text-sm"
+      data-testid="shared-quota"
+    >
+      <h3 className="font-medium">Shared AI used today</h3>
+      <ul className="mt-2 space-y-1">
+        {lines.map((line) => (
+          <li key={line.label} className="flex justify-between gap-4">
+            <span>{line.label}</span>
+            <span className="tabular-nums">
+              {line.used} of {line.perDay}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2 text-xs text-muted-foreground">
+        Shared by everyone on Shipmate, so the count is everyone&apos;s, not
+        just yours. It resets at midnight Pacific. When Gemini 3.8 Flash runs
+        out, tailoring uses the backup model.
+      </p>
     </div>
   );
 }

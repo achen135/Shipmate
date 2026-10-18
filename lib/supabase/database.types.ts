@@ -671,6 +671,25 @@ export type Database = {
         };
         Relationships: [];
       };
+      shared_ai_calls: {
+        Row: {
+          called_at: string;
+          id: number;
+          model: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          called_at?: string;
+          id?: never;
+          model: string;
+        };
+        Update: {
+          called_at?: string;
+          id?: never;
+          model?: string;
+        };
+        Relationships: [];
+      };
       sources: {
         Row: {
           company_id: string | null;
@@ -1170,6 +1189,7 @@ export type Database = {
         Args: { p_path?: string; p_user_posting_id: string };
         Returns: Json;
       };
+      record_shared_ai_call: { Args: { p_model: string }; Returns: undefined };
       redeem_invite: { Args: { p_code: string }; Returns: string };
       resume_used_for: {
         Args: { p_path?: string; p_user: string; p_user_posting_id: string };
@@ -1215,6 +1235,13 @@ export type Database = {
         }[];
       };
       shared_ai_key: { Args: { p_secret: string }; Returns: string };
+      shared_ai_quota: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          model: string;
+          used: number;
+        }[];
+      };
       tailoring_day_start: {
         Args: Record<PropertyKey, never>;
         Returns: string;

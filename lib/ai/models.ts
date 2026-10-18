@@ -105,6 +105,21 @@ export const SHARED_BACKUP_MODEL: Model = {
 };
 
 /**
+ * The shared key's free-tier requests per day, per model (Google's limits
+ * for a project without billing, checked 2026-10-17; see the Flash-vs-Flash-Lite
+ * note at the top of this file). They reset at midnight Pacific. The AI
+ * settings screen shows today's count against these (shared_ai_quota()).
+ * Models are matched by prefix: Google may answer with a dated variant.
+ */
+export const SHARED_DAILY_LIMITS: readonly {
+  model: Model;
+  perDay: number;
+}[] = [
+  { model: MODELS.google.strong, perDay: 20 },
+  { model: SHARED_BACKUP_MODEL, perDay: 500 },
+];
+
+/**
  * Reasoning effort per tier. Both providers take the same names. The fast
  * tier copies and classifies (resume import), so it doesn't need deep
  * thought; medium keeps an import under about a minute.

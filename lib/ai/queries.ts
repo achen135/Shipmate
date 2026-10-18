@@ -4,7 +4,25 @@ import { formatShortDate } from "@/lib/format/time";
 import { createClient } from "@/lib/supabase/server";
 import { getUsageToday } from "@/lib/tailor/queries";
 
-import type { ProviderName } from "./types";
+import { SHARED_DAILY_LIMITS } from "./models";
+import type { ProviderName, SharedQuotaLine } from "./types";
+
+/**
+ * Today's calls on the shared key against its free daily limits, from
+ * shared_ai_quota() (counts only, nothing about who). Pacific day.
+ */
+export async function getSharedQuota(): Promise<SharedQuotaLine[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("shared_ai_quota");
+  if (error) throw new Error(`shared quota: ${error.message}`);
+  return SHARED_DAILY_LIMITS.map(({ model, perDay }) => ({
+    label: model.label,
+    perDay,
+    used: data
+      .filter((row) => row.model.startsWith(model.id))
+      .reduce((sum, row) => sum + Number(row.used), 0),
+  }));
+}
 
 /**
  * What the AI settings screen shows, as the signed-in user: the key's
@@ -26,6 +44,8 @@ export async function getAiSettings() {
   ]);
   if (key.error) throw new Error(`api key: ${key.error.message}`);
   if (profile.error) throw new Error(`profile: ${profile.error.message}`);
+  // Only people on the shared key see its quota: a key of your own is yours.
+  const sharedQuota = key.data?.provider ? null : await getSharedQuota();
   return {
     savedKey:
       key.data?.provider && key.data.last4 && key.data.created_at
@@ -39,5 +59,6 @@ export async function getAiSettings() {
     dailyCap: profile.data?.daily_cap ?? 10,
     autoTailor: profile.data?.auto_tailor ?? false,
     usedToday,
+    sharedQuota,
   };
 }

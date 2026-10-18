@@ -104,7 +104,37 @@ export type SealedKeySource = (userId: string) => Promise<SealedKey | null>;
 /** Fetches Shipmate's shared Gemini key, or null when none is set up. */
 export type SharedKeySource = () => Promise<string | null>;
 
-export type KeySources = { sealed: SealedKeySource; shared: SharedKeySource };
+/**
+ * Notes one successful call on the shared key (the model that answered), for
+ * the live "X of Y used today" count. Optional: a source without it just
+ * doesn't count.
+ */
+export type SharedCallRecorder = (model: string) => Promise<void>;
+
+export type KeySources = {
+  sealed: SealedKeySource;
+  shared: SharedKeySource;
+  recordSharedCall?: SharedCallRecorder;
+};
+
+/**
+ * The provider, counting each successful call through `record`. Counting is
+ * best effort: a failure to write the count never fails the call, and
+ * nothing but the model name is sent.
+ */
+function countingProvider(
+  provider: AiProvider,
+  record: SharedCallRecorder,
+): AiProvider {
+  return {
+    ...provider,
+    async generateStructured(request) {
+      const result = await provider.generateStructured(request);
+      await record(result.usage.model).catch(() => undefined);
+      return result;
+    },
+  };
+}
 
 /** Worker only: read both keys with the service-role client. */
 export function serviceRoleKeySources(
@@ -112,6 +142,9 @@ export function serviceRoleKeySources(
 ): KeySources {
   let shared: Promise<string | null> | null = null;
   return {
+    recordSharedCall: async (model) => {
+      await db.rpc("record_shared_ai_call", { p_model: model });
+    },
     sealed: async (userId) => {
       const { data, error } = await db
         .from("api_keys")
@@ -155,10 +188,13 @@ export async function getProvider(
 
   const shared = await sources.shared();
   if (!shared) throw new NoKeyError();
-  return createProvider("google", shared, {
+  const provider = createProvider("google", shared, {
     env,
     fetch: options.fetch,
     shared: true,
     backup: options.sharedBackup,
   });
+  return sources.recordSharedCall
+    ? countingProvider(provider, sources.recordSharedCall)
+    : provider;
 }

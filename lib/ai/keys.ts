@@ -166,6 +166,9 @@ async function appKeySources(): Promise<KeySources> {
   const supabase = await createClient();
   const secret = serverSecret();
   return {
+    recordSharedCall: async (model) => {
+      await supabase.rpc("record_shared_ai_call", { p_model: model });
+    },
     sealed: async () => {
       const { data, error } = await supabase.rpc("sealed_api_key", {
         p_secret: secret,

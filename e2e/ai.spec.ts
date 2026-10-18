@@ -68,7 +68,9 @@ test("add an Anthropic key, see it as 'ending ####', remove it", async ({
   await finishOnboarding(user.id);
   await signIn(page, user, "/profile/ai");
 
-  await expect(page.getByRole("heading", { name: "AI" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "AI", exact: true }),
+  ).toBeVisible();
   await expect(page.getByTestId("ai-mode")).toHaveText("AI mode is on");
   await expect(
     page.getByText(/Using Shipmate's shared free AI \(Google Gemini\)/),
